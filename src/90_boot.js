@@ -14,6 +14,7 @@ function startGame(fresh) {
     P.home = Object.assign({ color: 'mint', slots: Array(10).fill(null) }, sv.P.home); if (!Array.isArray(P.stash)) P.stash = [];
     BOSS.lvl = sv.boss || 1;
   } else { newPlayer(); try { localStorage.removeItem(SAVE_KEY); } catch (e) { } }
+  funOnStart();
   syncQuest(true);   // старі збереження: квест міг «застрягнути», бо острови відкрили раніше
   calcStats(); pl.hp = S.maxHP; pl.st = S.maxSt; pl.charges = S.charges;
   hero = buildPlayer(); refreshLook();
@@ -39,6 +40,7 @@ buildWorld();
 buildSky(); buildHomeBase();
 mergeStatics();
 initLampLights();
+initFun();
 applyGfx(false);
 requestAnimationFrame(frame);
 

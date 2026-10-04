@@ -26,7 +26,7 @@ function netConnect() {
 }
 function netSend(o) { if (NET.on && NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(o)); }
 function netMsg(m) {
-  if (netAccountMsg(m)) return;
+  if (netAccountMsg(m) || funNetMsg(m)) return;
   if (m.t === 'hello') { NET.id = m.id; m.players.forEach(p => { addRemote(p.id, p.name); if (p.s) applyState(p.id, p.s, true); }); toast(`👥 Ти в мережі як <b>${escapeHTML(myName())}</b>. Онлайн: ${m.players.length + 1}. Enter — чат.`); refreshOnline(); }
   else if (m.t === 'join') { addRemote(m.id, m.name); toast(`👋 <b>${escapeHTML(m.name)}</b> зайшов у гру`); sfx('waypoint'); refreshOnline(); }
   else if (m.t === 'leave') { const r = NET.players[m.id]; if (r) toast(`🚪 ${escapeHTML(r.name)} вийшов`); dropRemote(m.id); refreshOnline(); }
@@ -74,6 +74,7 @@ function applyState(id, s, snap) {
   r.act = s.act || ''; r.tg = s.tg || ''; r.hp = s.hp == null ? 100 : s.hp;
   const st = actLabel(r.act, r.tg);
   const html = `<b>${escapeHTML(r.name)}</b> · ${r.lvl}${st ? `<small>${st}</small>` : ''}<i class="nhp"><i style="width:${r.hp}%"></i></i>`;
+  funRemoteState(r);
   if (r.tagHTML !== html) { r.tag.innerHTML = html; r.tagHTML = html; r.tag.classList.toggle('fight', r.act === 'atk' || r.act === 'boss'); }
 }
 function updRemotes(dt) {

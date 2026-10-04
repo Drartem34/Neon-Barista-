@@ -417,6 +417,7 @@ function playerInSafe() { return dist2(pl.x, pl.z, 0, 0) < ISLMAP.hub.r + .3 || 
 
 function updMonster(m, dt) {
   const p = m.parts;
+  if (m.carried) { syncMonster(m, dt); return; }
   if (m.state === 'fall') {
     m.vy -= 25 * dt; m.y += m.vy * dt; m.x += m.vx * dt; m.z += m.vz * dt;
     p.root.rotation.x += dt * 3;
@@ -450,7 +451,7 @@ function updMonster(m, dt) {
         }
       }
     }
-    const k = Math.exp(-5 * dt); m.vx *= k; m.vz *= k;
+    const k = Math.exp(-(onSyrup(m.x, m.z) ? 1.3 : 5) * dt); m.vx *= k; m.vz *= k;
     const sink = onGround(m.x, m.z, .1) && !m.T.dummy && isWet(terrainAt(m.x, m.z)) || (terrainAt(m.x, m.z) === 'shallow' && !m.T.shallow && !m.T.dummy && false);
     if (!onGround(m.x, m.z, .1) || sink) {
       m.state = 'fall'; m.vy = sink ? -1 : 3; if (sink) burst(m.x, 0, m.z, '#BDEFFF', 16, 3, .7, 3);
@@ -631,6 +632,7 @@ function breakProp(p) {
     if (dist2(pl.x, pl.z, p.x, p.z) < 2) hurtPlayer(8);
     ftext(p.x, 1.8, p.z, 'БАБАХ! Звіт розлетівся', 'crit');
   }
+  if (p.type === 'espmachine') funBoom(p.x, p.z, 4.2, true);
   if (p.type === 'cooler') {
     const R = 3 * big; ringFX(p.x, p.z, R, '#9FD8F5', .7); burst(p.x, .5, p.z, '#9FD8F5', 18, 4, 1, 2); sfx('splash', p.x, p.z);
     for (const m of MON) if (!m.calm && dist2(m.x, m.z, p.x, p.z) < R) { m.slow = 3; m.stun = Math.max(m.stun, .4); }
@@ -743,6 +745,7 @@ function attack() {
   if (pl.dead || paused || pl.atkCd > 0 || pl.pending || pl.jump || pl.falling) return;
   if (isWet(pl.terr)) { if (!pl.wetWarn || gameTime - pl.wetWarn > 2) { ftext(pl.x, 1.4, pl.z, 'У воді не помахаєш — кидай каву!', 'bad'); pl.wetWarn = gameTime; } return; }
   if (fishing || pl.dig) return;
+  if (pl.carry) { throwCarried(); pl.atkCd = .4; return; }
   const it = eqItem('hand1'), h = handStats(it);
   const cost = 2 + h.wt * 1.4;
   if (pl.st < cost) { ftext(pl.x, 2.3, pl.z, 'Видихся…', 'bad'); pl.atkCd = .3; return; }
@@ -768,6 +771,7 @@ function resolveHit(pd) {
   const big = pd.charged ? 2.2 : pd.fin ? 1.4 : 1;
   const kbM = (hasSk('r2') ? 1.35 : 1) * (pd.charged ? 2 : pd.fin ? 1.5 : 1);
   const counter = pl.counterT > 0; if (counter) pl.counterT = 0;
+  if (h.fx === 'hook') { fireHook(h); wear(it, 1); return; }
   if (h.style === 'shot') {
     const n = pd.charged ? 3 : 1;
     for (let k = 0; k < n; k++) { const a = pl.face + (k - (n - 1) / 2) * .18; spawnProj({ x: pl.x, z: pl.z, y: 1.1, vx: Math.sin(a) * 18, vz: Math.cos(a) * 18, life: h.rng / 18, r: .45, from: 'player', dmg: h.dmg * S.dmgM * big, kb: h.kb * kbM, crit: counter ? 1 : h.crit, kind: h.fx === 'pierce' ? 'banana' : 'staple', pierce: h.fx === 'pierce' }); }
@@ -805,6 +809,7 @@ function resolveHit(pd) {
   activeBosses().forEach(b => hitOne(b, true));
   if (hitWeakPoints(range, arc, h.dmg * S.dmgM * big)) hitAny = true;
   for (const p of PROPS) if (p.alive && inArc(pl.x, pl.z, pl.face, p.x, p.z, range + p.r, arc)) { damageProp(p, h.dmg * S.dmgM, 'hit'); hitAny = true; }
+  if (funMelee(range, arc, h, kbM)) hitAny = true;
   if (hitAny) {
     addCombo(); hitStop(pd.charged ? .11 : pd.fin || anyCrit ? .07 : .035);
     if (pd.fin || pd.charged) sfx('finisher');
@@ -853,6 +858,7 @@ function useDrink() {
   if (D.self) {
     P.drinks[id]--;
     if (D.self === 'speed') { pl.buffs.speed = 8; ftext(pl.x, 2.4, pl.z, '+40% швидкості', 'gold'); }
+    if (D.self === 'jamaica') funJamaica();
     if (D.self === 'heal') { const h = Math.round(45 * S.effM); pl.hp = Math.min(S.maxHP, pl.hp + h); ftext(pl.x, 2.4, pl.z, '+' + h + ' ❤', 'calm'); }
     burst(pl.x, 1.5, pl.z, '#C2F7E3', 10, 2, .6, 2); sfx('drink'); refreshHUD(); return;
   }
@@ -870,7 +876,7 @@ function useDrink() {
   } else if (near) {
     pl.face = angTo(pl.x, pl.z, near.x, near.z);
     ftext(near.x, 2.8, near.z, 'З рук у руки!', 'gold');
-    applyCalm(near, D.calm * artM, false, true, id); if (D.freeze) freezeM(near, 2);
+    applyCalm(near, D.calm * artM, false, true, id); if (D.freeze) freezeM(near, 2); if (D.chill) chillMonster(near);
     if (D.aoe || hasSk('b4')) splash(near.x, near.z, D, near);
   } else {
     aimFace();
@@ -952,7 +958,7 @@ function updProj(dt) {
       if (p.kind === 'cup') {
         const D = DRINK[p.drink];
         if (hitB) { const mul = bossDrinkMul(hitB, D, p.drink); applyCalm(hitB, D.calm * mul * (p.art || 1), true); if (mul < 1) ftext(hitB.x, 5, hitB.z, hitB === BOSS ? 'Тільки гігантський раф!' : 'Не той напій…', 'bad'); done = true; }
-        else if (hitM) { applyCalm(hitM, D.calm * (p.art || 1), false, false, p.drink); if (D.freeze) freezeM(hitM, 2); if (D.aoe || hasSk('b4')) splash(hitM.x, hitM.z, D, hitM); done = true; }
+        else if (hitM) { applyCalm(hitM, D.calm * (p.art || 1), false, false, p.drink); if (D.freeze) freezeM(hitM, 2); if (D.chill) chillMonster(hitM); if (D.aoe || hasSk('b4')) splash(hitM.x, hitM.z, D, hitM); done = true; }
         else if (done) { burst(p.x, .3, p.z, '#FFE8D6', 8, 2, .5, 1); if (D.aoe || hasSk('b4')) splash(p.x, p.z, D, null); }
         if (done) sfx('splash', p.x, p.z);
       } else if (p.kind === 'staple') {

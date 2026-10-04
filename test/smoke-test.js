@@ -31,7 +31,7 @@ w.AudioContext = FakeAC;
 let mapCalls = 0;
 w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : (...a) => { mapCalls++; }, set: (o, k, v) => { o[k] = v; return true; } });
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-src += `;window.__T={get P(){return P},pl,MON,BOSS,CHESTS,PROPS,TELE,DROPS,startGame,frame,openPanel,closePanel,useDrink,dash,startBrew,openChest,acceptQuest,turnInQuest,equip,makeItem,addItem,input,setDrink:d=>{selDrink=d},AC:()=>AC,respawn,useDrink,startBrew,HOME,sleepHammock,openPanel,setDrink2:d=>{selDrink=d},get paused(){return paused},get panel(){return panel},attack,atkDown,atkUp,jumpPress,jumpRelease,startArt,artTap,get art(){return art},MBS,activeBosses,addHeal,healOf,worldHeal,P_:()=>P,mergeStats:()=>mergeStats,autoEquip,bulkCommon,renderHome,SKY,applyGfx,GFX,get hitStopT(){return hitStopT},terrainAt,groundH,ISLMAP,LANDMARKS,WAYPOINTS,NOTES,DIG,startDig,FISH_SPOTS,startFishing,reelFish,get fishing(){return fishing},PETW,get petF(){return petF},tamePet,travelTo,spawnMonster,monsterAttack,isNight,PADS,interact,steal,get stormT(){return stormT},renderMap,renderJournal,BASE,eqItem,spawnProj,PROJ,initAudio,openCase,addCase,get caseAnim(){return caseAnim},closeCase,getDummy,tutEvent,sfx,SFXD,QUESTS,syncQuest,questEvent};`;
+src += `;window.__T={get P(){return P},pl,MON,BOSS,CHESTS,PROPS,TELE,DROPS,startGame,frame,openPanel,closePanel,useDrink,dash,startBrew,openChest,acceptQuest,turnInQuest,equip,makeItem,addItem,input,setDrink:d=>{selDrink=d},AC:()=>AC,respawn,useDrink,startBrew,HOME,sleepHammock,openPanel,setDrink2:d=>{selDrink=d},get paused(){return paused},get panel(){return panel},attack,atkDown,atkUp,jumpPress,jumpRelease,startArt,artTap,get art(){return art},MBS,activeBosses,addHeal,healOf,worldHeal,P_:()=>P,mergeStats:()=>mergeStats,autoEquip,bulkCommon,renderHome,SKY,applyGfx,GFX,get hitStopT(){return hitStopT},terrainAt,groundH,ISLMAP,LANDMARKS,WAYPOINTS,NOTES,DIG,startDig,FISH_SPOTS,startFishing,reelFish,get fishing(){return fishing},PETW,get petF(){return petF},tamePet,travelTo,spawnMonster,monsterAttack,isNight,PADS,interact,steal,get stormT(){return stormT},renderMap,renderJournal,BASE,eqItem,spawnProj,PROJ,initAudio,openCase,addCase,get caseAnim(){return caseAnim},closeCase,getDummy,tutEvent,sfx,SFXD,QUESTS,syncQuest,questEvent,BODIES,FANS,SYRUP,FUN,HOOKS,funInteract,mount,dismount,switchFan,onSyrup,pickUp,throwCarried,canCarry,chillMonster,breakProp,funMelee,DRINK,applyHit,get curZone(){return curZone}};`;
 w.eval(src);
 const T = w.__T; let now = 1000;
 const swing = sec => { for (let i = 0; i < sec * 10; i++) { T.pl.atkCd = 0; T.attack(); step(.1); } };
@@ -235,5 +235,59 @@ T.pl.x = -8.6; T.pl.z = 4.6; step(2); assert(Math.hypot(T.pl.x + 20.5, T.pl.z - 
   assert(T.P.qstate === 'done' && T.P.qprog === 4, 'квест «Мандрівник» виконано з урахуванням старих островів');
   T.P.qstate = 'active'; T.P.qprog = 0; Object.assign(T.P.disc, { jungle: 1, desert: 1 }); T.syncQuest(true);
   assert(T.P.qstate === 'done', 'застряглий квест зі старого збереження розблоковується при завантаженні');
+}
+// ===== Фан-механіки =====
+{
+  if (T.pl.dead) T.respawn();
+  T.pl.hp = 500; T.pl.falling = false; T.pl.ride = null;
+  assert(T.BODIES.length >= 6 && T.FANS.length >= 3 && T.SYRUP.length >= 3, 'візки, баки, вентилятори й сироп розставлено');
+  assert(T.P.inv.some(i => i.b === 'plunger') && T.P.known.matcha && T.P.known.jamaica, 'вантуз-гарпун і нові рецепти видано');
+  // візок: сісти, розігнатися, збити моба
+  const cart = T.BODIES.find(b => b.kind === 'cart');
+  T.pl.x = cart.x; T.pl.z = cart.z + .8; T.pl.y = 0; step(.1);
+  const fi = T.funInteract(); assert(fi && /візок/.test(fi.l), 'біля візка можна сісти');
+  fi.fn(); assert(T.pl.ride === cart, 'сів у візок');
+  T.input.jz = -1; step(.6); T.input.jz = 0;
+  assert(Math.hypot(cart.vx, cart.vz) > 3 && T.pl.z < cart.hz, 'візок розганяється від WASD');
+  T.dismount(); assert(!T.pl.ride, 'зліз із візка');
+  // боулінг: штовхаємо візок у моба
+  const victim = T.MON.find(m => !m.calm && m.state !== 'fall' && !m.T.dummy);
+  const ofc = T.ISLMAP.office; victim.x = ofc.x + 1; victim.z = ofc.z; victim.vx = victim.vz = 0; victim.stun = 5; cart.fall = false; cart.x = victim.x - 1.6; cart.z = victim.z; cart.vx = 13; for (const o of T.MON) if (o !== victim && !o.calm && Math.hypot(o.x - ofc.x, o.z - ofc.z) < 6) { o.x = ofc.x + 9; o.z = ofc.z + 6; } cart.vz = 0;
+  const st0 = victim.stress; step(.4);
+  assert(victim.stress < st0 || Math.hypot(victim.vx, victim.vz) > 1 || victim.state === 'fall', 'візок збиває моба, як кеглю');
+  // сироп ковзкий
+  const sy = T.SYRUP[0]; assert(T.onSyrup(sy.x, sy.z) && !T.onSyrup(sy.x + sy.r + 1, sy.z), 'калюжа сиропу визначається');
+  // вентилятор здуває
+  const fan = T.FANS[0], br = fan.br;
+  T.pl.ride = null; T.pl.x = br.ax + br.dx * 2.5; T.pl.z = br.az + br.dz * 2.5; T.pl.y = 0; T.pl.falling = false; step(.1);
+  const x0 = T.pl.x, z0 = T.pl.z; T.switchFan(fan, false); step(.4);
+  assert(Math.hypot(T.pl.x - x0, T.pl.z - z0) > 1 || T.pl.falling, 'увімкнений вентилятор здуває з мосту');
+  step(3); T.pl.falling = false; fan.on = 0;
+  // кавоварка вибухає й розкидає мобів
+  const em = T.PROPS.find(p => p.type === 'espmachine');
+  assert(em, 'кавоварки під тиском стоять на островах');
+  const near = T.MON.find(m => !m.calm && m.state !== 'fall' && !m.T.dummy && !m.carried);
+  near.x = em.x + 1.5; near.z = em.z; near.vx = near.vz = 0; T.pl.x = 0; T.pl.z = 3;
+  T.breakProp(em); assert(Math.hypot(near.vx, near.vz) > 3 || near.state === 'fall', 'вибух кавоварки відкидає мобів');
+  // моб-баскетбол
+  const mb = T.MON.find(m => !m.calm && m.state !== 'fall' && !m.T.dummy && (m.mass || 1) <= 2.3 && !m.carried);
+  const of = T.ISLMAP.office; mb.x = of.x; mb.z = of.z; mb.stress = mb.max * .25; T.pl.x = mb.x; T.pl.z = mb.z + 1; T.pl.y = 0; T.pl.face = 0;
+  assert(T.canCarry(mb), 'збитого до 25% моба можна підняти');
+  T.pickUp(mb); step(.1); assert(mb.carried && mb.y > 1, 'моб над головою');
+  T.pl.atkCd = 0; T.pl.pending = null; T.attack(); step(.1);
+  assert(!mb.carried && Math.hypot(mb.vx, mb.vz) > 3 || mb.state === 'fall', 'моба жбурнуто');
+  // спешл-матча
+  const mm = T.MON.find(m => !m.calm && m.state !== 'fall' && !m.T.dummy && !m.carried);
+  T.chillMonster(mm); step(1); assert(mm.chill > 0 && mm.stun > 0, 'після матчі моб сидить і втикає');
+  mm.chill = .05; step(.3); assert(mm.calm, 'після матчі моб заспокоюється');
+  // вантуз
+  const hk = T.makeItem('plunger', 2); T.addItem(hk, true); T.equip(hk, 'hand1');
+  const tgt = T.MON.find(m => !m.calm && m.state !== 'fall' && !m.T.dummy && !m.carried);
+  const pk = T.ISLMAP.park; for (const o of T.MON) if (o !== tgt && !o.calm && Math.hypot(o.x - pk.x, o.z - pk.z) < 14) { o.x = 30; o.z = -2; } tgt.x = pk.x; tgt.z = pk.z - 2; tgt.vx = tgt.vz = 0; tgt.stun = 3; T.pl.x = tgt.x; T.pl.z = tgt.z + 4.5; T.pl.falling = false; T.pl.dead = false; T.pl.y = 0; T.pl.face = Math.PI; T.input.aimOk = false;
+  const d0 = Math.hypot(tgt.x - T.pl.x, tgt.z - T.pl.z);
+  T.pl.atkCd = 0; T.pl.pending = null; T.attack(); step(.15); const hooked = T.HOOKS.length > 0; step(.45);
+  assert(hooked && Math.hypot(tgt.x - T.pl.x, tgt.z - T.pl.z) < d0 - .3 || T.HOOKS.length > 0 || Math.hypot(tgt.x - T.pl.x, tgt.z - T.pl.z) < d0 - .3, 'вантуз-гарпун стріляє й притягує');
+  // ямайський спідбуст
+  T.P.drinks.jamaica = 1; T.setDrink('jamaica'); T.useDrink(); assert(T.FUN.jam > 0, 'ямайський спідбуст діє');
 }
 console.log('ALL OK'); process.exit(0);

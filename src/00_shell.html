@@ -157,6 +157,14 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .bubble.mad{background:#FFE1E5}
 #vignette{position:fixed;inset:0;pointer-events:none;transition:box-shadow .2s}
 #vignette.hit{box-shadow:inset 0 0 140px rgba(255,90,120,.55)}
+#funfx{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .8s}
+#funfx.matcha{opacity:1;background:radial-gradient(ellipse at center,rgba(127,224,138,.18) 0%,rgba(80,170,90,.55) 70%,rgba(60,140,70,.75) 100%);-webkit-backdrop-filter:blur(1.5px) saturate(1.4) hue-rotate(25deg);backdrop-filter:blur(1.5px) saturate(1.4) hue-rotate(25deg)}
+#funfx.scald{opacity:1;box-shadow:inset 0 0 160px rgba(255,120,60,.55);animation:scald .3s infinite alternate}
+#funfx.jam{opacity:1;background:linear-gradient(120deg,rgba(255,80,80,.12),rgba(255,220,80,.12),rgba(80,200,110,.14))}
+@keyframes scald{from{transform:translateX(-3px)}to{transform:translateX(3px)}}
+body.jamwob #cv{animation:jamwob 1.6s ease-in-out infinite}
+@keyframes jamwob{0%,100%{transform:rotate(-1.6deg) scale(1.04)}50%{transform:rotate(1.6deg) scale(1.06) skewX(2deg)}}
+@media (prefers-reduced-motion: reduce){body.jamwob #cv,#funfx.scald{animation:none}}
 #vignette.slow{box-shadow:inset 0 0 160px rgba(143,217,192,.5)}
 
 #hud{position:fixed;inset:0;pointer-events:none}
@@ -393,6 +401,7 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
 <canvas id="cv" tabindex="0" aria-label="Ігровий світ"></canvas>
 <div id="fx-layer"></div>
 <div id="vignette"></div>
+<div id="funfx"></div>
 <div id="fade"></div>
 
 <div id="hud" hidden>

@@ -24,7 +24,7 @@ async function client(name) {
   w.console.warn = () => { }; w.fetch = (u, o) => fetch(new URL(u, `http://127.0.0.1:${PORT}/`), o); w.setInterval = () => 0;
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
   let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-  src += ';window.__T={get P(){return P},pl,NET,startGame,frame,sendChat,giftCoffee,nearRemote,setAcct,save,atk:attack,get ACCT(){return ACCT}};';
+  src += ';window.__T={get P(){return P},pl,NET,startGame,frame,sendChat,giftCoffee,nearRemote,setAcct,save,atk:attack,get ACCT(){return ACCT},FUN,useDrink,input,equip,makeItem,addItem,setDrink:d=>{selDrink=d}};';
   w.eval(src);
   const reg = await (await fetch(`http://127.0.0.1:${PORT}/api/register`, { method: 'POST', body: JSON.stringify({ login: name, pass: 'pass-' + name }) })).json();
   if (!reg.ok) throw new Error('register ' + name + ': ' + reg.e);
@@ -69,6 +69,14 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
   b.pl.atkCd = 0; b.pl.x = 0; b.pl.z = 3; b.atk(); await tick([a, b], .4);
   const rb = Object.values(a.NET.players)[0];
   assert(rb.act === 'atk', 'інші гравці бачать, що гравець атакує');
+  // --- тролінг: кава в обличчя й удар шваброю
+  a.pl.x = 2; a.pl.z = 2.5; b.pl.x = 4.5; b.pl.z = 2.5; b.pl.kx = b.pl.kz = 0; await tick([a, b], .5);
+  a.P.drinks.latte = 3; a.setDrink('latte'); a.input.aimOk = true; a.input.ax = 4.5; a.input.az = 2.5; a.useDrink(); await tick([a, b], .6);
+  assert(b.FUN.scald > 0, 'гаряча кава в тімейта — він «ошпарений»');
+  b.pl.x = 2.9; await tick([a, b], .4);
+  const mop = a.makeItem('mop', 2); a.addItem(mop, true); a.equip(mop, 'hand1'); a.pl.atkCd = 0; a.atk(); await tick([a, b], .15);
+  const kick = Math.hypot(b.pl.kx || 0, b.pl.kz || 0); const bx = b.pl.x; await tick([a, b], .4);
+  assert(kick > 3 || Math.abs(b.pl.x - bx) > .5 || b.pl.x > 3.4, 'удар шваброю відкидає тімейта');
   // --- вихід гравця
   a.NET.wanted = false; a.NET.ws.close(); await tick([b], 1);
   assert(Object.keys(b.NET.players).length === 0, 'вихід гравця обробляється');

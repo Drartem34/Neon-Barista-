@@ -32,16 +32,17 @@ function updPlayer(dt) {
     }
     syncHero(dt); return;
   }
+  if (pl.ride) { updRide(dt); syncHero(dt); return; }
   if (pl.lock > 0) { pl.lock -= dt; pl.moving = false; syncHero(dt); return; }
   if (pl.pending) { pl.pending.t -= dt; if (pl.pending.t <= 0) { const pd = pl.pending; pl.pending = null; resolveHit(pd); } }
 
-  let mx = input.mx, mz = input.mz; const ml = Math.hypot(mx, mz);
+  let [mx, mz] = funInput(input.mx, input.mz, dt); const ml = Math.hypot(mx, mz);
   if (ml > 1) { mx /= ml; mz /= ml; }
   if (fishing) { mx = mz = 0; }
   const storm = stormT > 0 && curZone && curZone.biome === 'desert' && !S.fx.has('shade');
-  let spd = S.move * (pl.buffs.speed > 0 ? 1.4 : 1) * (pl.slowT > 0 ? .6 : 1) * (P.pet === 'penguin' ? 1.12 : 1) * (storm ? .85 : 1) * (pl.chargeSlow ? .55 : 1) * (pl.gliding ? 1.2 : 1);
+  let spd = S.move * (pl.buffs.speed > 0 ? 1.4 : 1) * (pl.slowT > 0 ? .6 : 1) * (P.pet === 'penguin' ? 1.12 : 1) * (storm ? .85 : 1) * (pl.chargeSlow ? .55 : 1) * (pl.gliding ? 1.2 : 1) * funSpeedMul();
   if (isWet(terr)) spd *= S.fx.has('swim') ? .95 : .56; else if (terr === 'shallow') spd *= .78;
-  const slide = terr === 'ice' && !S.fx.has('grip') && P.pet !== 'penguin';
+  const slide = (terr === 'ice' && !S.fx.has('grip') && P.pet !== 'penguin') || onSyrup(pl.x, pl.z);
   pl.vx = pl.vx || 0; pl.vz = pl.vz || 0;
   if (pl.dashT > 0) {
     pl.dashT -= dt;
@@ -186,6 +187,7 @@ function updCrowd(dt) {
 let interactNow = null;
 function getInteract() {
   if (pl.dead || pl.falling || pl.jump) return null;
+  const fi = funInteract(); if (fi) return fi;
   if (dist2(pl.x, pl.z, GIVER.x, GIVER.z) < 2.6) return { l: P.qstate === 'done' ? 'Здати квест Маріанні' : P.qstate === 'offer' ? 'Маріанна: новий квест' : 'Поговорити з Маріанною', fn: () => openPanel('quest') };
   if (fishing) return { l: fishing.phase === 'done' ? 'Закинути ще' : 'Тягнути', fn: reelFish };
   for (const c of CHESTS) if (!c.fall && chestReady(c) && dist2(pl.x, pl.z, c.x, c.z) < 2 && Math.abs(pl.y - (c.y || 0)) < 1.2) return { l: c.loot ? 'Відкрити скриню орієнтира' : 'Відкрити скриню', fn: () => openChest(c) };
@@ -534,6 +536,7 @@ function renderHelp() {
   <p><b>Предмети.</b> Шість рідкостей від Common до Mythic. Кожна річ має шкоду, швидкість, дальність, радіус, крит, відкидання, міцність, вагу. Зламані речі йдуть на крафт.</p>
   <p><b>Дослідження.</b> Світ має моря, сніг, джунглі й пустелю. Шукай орієнтири, записки, блискучі хрестики (копай скарби), рибаль на пірсі й ополонці, приручай улюбленців кавою. Унікальна зброя й броня — тільки в скринях орієнтирів, у розкопках і на дні. Кавові точки ☕ дають швидке переміщення. Вночі вороги сонні, а деяка риба клює тільки в темряві.</p>
   <p><b>Вода й лід.</b> У глибокій воді пливеш і витрачаєш витривалість, бити не можна. На льоду ковзаєш. Ворогів можна збити у воду.</p>
+  <p><b>Хаос і тролінг.</b> 🛒 Візки й крісла (F — сісти) слизькі: розганяйся й збивай мобів як кеглі, але на поворотах вилітаєш у прірву. 🍯 Калюжі сиропу ковзкі. ☕ Кавоварки під тиском вибухають від удару. 🌀 Вентилятори на мостах (F) здувають усіх у безодню. 🪠 Вантуз-гарпун притягує мобів, баки й тімейтів. 🏀 Збитого до 25% моба можна підняти (F) і жбурнути (ЛКМ). Онлайн: швабра відкидає друга, кинута кава його «ошпарює», 🍵 Спешл-Матча (з 🍀) — зелений туман і гумове керування.</p>
   <p><b>Рейд.</b> CEO-психопат на Вежі. Звичайні напої діють на 30%. Звари «Гігантський раф» на барі (рецепт дає квест «Квартальний звіт»).</p>
   <div class="keys">${IS_TOUCH ? '<kbd>Джойстик</kbd><span>рух</span><kbd>Удар</kbd><span>тисни — серія, утримуй — заряджений удар</span><kbd>Стрибок</kbd><span>утримуй у повітрі — плануй</span><kbd>Ривок</kbd><span>ухиляння</span><kbd>Подати</kbd><span>напій (вибери на панелі)</span><kbd>Дія</kbd><span>взаємодія</span><kbd>⇄</kbd><span>змінити руку</span>' : '<kbd>WASD</kbd><span>рух</span><kbd>ЛКМ</kbd><span>удар; швидкі удари поспіль — серія з фінішером</span><kbd>ПКМ / Q</kbd><span>кинути напій (впритул — подати з рук у руки)</span><kbd>1–6</kbd><span>вибір напою</span><kbd>E</kbd><span>інвентар</span><kbd>F</kbd><span>взаємодія: бар, верстак, скрині, квести</span><kbd>X</kbd><span>змінити руку</span><kbd>Пробіл</kbd><span>стрибок; утримуй у повітрі — плануй</span><kbd>Shift</kbd><span>ривок</span><kbd>Утримуй ЛКМ</kbd><span>заряджений удар</span><kbd>M / J / H</kbd><span>мапа / щоденник / острів</span><kbd>I / B / K / C</kbd><span>речі / кейси / навички / крафт</span><kbd>Esc</kbd><span>закрити меню</span>'}</div>
   <div class="btns" style="margin-top:12px"><button class="btn" data-act="tut">Пройти навчання ще раз</button><button class="btn alt" data-act="reset">${newConfirm ? 'Точно? Натисни ще раз' : 'Почати гру заново'}</button></div>`;
@@ -651,7 +654,7 @@ function frame(now) {
     MON.slice().forEach(m => { if (!m.calm && m.state !== 'fall' && dist2(m.x, m.z, pl.x, pl.z) > 48) { if (m.bar) m.bar.visible = false; if (m.wantS) m.wantS.visible = false; return; } if (!m.calm && m.state !== 'fall' && m.bar) m.bar.visible = true; updMonster(m, dt); });
     updMinibosses(dt); updWarn(dt);
     updBoss(dt); updProj(dt); updTele(dt); updProps(dt); updNodes(dt); updChests(dt); updDrops(dt);
-    updSpawns(dt); updEvents(dt); updBrew(dt); updCrowd(dt); updGiver(); updInteract(); updDummy(dt); updTut(dt); updExplore(dt); updRemotes(dt);
+    updSpawns(dt); updEvents(dt); updBrew(dt); updCrowd(dt); updGiver(); updInteract(); updDummy(dt); updTut(dt); updExplore(dt); updRemotes(dt); updFun(dt);
   }
   updParticles(live ? dt : 0); updFX(live ? dt : 0); updLights(rdt);
   updWorldAnim(rdt); updCamera(rdt); updOverlays(live ? rdt : 0); updCase(rdt); updArt(rdt); updFps(rdt);

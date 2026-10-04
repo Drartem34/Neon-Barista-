@@ -193,11 +193,12 @@ class Tunnel:
 
 # ===================== ГРАВЦІ =====================
 class Player:
-    __slots__ = ('id', 'name', 'writer', 'state', 'joined', 'msgs', 'last', 'ip', 'login')
+    __slots__ = ('id', 'name', 'writer', 'state', 'joined', 'msgs', 'last', 'ip', 'login', 'fx')
 
     def __init__(self, pid, writer, ip):
         self.id, self.writer, self.ip = pid, writer, ip
         self.login = None
+        self.fx = []
         self.name = f'Бариста-{pid}'
         self.state = {}
         self.joined = time.time()
@@ -357,6 +358,25 @@ async def handle_msg(p: Player, m):
         e = m.get('e')
         if e in ('wave', 'dance', 'cheer', 'sit'):
             await broadcast({'t': 'emote', 'id': p.id, 'e': e}, skip=p)
+    elif t in ('hit', 'wfx'):
+        # Фізичні жарти між гравцями: кава в обличчя, удар шваброю, вантуз, вибух, вентилятор.
+        now = time.time()
+        p.fx = [x for x in p.fx if now - x < 1]
+        if len(p.fx) >= 12:
+            return
+        p.fx.append(now)
+        k = m.get('k')
+        out = {'t': t, 'from': p.id, 'name': p.name, 'k': k}
+        for key in ('x', 'z', 'a', 'f', 'i'):
+            v = m.get(key)
+            if isinstance(v, (int, float)) and abs(v) < 1e4:
+                out[key] = round(float(v), 2)
+        if t == 'hit':
+            to = PLAYERS.get(m.get('to'))
+            if to and to is not p and k in ('coffee', 'matcha', 'shove', 'pull', 'blast'):
+                await send(to, out)
+        elif k in ('fan', 'boom'):
+            await broadcast(out, skip=p)
     elif t == 'gift':
         to = PLAYERS.get(m.get('to'))
         d = m.get('d')

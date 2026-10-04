@@ -241,7 +241,7 @@ function renderArt() {
   const tg = $('#arttarget');
   if (t && !art.done) { tg.style.display = ''; tg.style.background = `conic-gradient(from ${t.a - t.w / 2}rad, #FF9AB6 0 ${t.w}rad, transparent ${t.w}rad)`; } else tg.style.display = 'none';
   $('#artheart').style.opacity = art.hits / 3;
-  $('#artgo').textContent = art.done ? 'Варити' : (IS_TOUCH ? 'Лити!' : 'Лити! (E / Пробіл)');
+  $('#artgo').textContent = art.done ? 'Варити' : (IS_TOUCH ? 'Лити!' : 'Лити! (F / Пробіл)');
 }
 function updArt(rdt) {
   if (!art || art.done) return;

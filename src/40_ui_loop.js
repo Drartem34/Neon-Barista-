@@ -203,7 +203,7 @@ function getInteract() {
 function updInteract() {
   const it = getInteract();
   const pr = $('#prompt');
-  if (it) { pr.hidden = false; const t = (IS_TOUCH ? 'Дія — ' : 'E — ') + it.l; if (pr.textContent !== t) pr.textContent = t; }
+  if (it) { pr.hidden = false; const t = (IS_TOUCH ? 'Дія — ' : 'F — ') + it.l; if (pr.textContent !== t) pr.textContent = t; }
   else pr.hidden = true;
   interactNow = it;
 }
@@ -221,7 +221,7 @@ addEventListener('keydown', e => {
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(c)) e.preventDefault();
   if (art) { e.preventDefault(); if (['KeyE', 'Space', 'Enter', 'KeyF'].includes(c) && !e.repeat) artTap(); if (c === 'Escape') skipArt(); return; }
   if (c === 'Escape') { if (panel) closePanel(); else openPanel('help'); return; }
-  if (c === 'KeyI') { panel === 'inv' ? closePanel() : openPanel('inv'); return; }
+  if (c === 'KeyI' || (c === 'KeyE' && !fishing && !e.repeat)) { panel === 'inv' ? closePanel() : openPanel('inv'); return; }
   if (c === 'KeyK') { panel === 'skills' ? closePanel() : openPanel('skills'); return; }
   if (c === 'KeyB') { panel === 'cases' ? closePanel() : openPanel('cases'); return; }
   if (c === 'KeyC') { panel === 'drinks' || panel === 'craft' ? closePanel() : openPanel(nearBar() ? 'drinks' : 'craft'); return; }
@@ -229,14 +229,14 @@ addEventListener('keydown', e => {
   if (c === 'KeyM') { panel === 'map' ? closePanel() : openPanel('map'); return; }
   if (c === 'KeyJ') { panel === 'journal' ? closePanel() : openPanel('journal'); return; }
   if (panel || pl.dead) return;
-  if (fishing && ['KeyE', 'KeyF', 'Space', 'Enter'].includes(c)) { e.preventDefault(); if (!e.repeat) reelFish(); return; }
+  if (fishing && ['KeyF', 'Space', 'Enter'].includes(c)) { e.preventDefault(); if (!e.repeat) reelFish(); return; }
   if (c === 'Enter' && NET.on) { e.preventDefault(); openChat(); return; }
   keys[c] = true;
   if (e.repeat) return;
   if (c === 'Space') { e.preventDefault(); jumpPress(); }
   if (c === 'ShiftLeft' || c === 'ShiftRight') dash();
   if (c === 'KeyQ') useDrink();
-  if (c === 'KeyE' || c === 'KeyF') interact();
+  if (c === 'KeyF') interact();
   if (c === 'KeyX') swapHands();
   if (/^Digit[1-8]$/.test(c)) { const k = knownDrinks()[+c.slice(5) - 1]; if (k) { selDrink = k; refreshHUD(); } }
 });
@@ -371,6 +371,7 @@ function needChips(need) { return Object.keys(need).map(k => `<span class="chip"
 function renderPanel() {
   if (!panel) return;
   $('#ptabs').innerHTML = TABS.filter(([id]) => (id !== 'admin' || (ACCT && ACCT.admin)) && (id !== 'online' || NET.on)).map(([id, n]) => `<button data-tab="${id}" class="${id === panel ? 'on' : ''}">${n}${id === 'inv' && P.pts ? ' •' : ''}${id === 'skills' && P.sp ? ' •' : ''}${id === 'cases' && Object.values(P.cases || {}).some(n => n > 0) ? ' •' : ''}</button>`).join('');
+  const on = $('#ptabs .on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const body = $('#pbody');
   const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, admin: renderAdmin, online: renderOnline }[panel];
   body.innerHTML = f();
@@ -391,46 +392,60 @@ function itemStatsHTML(it) {
   return `<div class="kv">${rows.map(r => `<span>${r[0]}</span><span>${r[1]}</span>`).join('')}</div>${aff}`;
 }
 function renderInv() {
-  const slots = [['hand1', 'Основний', '✋'], ['hand2', 'Другий', '🤚'], ['head', 'Голова', '🧢'], ['apron', 'Фартух', '🦺'], ['shoes', 'Взуття', '👟'], ['acc', 'Аксесуар', '💍'], ['gear', 'Кавове обладн.', '⚙️']];
-  const eq = slots.map(([s, n, ic]) => { const it = eqItem(s); return `<button class="eqs ${it ? 'r' + it.r : ''}" data-act="sel" data-arg="${it ? it.u : ''}"><span class="ic" style="${it ? '' : 'opacity:.3'}">${it ? BASE[it.b].ic : ic}</span><span class="lb">${n}</span></button>`; }).join('');
-  const stats = ST_KEYS.map(k => `<span>${STAT_IC[k]} ${STATN[k]}</span><b>${S[k]}</b>${P.pts ? `<button data-act="stat" data-arg="${k}" aria-label="Додати">+</button>` : '<span></span>'}`).join('');
-  const sorted = P.inv.filter(invFilter).sort(invSort);
-  const grid = sorted.map(it => `<button class="it r${it.r} ${it.broken ? 'broken' : ''} ${it.u === selU ? 'selected' : ''}" data-act="sel" data-arg="${it.u}" title="${itemName(it)}">${BASE[it.b].ic}${eqSlotOf(it) ? '<span class="eqd">E</span>' : ''}${it.fav ? '<span class="fav">⭐</span>' : ''}${it.isNew ? '<span class="newd"></span>' : ''}${it.lvl ? `<span class="lv">+${it.lvl}</span>` : ''}${BASE[it.b].slot === 'hand' && !it.broken ? `<span class="durb"><i style="width:${it.dur / it.maxDur * 100}%"></i></span>` : ''}</button>`).join('');
+  const view = INV.view || 'items';
+  const vt = [['items', '🎒 Речі', P.inv.some(i => i.isNew)], ['res', '🧪 Ресурси', false], ['char', '👤 Персонаж', P.pts > 0]]
+    .map(([k, n, dot]) => `<button class="seg ${view === k ? 'on' : ''}" data-act="iview" data-arg="${k}">${n}${dot ? ' •' : ''}</button>`).join('');
+  const head = `<div class="segs">${vt}</div>`;
+  if (view === 'res') return head + renderInvRes();
+  if (view === 'char') return head + renderInvChar();
+  return head + renderInvItems();
+}
+const EQ_SLOTS = [['hand1', 'Основна рука', '✋'], ['hand2', 'Друга рука', '🤚'], ['head', 'Голова', '🧢'], ['apron', 'Фартух', '🦺'], ['shoes', 'Взуття', '👟'], ['acc', 'Аксесуар', '💍'], ['gear', 'Кавове обладн.', '⚙️']];
+function renderInvItems() {
+  const eq = EQ_SLOTS.map(([s, n, ic]) => { const it = eqItem(s); return `<button class="eqs sm ${it ? 'r' + it.r : ''} ${it && it.u === selU ? 'selected' : ''}" data-act="sel" data-arg="${it ? it.u : ''}" title="${n}${it ? ': ' + itemName(it) : ' — порожньо'}"><span class="ic" style="${it ? '' : 'opacity:.3'}">${it ? BASE[it.b].ic : ic}</span><span class="lb">${n}</span></button>`; }).join('');
+  const sorted = P.inv.filter(it => !eqSlotOf(it)).filter(invFilter).sort(invSort);
+  const grid = sorted.map(it => `<button class="it r${it.r} ${it.broken ? 'broken' : ''} ${it.u === selU ? 'selected' : ''}" data-act="sel" data-arg="${it.u}" title="${itemName(it)}">${BASE[it.b].ic}${it.fav ? '<span class="fav">⭐</span>' : ''}${it.isNew ? '<span class="newd"></span>' : ''}${it.lvl ? `<span class="lv">+${it.lvl}</span>` : ''}${BASE[it.b].slot === 'hand' && !it.broken ? `<span class="durb"><i style="width:${it.dur / it.maxDur * 100}%"></i></span>` : ''}</button>`).join('');
   const sel = selU && itemByU(selU);
-  let det = '<div class="detail muted">Вибери річ. Подвійний клік — швидко вдягнути. ⭐ захищає від масових дій.</div>';
+  let det = `<div class="detail muted idet">Натисни на річ, щоб побачити її і вдягнути.<br><br>Подвійний клік — одразу вдягнути.<br>⭐ — захищає від масових дій.</div>`;
   if (sel) {
     const B = BASE[sel.b], es = eqSlotOf(sel);
     const sell = Math.round(6 * Math.pow(sel.r + 1, 2) * (1 + sel.lvl * .3));
-    let acts = '';
-    if (B.slot === 'hand') acts += `<button class="btn" data-act="eq" data-arg="hand1">В основну руку</button><button class="btn alt" data-act="eq" data-arg="hand2">У другу руку</button>`;
-    else acts += `<button class="btn" data-act="eq" data-arg="${B.slot}">Одягнути</button>`;
-    if (es) acts += `<button class="btn alt" data-act="uneq">Зняти</button>`;
-    acts += `<button class="btn alt" data-act="fav">${sel.fav ? 'Прибрати ⭐' : '⭐ Улюблене'}</button>`;
-    if (nearStash() && !es) acts += `<button class="btn alt" data-act="tostash">У сховок</button>`;
-    acts += `<button class="btn alt" data-act="dis" ${sel.fav ? 'disabled' : ''}>Розібрати</button><button class="btn alt" data-act="sell" ${inHub() && !sel.fav ? '' : 'disabled'}>Продати · ${sell} 🪙</button>`;
-    det = `<div class="detail"><h4 class="t${sel.r}">${B.ic} ${itemName(sel)}</h4><div class="muted" style="font-size:12px">${RAR[sel.r].name} · ${RAR[sel.r].ua}${sel.broken ? ' · зламано' : ''}${B.explore ? ' · знахідка дослідника' : ''}${B.bossOnly ? ' · трофей боса' : ''}</div>${B.d ? `<p style="margin:6px 0 0;font-size:13px">${B.d}</p>` : ''}${itemStatsHTML(sel)}${compareHTML(sel)}<div class="btns">${acts}</div></div>`;
+    let main = '';
+    if (es) main = `<button class="btn big1" data-act="uneq">Зняти</button>`;
+    else if (B.slot === 'hand') main = `<button class="btn big1" data-act="eq" data-arg="hand1">✋ В руку</button><button class="btn alt" data-act="eq" data-arg="hand2" title="У другу руку (X — поміняти)">🤚</button>`;
+    else main = `<button class="btn big1" data-act="eq" data-arg="${B.slot}">Одягнути</button>`;
+    const more = `<button class="btn alt" data-act="fav">${sel.fav ? '★ Прибрати' : '☆ Улюблене'}</button>${nearStash() && !es ? '<button class="btn alt" data-act="tostash">📦 У сховок</button>' : ''}<button class="btn alt" data-act="sell" ${inHub() && !sel.fav && !es ? '' : 'disabled'} title="${inHub() ? '' : 'Продати можна тільки в «Гущі»'}">🪙 Продати · ${sell}</button><button class="btn alt" data-act="dis" ${sel.fav || es ? 'disabled' : ''}>🔩 Розібрати</button>`;
+    det = `<div class="detail idet"><div class="ihead"><span class="bigic r${sel.r}">${B.ic}</span><div><h4 class="t${sel.r}">${itemName(sel)}</h4><div class="muted" style="font-size:12px">${RAR[sel.r].name}${sel.broken ? ' · <b style="color:#C2335A">зламано</b>' : ''}${es ? ' · вдягнуто' : ''}${B.explore ? ' · знахідка' : ''}${B.bossOnly ? ' · трофей боса' : ''}</div></div></div>
+      ${B.d ? `<p style="margin:8px 0 0;font-size:13px">${B.d}</p>` : ''}
+      ${compareHTML(sel)}
+      <div class="btns">${main}</div>
+      <details class="idetails"><summary>Усі характеристики</summary>${itemStatsHTML(sel)}</details>
+      <div class="btns small">${more}</div></div>`;
   }
-  const fchips = [['all', 'Усе'], ['hand', 'Зброя'], ['gear', 'Одяг'], ['broken', 'Зламане'], ['new', 'Нове'], ['fav', '⭐']].map(([k, n]) => `<button class="fchip ${INV.filter === k ? 'on' : ''}" data-act="ifilter" data-arg="${k}">${n}${k === 'new' && P.inv.some(i => i.isNew) ? ' •' : ''}</button>`).join('');
-  const schips = [['rarity', 'Рідкість'], ['type', 'Тип'], ['new', 'Новизна']].map(([k, n]) => `<button class="fchip ${INV.sort === k ? 'on' : ''}" data-act="isort" data-arg="${k}">${n}</button>`).join('');
-  const ings = Object.keys(ING).filter(k => P.ing[k]).map(k => `<span class="chip">${ING[k].ic} ${ING[k].n} ×${P.ing[k]}</span>`).join('') || '<span class="muted">Порожньо</span>';
+  const fchips = [['all', 'Усе'], ['hand', '⚔️ Зброя'], ['gear', '👕 Одяг'], ['broken', '🔧 Зламане'], ['fav', '⭐']].map(([k, n]) => `<button class="fchip ${INV.filter === k ? 'on' : ''}" data-act="ifilter" data-arg="${k}">${n}</button>`).join('');
+  const sortN = { rarity: 'рідкість', type: 'тип', new: 'новизна' }[INV.sort];
+  return `<div class="invwrap"><div class="invmain">
+    <div class="eqrow">${eq}</div>
+    <div class="itool"><div class="chips">${fchips}</div><button class="fchip" data-act="isortnext" title="Змінити сортування">↕ ${sortN}</button></div>
+    <div class="invgrid">${grid || '<span class="muted" style="grid-column:1/-1">Тут порожньо</span>'}</div>
+    <div class="ifoot"><span class="muted">${P.inv.length}/60 речей</span><button class="btn alt" data-act="autoeq">✨ Вдягнути найкраще</button>
+      <details class="bulk"><summary>Масові дії</summary><div class="btns"><button class="btn alt" data-act="bulkdis">Розібрати всі Common</button><button class="btn alt" data-act="bulksell" ${inHub() ? '' : 'disabled'}>Продати всі Common</button></div></details></div>
+  </div><div class="invside">${det}</div></div>`;
+}
+function renderInvRes() {
+  const ings = Object.keys(ING).filter(k => P.ing[k]).map(k => `<div class="res"><span class="ic">${ING[k].ic}</span><b>${P.ing[k]}</b><span>${ING[k].n}</span></div>`).join('') || '<span class="muted">Порожньо — збирай на островах і з монстрів.</span>';
+  const dr = knownDrinks().map((d, i) => `<div class="res ${P.drinks[d] ? '' : 'off'}"><span class="ic">${DRINK[d].ic}</span><b>${P.drinks[d] || 0}</b><span>${DRINK[d].n}</span><small>${i + 1}</small></div>`).join('');
+  return `<h3>Напої</h3><p class="muted" style="font-size:12px;margin-top:-6px">Q / ПКМ — кинути вибраний напій, 1–8 — вибрати.</p><div class="resgrid">${dr}</div>
+    <h3 style="margin-top:14px">Інгредієнти</h3><div class="resgrid">${ings}</div>`;
+}
+function renderInvChar() {
+  const stats = ST_KEYS.map(k => `<span>${STAT_IC[k]} ${STATN[k]}</span><b>${S[k]}</b>${P.pts ? `<button data-act="stat" data-arg="${k}" aria-label="Додати">+</button>` : '<span></span>'}`).join('');
   const cos = COSM.map(c => `<button class="cos ${c.id === P.cos ? 'on' : ''}" style="background:${c.c}${P.cosm.includes(c.id) ? '' : ';opacity:.2;cursor:default'}" data-act="cos" data-arg="${c.id}" title="${c.n}${P.cosm.includes(c.id) ? '' : ' (ще не знайдено)'}" aria-label="${c.n}"></button>`).join('');
-  return `<div class="cols"><div>
-    <h3>Бариста · рівень ${P.lvl}</h3>
-    <div class="eqgrid">${eq}</div>
-    ${P.pts ? `<p class="note" style="margin-top:10px">Вільних очок характеристик: <b>${P.pts}</b></p>` : ''}
-    <div class="stats">${stats}</div>
-    <p class="muted" style="font-size:12px;margin-top:10px">❤ ${S.maxHP} здоров’я · 💨 ${S.maxSt} витривалості · захист ${Math.round(S.defR * 100)}% · сила напоїв ×${S.effM.toFixed(2)} · варіння ×${(1 / S.brewM).toFixed(2)} · вага в руках ${S.W.toFixed(1)} кг${S.pen ? ` (−${Math.round(S.pen * 100)}% швидкості)` : ''}</p>
-    <h3>Колір фартуха</h3><div class="chips">${cos}</div>
-  </div><div>
-    <h3>Речі · ${P.inv.length}/60</h3>
-    <div class="chips" style="margin-bottom:6px">${fchips}</div>
-    <div class="chips" style="margin-bottom:8px"><span class="muted" style="font-size:12px;align-self:center">Сортувати:</span>${schips}</div>
-    <div class="btns" style="margin:0 0 8px"><button class="btn" data-act="autoeq">Вдягнути найкраще</button><button class="btn alt" data-act="bulkdis">Розібрати всі Common</button><button class="btn alt" data-act="bulksell" ${inHub() ? '' : 'disabled'}>Продати всі Common</button></div>
-    <div class="invgrid">${grid || '<span class="muted">Нічого не знайдено за фільтром</span>'}</div>
-    ${det}
-    <h3 style="margin-top:14px">Інгредієнти й ресурси</h3><div class="chips">${ings}</div>
-    <p class="muted" style="font-size:12px;margin-top:10px">Напої: ${knownDrinks().map(d => DRINK[d].ic + ' ' + (P.drinks[d] || 0)).join(' · ')}</p>
-  </div></div>`;
+  return `<div class="cols"><div><h3>Бариста · рівень ${P.lvl}</h3>
+    ${P.pts ? `<p class="note">Вільних очок характеристик: <b>${P.pts}</b> — тисни «+».</p>` : ''}
+    <div class="stats">${stats}</div></div>
+    <div><h3>Підсумок</h3><div class="kv"><span>❤ Здоров’я</span><span>${S.maxHP}</span><span>💨 Витривалість</span><span>${S.maxSt}</span><span>🛡️ Захист</span><span>${Math.round(S.defR * 100)}%</span><span>☕ Сила напоїв</span><span>×${S.effM.toFixed(2)}</span><span>⏱️ Варіння</span><span>×${(1 / S.brewM).toFixed(2)}</span><span>🏋️ Вага в руках</span><span>${S.W.toFixed(1)} кг${S.pen ? ` (−${Math.round(S.pen * 100)}%)` : ''}</span></div>
+    <h3 style="margin-top:14px">Колір фартуха</h3><div class="chips">${cos}</div></div></div>`;
 }
 function renderSkills() {
   const br = Object.keys(SK).map(k => {
@@ -520,7 +535,7 @@ function renderHelp() {
   <p><b>Дослідження.</b> Світ має моря, сніг, джунглі й пустелю. Шукай орієнтири, записки, блискучі хрестики (копай скарби), рибаль на пірсі й ополонці, приручай улюбленців кавою. Унікальна зброя й броня — тільки в скринях орієнтирів, у розкопках і на дні. Кавові точки ☕ дають швидке переміщення. Вночі вороги сонні, а деяка риба клює тільки в темряві.</p>
   <p><b>Вода й лід.</b> У глибокій воді пливеш і витрачаєш витривалість, бити не можна. На льоду ковзаєш. Ворогів можна збити у воду.</p>
   <p><b>Рейд.</b> CEO-психопат на Вежі. Звичайні напої діють на 30%. Звари «Гігантський раф» на барі (рецепт дає квест «Квартальний звіт»).</p>
-  <div class="keys">${IS_TOUCH ? '<kbd>Джойстик</kbd><span>рух</span><kbd>Удар</kbd><span>тисни — серія, утримуй — заряджений удар</span><kbd>Стрибок</kbd><span>утримуй у повітрі — плануй</span><kbd>Ривок</kbd><span>ухиляння</span><kbd>Подати</kbd><span>напій (вибери на панелі)</span><kbd>Дія</kbd><span>взаємодія</span><kbd>⇄</kbd><span>змінити руку</span>' : '<kbd>WASD</kbd><span>рух</span><kbd>ЛКМ</kbd><span>удар; швидкі удари поспіль — серія з фінішером</span><kbd>ПКМ / Q</kbd><span>напій</span><kbd>1–6</kbd><span>вибір напою</span><kbd>E</kbd><span>взаємодія</span><kbd>X</kbd><span>змінити руку</span><kbd>Пробіл</kbd><span>стрибок; утримуй у повітрі — плануй</span><kbd>Shift</kbd><span>ривок</span><kbd>Утримуй ЛКМ</kbd><span>заряджений удар</span><kbd>M / J / H</kbd><span>мапа / щоденник / острів</span><kbd>I / B / K / C</kbd><span>речі / кейси / навички / крафт</span><kbd>Esc</kbd><span>закрити меню</span>'}</div>
+  <div class="keys">${IS_TOUCH ? '<kbd>Джойстик</kbd><span>рух</span><kbd>Удар</kbd><span>тисни — серія, утримуй — заряджений удар</span><kbd>Стрибок</kbd><span>утримуй у повітрі — плануй</span><kbd>Ривок</kbd><span>ухиляння</span><kbd>Подати</kbd><span>напій (вибери на панелі)</span><kbd>Дія</kbd><span>взаємодія</span><kbd>⇄</kbd><span>змінити руку</span>' : '<kbd>WASD</kbd><span>рух</span><kbd>ЛКМ</kbd><span>удар; швидкі удари поспіль — серія з фінішером</span><kbd>ПКМ / Q</kbd><span>кинути напій (впритул — подати з рук у руки)</span><kbd>1–6</kbd><span>вибір напою</span><kbd>E</kbd><span>інвентар</span><kbd>F</kbd><span>взаємодія: бар, верстак, скрині, квести</span><kbd>X</kbd><span>змінити руку</span><kbd>Пробіл</kbd><span>стрибок; утримуй у повітрі — плануй</span><kbd>Shift</kbd><span>ривок</span><kbd>Утримуй ЛКМ</kbd><span>заряджений удар</span><kbd>M / J / H</kbd><span>мапа / щоденник / острів</span><kbd>I / B / K / C</kbd><span>речі / кейси / навички / крафт</span><kbd>Esc</kbd><span>закрити меню</span>'}</div>
   <div class="btns" style="margin-top:12px"><button class="btn" data-act="tut">Пройти навчання ще раз</button><button class="btn alt" data-act="reset">${newConfirm ? 'Точно? Натисни ще раз' : 'Почати гру заново'}</button></div>`;
 }
 $('#pbody').addEventListener('click', e => {
@@ -530,6 +545,8 @@ $('#pbody').addEventListener('click', e => {
   if (a === 'sel') { selU = arg || null; const it = selU && itemByU(selU); if (it && it.isNew) it.isNew = false; }
   else if (a === 'ifilter') INV.filter = arg;
   else if (a === 'isort') INV.sort = arg;
+  else if (a === 'iview') { INV.view = arg; if (arg !== 'items') P.inv.forEach(i => { i.isNew = false; }); }
+  else if (a === 'isortnext') { const o = ['rarity', 'type', 'new']; INV.sort = o[(o.indexOf(INV.sort) + 1) % o.length]; }
   else if (a === 'fav' && sel) sel.fav = !sel.fav;
   else if (a === 'autoeq') autoEquip();
   else if (a === 'bulkdis') bulkCommon('dis');

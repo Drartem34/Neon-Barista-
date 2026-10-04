@@ -180,7 +180,7 @@ function startFishing(f) {
   pl.face = angTo(pl.x, pl.z, f.wx, f.wz); pl.swingT = .22;
   $('#fishui').hidden = false; $('#fbar').style.visibility = 'hidden';
   $('#fishtxt').textContent = 'Закинув вудку… чекай поклювки';
-  $('#freel').textContent = IS_TOUCH ? 'Тягни!' : 'Тягни! (E / Пробіл)';
+  $('#freel').textContent = IS_TOUCH ? 'Тягни!' : 'Тягни! (F / Пробіл)';
   sfx('cast');
 }
 function stopFishing(msg) { if (!fishing) return; fishing = null; $('#fishui').hidden = true; if (msg) ftext(pl.x, 2.4, pl.z, msg); }

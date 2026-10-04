@@ -95,6 +95,7 @@ const pad = T.PADS.find(p => p.th === 6); T.pl.x = pad.x; T.pl.z = pad.z; T.pl.y
 assert(near(T.pl.y, 6, .1), 'драбина піднімає на вершину маяка (y=' + T.pl.y.toFixed(2) + ')');
 const lc = T.CHESTS.find(c => c.id === 'lm_lighthouse'); T.pl.x = lc.x; T.pl.z = lc.z + .8; step(.2);
 const invBefore = T.P.inv.length; T.openChest(lc); step(1.5);
+for (const d of T.DROPS.slice()) if (d.l.k === 'item' && Math.abs(d.y - 6) < 1) { T.pl.x = d.x; T.pl.z = d.z; step(.4); }
 assert(T.P.inv.some(i => i.b === 'compass' || i.b === 'flippers'), 'скриня маяка дала компас або ласти');
 assert(T.P.known.saltraf, 'вивчено рецепт солоно-карамельного рафу');
 assert(T.P.notes.n7, 'на вершині маяка знайдено записку');

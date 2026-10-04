@@ -318,6 +318,7 @@ function updHUDFrame() {
 $('#pbody').addEventListener('dblclick', e => { const b = e.target.closest('.it[data-act="sel"]'); if (!b) return; const it = itemByU(b.dataset.arg); if (it) { equip(it); renderPanel(); } });
 $('#drinks').addEventListener('click', e => { const b = e.target.closest('[data-drink]'); if (!b) return; if (selDrink === b.dataset.drink && IS_TOUCH) useDrink(); selDrink = b.dataset.drink; refreshHUD(); });
 $('#weapon').addEventListener('click', () => swapHands());
+$('#online').addEventListener('click', () => { panel === 'online' ? closePanel() : openPanel('online'); });
 document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { const n = b.dataset.open; panel === n ? closePanel() : openPanel(n); }));
 function refreshQuest() {
   if (!P) return;
@@ -354,7 +355,7 @@ function refreshLook() {
 
 /* ---------- Панелі ---------- */
 let panel = null, selU = null, newConfirm = false;
-const TABS = [['map', '🗺️ Мапа'], ['journal', '📔 Щоденник'], ['inv', '🎒 Речі'], ['cases', '🎁 Кейси'], ['skills', '🌳 Навички'], ['drinks', '☕ Напої'], ['craft', '🛠️ Крафт'], ['work', '🔧 Майстерня'], ['shop', '🛒 Крамниця'], ['home', '🏝️ Острів'], ['stash', '📦 Сховок'], ['quest', '📜 Квест'], ['sound', '⚙️ Налаштування'], ['help', '❔ Довідка']];
+const TABS = [['map', '🗺️ Мапа'], ['journal', '📔 Щоденник'], ['inv', '🎒 Речі'], ['cases', '🎁 Кейси'], ['skills', '🌳 Навички'], ['drinks', '☕ Напої'], ['craft', '🛠️ Крафт'], ['work', '🔧 Майстерня'], ['shop', '🛒 Крамниця'], ['home', '🏝️ Острів'], ['stash', '📦 Сховок'], ['quest', '📜 Квест'], ['sound', '⚙️ Налаштування'], ['help', '❔ Довідка'], ['online', '👥 Онлайн'], ['admin', '🛡️ Адмін']];
 function openPanel(name) {
   panel = name; paused = true; input.atk = false; pl.charge = 0; input.jumpHeld = false;
   for (const k in keys) keys[k] = false;
@@ -369,9 +370,9 @@ const inHub = () => dist2(pl.x, pl.z, 0, 0) < ISLMAP.hub.r;
 function needChips(need) { return Object.keys(need).map(k => `<span class="chip" style="${(P.ing[k] || 0) < need[k] ? 'color:#C2335A' : ''}">${ING[k].ic} ${ING[k].n} ${P.ing[k] || 0}/${need[k]}</span>`).join(' '); }
 function renderPanel() {
   if (!panel) return;
-  $('#ptabs').innerHTML = TABS.map(([id, n]) => `<button data-tab="${id}" class="${id === panel ? 'on' : ''}">${n}${id === 'inv' && P.pts ? ' •' : ''}${id === 'skills' && P.sp ? ' •' : ''}${id === 'cases' && Object.values(P.cases || {}).some(n => n > 0) ? ' •' : ''}</button>`).join('');
+  $('#ptabs').innerHTML = TABS.filter(([id]) => (id !== 'admin' || (ACCT && ACCT.admin)) && (id !== 'online' || NET.on)).map(([id, n]) => `<button data-tab="${id}" class="${id === panel ? 'on' : ''}">${n}${id === 'inv' && P.pts ? ' •' : ''}${id === 'skills' && P.sp ? ' •' : ''}${id === 'cases' && Object.values(P.cases || {}).some(n => n > 0) ? ' •' : ''}</button>`).join('');
   const body = $('#pbody');
-  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp }[panel];
+  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, admin: renderAdmin, online: renderOnline }[panel];
   body.innerHTML = f();
   if (panel === 'map') drawMap();
 }
@@ -586,7 +587,7 @@ $('#pbody').addEventListener('click', e => {
   else if (a === 'tut') { closePanel(); tutStart(); return; }
   else if (a === 'opencase') { openCase(arg); return; }
   else if (a === 'buycase') { const C = CASES[arg]; if (C.price && P.coins >= C.price && inHub()) { P.coins -= C.price; addCase(arg, 1, true); sfx('coin'); } }
-  else if (a === 'reset') { if (!newConfirm) { newConfirm = true; } else { try { localStorage.removeItem(SAVE_KEY); } catch (er) { } location.reload(); return; } }
+  else if (a === 'reset') { if (!newConfirm) { newConfirm = true; } else { running = false; try { localStorage.removeItem(SAVE_KEY); } catch (er) { } if (accountMode() && ACCT) api('wipe').then(() => location.reload()); else location.reload(); return; } }
   refreshHUD(); renderPanel();
 });
 

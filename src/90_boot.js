@@ -41,30 +41,13 @@ mergeStatics();
 applyGfx(false);
 requestAnimationFrame(frame);
 
-/* ---------- Завантаження серверного save → localStorage ---------- */
+/* ---------- Кнопки титулу: онлайн — тільки після входу в акаунт ---------- */
 function refreshTitleButtons() {
-  if (loadSave()) { $('#b-continue').hidden = false; $('#b-new').classList.add('alt'); }
+  const locked = accountMode() && !ACCT;
+  $('#b-new').hidden = locked;
+  if (!locked && loadSave()) { $('#b-continue').hidden = false; $('#b-new').classList.add('alt'); }
   else { $('#b-continue').hidden = true; $('#b-new').classList.remove('alt'); }
 }
-
-(function tryLoadServerSave() {
-  const name = myName();
-  if (!name || name.length < 2) { refreshTitleButtons(); return; }
-  fetch('/api/load', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name })
-  }).then(r => r.json()).then(res => {
-    if (res.ok && res.data) {
-      const local = loadSave();
-      const serverLvl = (res.data.P && res.data.P.lvl) || 0;
-      const localLvl = (local && local.P && local.P.lvl) || 0;
-      // Серверний save має пріоритет (свіжіший при зміні тунелю/домену)
-      if (serverLvl >= localLvl) {
-        try { localStorage.setItem(SAVE_KEY, JSON.stringify(res.data)); } catch (e) { }
-      }
-    }
-    refreshTitleButtons();
-  }).catch(() => { refreshTitleButtons(); });
-})();
 
 $('#b-continue').addEventListener('click', () => startGame(false));
 $('#b-new').addEventListener('click', () => {
@@ -72,7 +55,7 @@ $('#b-new').addEventListener('click', () => {
   startGame(true);
 });
 $('#b-respawn').addEventListener('click', respawn);
-setupNetTitle();
+setupAccountUI(); refreshTitleButtons();
 if (IS_TOUCH) $('#keys-desk').hidden = true;
 
 /* ---------- Головне меню → Екран заголовку ---------- */

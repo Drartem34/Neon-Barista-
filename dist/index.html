@@ -339,8 +339,12 @@ body.touch #fishui{bottom:calc(env(safe-area-inset-bottom,0px) + 232px)}
 #artneedle{position:absolute;left:50%;top:50%;width:6px;height:96px;margin-left:-3px;margin-top:-96px;transform-origin:50% 100%;background:linear-gradient(#2E2346,#2E2346 30%,transparent);border-radius:3px}
 #artheart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:64px;color:#FFF3E6;opacity:0;transition:opacity .3s;text-shadow:0 0 8px rgba(255,255,255,.6)}
 #fps{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 4px);transform:translateX(-50%);font-size:11px;background:rgba(46,35,70,.6);padding:2px 8px;border-radius:8px}
-.nametag{position:absolute;left:0;top:0;font-size:12px;font-weight:700;color:#fff;background:rgba(46,35,70,.62);padding:2px 8px;border-radius:9px;white-space:nowrap;pointer-events:none}
-#online{font-weight:700;background:rgba(46,35,70,.5);padding:5px 10px;border-radius:12px;font-size:13px;white-space:nowrap}
+.nametag{position:absolute;left:0;top:0;font-size:12px;font-weight:500;color:#fff;background:rgba(46,35,70,.62);padding:2px 8px 4px;border-radius:9px;white-space:nowrap;pointer-events:none;text-align:center;transition:background .2s}
+.nametag small{display:block;font-size:11px;opacity:.95}
+.nametag.fight{background:rgba(194,51,90,.75)}
+.nametag .nhp{display:block;height:3px;margin-top:2px;border-radius:2px;background:rgba(0,0,0,.35);overflow:hidden}
+.nametag .nhp i{display:block;height:100%;background:#7FE0A8}
+#online{font-weight:700;background:rgba(46,35,70,.5);padding:5px 10px;border-radius:12px;font-size:13px;white-space:nowrap;border:0;color:#fff;pointer-events:auto}
 #chatlog{position:absolute;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 90px);width:min(360px,70vw);display:flex;flex-direction:column;gap:3px;pointer-events:none}
 #chatlog .cl{background:rgba(46,35,70,.62);padding:5px 9px;border-radius:9px;font-size:13px;line-height:1.35;transition:opacity 1s}
 #chatlog .cl.me{background:rgba(127,214,185,.45)}
@@ -351,7 +355,10 @@ body.touch #chatlog{bottom:calc(env(safe-area-inset-bottom,0px) + 300px)}
 body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
 #netbox{margin:14px 0 4px;padding:12px;border-radius:14px;background:var(--soft)}
 #netbox label{font-size:13px;font-weight:600;display:block;margin-bottom:6px}
-#netbox input{width:100%;font:inherit;font-size:15px;border:2px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;color:var(--ink)}
+#netbox input,.ainp{width:100%;min-width:0;font:inherit;font-size:15px;border:2px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;color:var(--ink);-webkit-user-select:text;user-select:text}
+.arow{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.arow .btn{flex:none}
+.aerr{font-size:13px;color:#C2335A;min-height:1em;margin-top:4px}
 #netcount{font-size:12px;color:var(--muted);margin-top:6px}
 @media (prefers-reduced-motion: reduce){.toast{animation:none}#zone,#event{transition:none}}
 </style>
@@ -372,7 +379,7 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
     </div>
     <div id="coins">🪙 0</div>
     <div id="clock">☀️ 08:00</div>
-    <div id="online" hidden>👥</div>
+    <button id="online" hidden title="Хто онлайн і що робить">👥</button>
   </div>
   <div id="hud-tr">
     <div class="menu-btns">
@@ -470,7 +477,20 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
   <div class="card">
     <h1>Бариста Кінця Світу</h1>
     <p class="sub">Світ розвалився на літаючі острови від тотального вигорання. Ти — бариста-кур’єр. Ухиляйся від задовбаних життям монстрів, збирай дивні інгредієнти й вари їм каву, доки вони не видихнуть.</p>
-    <div id="netbox" hidden><label for="netname">Ти граєш онлайн. Твоє ім’я:</label><input id="netname" maxlength="20" autocomplete="off"><div id="netcount"></div></div>
+    <div id="netbox" hidden>
+      <div id="acc-form">
+        <label for="acc-login">Акаунт — прогрес зберігається на сервері, навіть якщо посилання зміниться</label>
+        <div class="arow"><input id="acc-login" class="ainp" maxlength="20" placeholder="Логін" autocomplete="username"><input id="acc-pass" class="ainp" type="password" maxlength="64" placeholder="Пароль" autocomplete="current-password"></div>
+        <div class="btns" style="margin-top:6px"><button class="btn" id="acc-in">Увійти</button><button class="btn alt" id="acc-reg">Зареєструватися</button></div>
+        <div id="acc-err" class="aerr"></div>
+      </div>
+      <div id="acc-box" hidden>
+        <div style="font-size:14px">Ти в акаунті <b id="acc-name"></b> <span id="acc-adm" class="chip" hidden>🛡️ адмін</span></div>
+        <div class="btns" style="margin-top:6px"><button class="btn alt" id="acc-logout">Вийти</button><button class="btn alt" id="acc-del">Видалити акаунт…</button></div>
+        <div id="acc-delbox" hidden style="margin-top:8px"><div style="font-size:13px;margin-bottom:6px">Акаунт і весь прогрес буде видалено <b>назавжди</b>. Введи пароль:</div><div class="arow"><input id="acc-delpass" class="ainp" type="password" placeholder="Пароль"><button class="btn" id="acc-delgo" style="background:#C2335A">Видалити</button></div><div id="acc-delerr" class="aerr"></div></div>
+      </div>
+      <div id="netcount"></div>
+    </div>
     <div class="btns">
       <button class="btn big" id="b-continue" hidden>Продовжити зміну</button>
       <button class="btn big" id="b-new">Нова зміна</button>
@@ -487,6 +507,14 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
       <kbd>I · B · K · C</kbd><span>інвентар · кейси · навички · напої й крафт</span>
     </div>
     <p class="fine">Остаточно заспокоїти монстра може лише кава: удари знімають стрес максимум до чверті. Прогрес зберігається у браузері. Кооператив, соціальний хаб і рейди на 10–15 гравців потребують сервера, тому тут їх замінює одиночна версія: бос-рейд «CEO-психопат» і хаб «Кавова Гуща», куди сходяться заспокоєні NPC.</p>
+  </div>
+</div>
+
+<div id="banned" class="screen" hidden style="z-index:120">
+  <div class="card">
+    <h1>⛔ Доступ закрито</h1>
+    <p class="sub" id="banmsg"></p>
+    <button class="btn big" onclick="location.reload()">На головну</button>
   </div>
 </div>
 
@@ -2250,6 +2278,7 @@ const MON = [], PROJ = [], TELE = [], DROPS = [];
 let hero = null, heldMesh = null, heldKey = '';
 let running = false, paused = false, timeScale = 1, slowT = 0, shake = 0, gameTime = 0;
 let selDrink = 'latte';
+let lastHitM = null, lastHitT = -9;   // кого востаннє вдарили (для статусу в онлайні)
 const EV = { t: 70, happy: 0, reports: 0 };
 const BOSS = { rad: 1.4, lvl: 1, active: false, asleep: false, stress: 0, max: 0, x: 58, z: 16, face: 0, cd: 2.5, atkI: 0, charge: null, sleepT: 0, mesh: null, wakeLine: 0, dead: false, bh: 4.6, y: 0, offT: 0 };
 
@@ -2273,16 +2302,9 @@ function newPlayer() {
 }
 function save() {
   if (!P) return;
-  const data = { P, boss: BOSS.lvl };
+  const data = { P, boss: BOSS.lvl, owner: ACCT ? ACCT.login : undefined };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { }
-  // Серверний sync (fire-and-forget, не блокує гру)
-  const name = (typeof myName === 'function' ? myName() : '') || '';
-  if (name.length >= 2 && !save._busy) {
-    save._busy = true;
-    fetch('/api/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, data })
-    }).catch(() => {}).finally(() => { save._busy = false; });
-  }
+  serverSave(data);   // акаунт на сервері (fire-and-forget, не блокує гру)
 }
 function loadSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 
@@ -2595,6 +2617,7 @@ function applyHit(m, dmg, kx, kz, isBoss) {
   const before = m.stress;
   if (m.stress > floor) m.stress = Math.max(floor, m.stress - dmg);
   const real = before - m.stress;
+  lastHitM = m; lastHitT = gameTime;
   if (isBoss) return real;
   m.lastHit = gameTime; flashMonster(m);
   m.vx += kx / m.mass; m.vz += kz / m.mass;
@@ -3509,7 +3532,7 @@ function renderSound() {
   const sl = (k, n) => `<label class="slider"><span>${n}</span><input type="range" min="0" max="100" value="${Math.round(AUD[k] * 100)}" data-aud="${k}"><b>${Math.round(AUD[k] * 100)}</b></label>`;
   const q = [['high', 'Висока'], ['medium', 'Середня'], ['low', 'Низька (слабкий телефон)']].map(([k, n]) => `<button class="btn ${GFX.q === k ? '' : 'alt'}" data-act="gfx" data-arg="${k}">${n}</button>`).join('');
   return `<h3>Графіка</h3><div class="btns">${q}</div><div class="btns"><button class="btn ${GFX.fps ? '' : 'alt'}" data-act="fps">${GFX.fps ? 'Сховати FPS' : 'Показувати FPS'}</button></div><label class="slider"><span>Яскравість</span><input type="range" min="50" max="130" value="${Math.round(GFX.exp * 100)}" data-exp="1"><b>${Math.round(GFX.exp * 100)}</b></label><p class="muted" style="font-size:12px;margin:6px 0 12px">Яскравість змінюється одразу — підкрути, якщо світлі об’єкти засвічені або картинка темна. Низька якість вимикає тіні, зменшує роздільність і кількість частинок. Нерухомий світ уже злито в кілька великих мешів (${mergeStats.before} → ${mergeStats.after} об’єктів).</p><h3>Звук</h3>${sl('music', 'Музика')}${sl('sfx', 'Ефекти')}<div class="btns"><button class="btn ${AUD.muted ? '' : 'alt'}" data-act="mute">${AUD.muted ? 'Увімкнути звук' : 'Вимкнути все'}</button></div>
-  <p class="muted" style="font-size:13px;margin-top:12px;line-height:1.5">Музика адаптивна: у «Гущі» — спокійний lo-fi з вінілом і мелодією, на островах — тихіше, у бою вмикаються барабани й напружений бас, на рейді — тема CEO. У меню музика стає приглушеною. Звуки ворогів просторові: чути, з якого боку вони.</p>`;
+  <p class="muted" style="font-size:13px;margin-top:12px;line-height:1.5">Музика адаптивна: у «Гущі» — спокійний lo-fi з вінілом і мелодією, на островах — тихіше, у бою вмикаються барабани й напружений бас, на рейді — тема CEO. У меню музика стає приглушеною. Звуки ворогів просторові: чути, з якого боку вони.</p>` + accountPanelHTML();
 }
 $('#pbody').addEventListener('input', e => {
   if (e.target.dataset && e.target.dataset.exp) { GFX.exp = +e.target.value / 100; renderer.toneMappingExposure = GFX.exp; saveGfx(); const b = e.target.parentElement.querySelector('b'); if (b) b.textContent = e.target.value; return; }
@@ -4598,27 +4621,17 @@ function bulkCommon(mode) {
    Світ (вороги, лут) у кожного свій — сервер синхронізує тільки присутність.
    ===================================================================== */
 const NET = { on: false, ws: null, id: null, players: {}, sendT: 0, retry: 0, wanted: false };
-const NAME_KEY = 'barista-name';
 function netAvailable() {
   if (window.__NO_NET || typeof WebSocket !== 'function') return false;
   return /^https?:$/.test(location.protocol) && !!location.host && !/claude\.ai|claudeusercontent|anthropic|claude\.site/.test(location.hostname);
 }
-function myName() { try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; } }
-function setupNetTitle() {
-  if (!netAvailable()) return;
-  const box = $('#netbox'); box.hidden = false;
-  const inp = $('#netname'); inp.value = myName() || ('Бариста-' + Math.floor(100 + Math.random() * 900));
-  inp.addEventListener('change', () => { try { localStorage.setItem(NAME_KEY, inp.value.trim().slice(0, 20)); } catch (e) { } });
-  if (typeof fetch === 'function') fetch('/status').then(r => r.json()).then(j => { $('#netcount').textContent = j.players ? `Зараз у грі: ${j.players} (${j.names.slice(0, 5).join(', ')})` : 'Поки ніхто не грає — будь першим.'; }).catch(() => { });
-}
+function myName() { return ACCT ? ACCT.login : ''; }
 function netConnect() {
-  if (!netAvailable()) return;
+  if (!netAvailable() || !ACCT) return;
   NET.wanted = true;
-  const name = ($('#netname').value || myName() || 'Бариста').trim().slice(0, 20);
-  try { localStorage.setItem(NAME_KEY, name); } catch (e) { }
   const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
   NET.ws = ws;
-  ws.onopen = () => { NET.on = true; NET.retry = 0; ws.send(JSON.stringify({ t: 'join', name })); $('#online').hidden = false; $('#chatbtn').hidden = false; };
+  ws.onopen = () => { NET.on = true; NET.retry = 0; ws.send(JSON.stringify({ t: 'join', token: ACCT && ACCT.token })); $('#online').hidden = false; $('#chatbtn').hidden = false; };
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } netMsg(m); };
   ws.onclose = () => {
     const was = NET.on; NET.on = false; NET.ws = null;
@@ -4630,6 +4643,7 @@ function netConnect() {
 }
 function netSend(o) { if (NET.on && NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(o)); }
 function netMsg(m) {
+  if (netAccountMsg(m)) return;
   if (m.t === 'hello') { NET.id = m.id; m.players.forEach(p => { addRemote(p.id, p.name); if (p.s) applyState(p.id, p.s, true); }); toast(`👥 Ти в мережі як <b>${escapeHTML(myName())}</b>. Онлайн: ${m.players.length + 1}. Enter — чат.`); refreshOnline(); }
   else if (m.t === 'join') { addRemote(m.id, m.name); toast(`👋 <b>${escapeHTML(m.name)}</b> зайшов у гру`); sfx('waypoint'); refreshOnline(); }
   else if (m.t === 'leave') { const r = NET.players[m.id]; if (r) toast(`🚪 ${escapeHTML(r.name)} вийшов`); dropRemote(m.id); refreshOnline(); }
@@ -4654,7 +4668,7 @@ function addRemote(id, name) {
   if (NET.players[id] || id === NET.id) return;
   const h = buildPlayer();
   const tag = document.createElement('div'); tag.className = 'nametag'; tag.textContent = name; fxLayer.appendChild(tag);
-  NET.players[id] = { id, name, h, tag, x: 0, z: 0, y: 0, tx: 0, tz: 0, ty: 0, face: 0, tf: 0, m: 0, w: 0, g: 0, ph: 0, bh: 2.4, dead: false, item: '', apron: '', emote: null, emoteT: 0, seen: false, lvl: 1, zone: '' };
+  NET.players[id] = { id, name, h, tag, act: '', tg: '', hp: 100, atkPh: 0, x: 0, z: 0, y: 0, tx: 0, tz: 0, ty: 0, face: 0, tf: 0, m: 0, w: 0, g: 0, ph: 0, bh: 2.4, dead: false, item: '', apron: '', emote: null, emoteT: 0, seen: false, lvl: 1, zone: '' };
 }
 function dropRemote(id) {
   const r = NET.players[id]; if (!r) return;
@@ -4673,7 +4687,11 @@ function applyState(id, s, snap) {
     if (r.held) r.h.hand.add(r.held);
   }
   if (s.e && s.e !== r.lastE) { r.lastE = s.e; }
-  r.tag.textContent = `${r.name} · ${r.lvl}`;
+  if ((s.act || '') === 'atk' && r.act !== 'atk') r.atkPh = .3;
+  r.act = s.act || ''; r.tg = s.tg || ''; r.hp = s.hp == null ? 100 : s.hp;
+  const st = actLabel(r.act, r.tg);
+  const html = `<b>${escapeHTML(r.name)}</b> · ${r.lvl}${st ? `<small>${st}</small>` : ''}<i class="nhp"><i style="width:${r.hp}%"></i></i>`;
+  if (r.tagHTML !== html) { r.tag.innerHTML = html; r.tagHTML = html; r.tag.classList.toggle('fight', r.act === 'atk' || r.act === 'boss'); }
 }
 function updRemotes(dt) {
   const k = 1 - Math.exp(-dt * 12);
@@ -4681,10 +4699,17 @@ function updRemotes(dt) {
     const r = NET.players[id], h = r.h;
     r.x = lerp(r.x, r.tx, k); r.z = lerp(r.z, r.tz, k); r.y = lerp(r.y, r.ty, k); r.face = lerpAng(r.face, r.tf, k);
     if (r.m) r.ph += dt * 10;
+    if (r.act === 'atk') { r.atkPh -= dt; if (r.atkPh < -.15) r.atkPh = .3; }
     h.root.position.set(r.x, r.y, r.z); h.root.rotation.y = r.face;
     const sw = r.m ? Math.sin(r.ph) * .6 : 0;
     h.l1.rotation.x = sw; h.l2.rotation.x = -sw; h.aL.rotation.x = -sw * .7; h.aR.rotation.x = -.35 - sw * .3;
-    h.body.rotation.x = r.w ? .5 : r.g ? .25 : 0; h.body.rotation.y = 0; h.body.position.y = r.m ? Math.abs(Math.sin(r.ph)) * .06 : 0;
+    if (r.act === 'atk' && r.atkPh > 0) { const k = Math.sin(r.atkPh / .3 * Math.PI); h.aR.rotation.x = -2.3 * k; h.aR.rotation.z = .4 * k; }
+    else if (r.act === 'brew' || r.act === 'drink') h.aR.rotation.x = -1.2;
+    else if (r.act === 'fish') h.aR.rotation.x = -1.6 + Math.sin(gameTime * 3) * .1;
+    else if (r.act === 'dig') h.aR.rotation.x = -1.2 - Math.sin(gameTime * 18) * .8;
+    h.aR.rotation.z = r.act === 'atk' && r.atkPh > 0 ? h.aR.rotation.z : 0;
+    h.body.rotation.x = r.w ? .5 : r.g ? .25 : 0; h.body.rotation.y = 0;
+    if (r.act === 'dead') { h.body.rotation.x = 1.2; h.body.position.y = -.5; } h.body.position.y = r.m ? Math.abs(Math.sin(r.ph)) * .06 : 0;
     if (r.emoteT > 0) {
       r.emoteT -= dt;
       if (r.emote === 'wave') { h.aR.rotation.x = -2.8; h.aR.rotation.z = Math.sin(gameTime * 14) * .5; }
@@ -4700,14 +4725,44 @@ function updRemotes(dt) {
     r.tag.style.transform = `translate(${p.x}px,${p.y}px) translate(-50%,-100%)`;
   }
   if (!NET.on) return;
+  if (panel === 'online' && (NET.listT = (NET.listT || 0) - dt) <= 0) { NET.listT = 1; renderPanel(); }
   NET.sendT -= dt;
   if (NET.sendT <= 0) {
     NET.sendT = .1;
     const it = eqItem('hand1');
-    netSend({ t: 's', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), f: +pl.face.toFixed(2), m: pl.moving ? 1 : 0, w: isWet(pl.terr) && pl.y < -.3 ? 1 : 0, g: pl.gliding ? 1 : 0, a: P.cos, i: it && !it.broken ? it.b : '', zn: curZone ? curZone.id : '', l: P.lvl });
+    const act = myAct();
+    netSend({ t: 's', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), f: +pl.face.toFixed(2), m: pl.moving ? 1 : 0, w: isWet(pl.terr) && pl.y < -.3 ? 1 : 0, g: pl.gliding ? 1 : 0, a: P.cos, i: it && !it.broken ? it.b : '', zn: curZone ? curZone.id : '', l: P.lvl, act, tg: act === 'atk' && lastHitM && gameTime - lastHitT < 2 ? (lastHitM.T.n || '').slice(0, 23) : '', hp: Math.round(clamp(pl.hp / S.maxHP, 0, 1) * 100) });
   }
 }
+/* Що зараз робить гравець — бачать інші (над головою, у вкладці «Онлайн», в адмінці й моніторі сервера). */
+function myAct() {
+  if (pl.dead) return 'dead';
+  if (typeof chairRide === 'function' && chairRide()) return 'chair';
+  if (fishing) return 'fish';
+  if (pl.dig) return 'dig';
+  if (activeBosses().some(b => dist2(pl.x, pl.z, b.x, b.z) < 14)) return 'boss';
+  if (gameTime - (pl.lastAtk || -9) < 1.2 || pl.charge > 0) return 'atk';
+  if (panel) return 'menu';
+  if (P.brew && nearBar()) return 'brew';
+  if (isWet(pl.terr) && pl.y < -.3) return 'swim';
+  if (pl.gliding) return 'glide';
+  if (pl.emote === 'sit' && pl.emoteT > 0) return 'sit';
+  return '';
+}
+const ACT_TXT = { atk: '⚔️ атакує', brew: '☕ варить каву', fish: '🎣 рибалить', dig: '⛏️ копає', swim: '🏊 пливе', glide: '🪂 планує', boss: '💼 б’ється з босом', menu: '📋 у меню', sit: '🪑 відпочиває', dead: '💀 вигорів', chair: '🛒 катається' };
+function actLabel(act, tg) { const t = ACT_TXT[act] || ''; return t && act === 'atk' && tg ? `${t}: ${escapeHTML(tg)}` : t; }
+function renderOnline() {
+  if (!NET.on) return '<h3>👥 Онлайн</h3><p class="muted">Немає зв’язку з сервером.</p>';
+  const me = `<div class="row" style="background:#E3F6EE"><span class="ic">☕</span><div class="tx"><b>${escapeHTML(myName())}</b> (ти) · рів. ${P.lvl}<div class="need">${actLabel(myAct()) || '🚶 гуляє'} · ${curZone ? curZone.n : ''}</div></div></div>`;
+  const others = Object.values(NET.players).map(r => {
+    const d = Math.round(dist2(r.x, r.z, pl.x, pl.z));
+    const zn = ISLMAP[r.zone] ? ISLMAP[r.zone].n : '…';
+    return `<div class="row"><span class="ic">${r.act === 'atk' || r.act === 'boss' ? '⚔️' : '🧑‍🍳'}</span><div class="tx"><b>${escapeHTML(r.name)}</b> · рів. ${r.lvl}<div class="need">${actLabel(r.act, r.tg) || '🚶 гуляє'} · ${zn} · ${d} м від тебе</div><div class="bar" style="height:6px;margin-top:4px;max-width:180px"><i style="transform:scaleX(${r.hp / 100})"></i></div></div></div>`;
+  }).join('');
+  return `<h3>👥 Онлайн · ${Object.keys(NET.players).length + 1}</h3><div class="list">${me}${others || '<p class="muted">Поки тільки ти. Кинь друзям посилання!</p>'}</div><p class="muted" style="font-size:12px;margin-top:10px">Enter — чат · /wave /dance /cheer /sit — емоції · біля гравця F — пригостити кавою.</p>`;
+}
 function refreshOnline() {
+  if (panel === 'online') renderPanel();
   const n = Object.keys(NET.players).length + (NET.on ? 1 : 0);
   $('#online').textContent = NET.on ? `👥 ${n}` : '👥 офлайн';
 }
@@ -5080,6 +5135,7 @@ function updHUDFrame() {
 $('#pbody').addEventListener('dblclick', e => { const b = e.target.closest('.it[data-act="sel"]'); if (!b) return; const it = itemByU(b.dataset.arg); if (it) { equip(it); renderPanel(); } });
 $('#drinks').addEventListener('click', e => { const b = e.target.closest('[data-drink]'); if (!b) return; if (selDrink === b.dataset.drink && IS_TOUCH) useDrink(); selDrink = b.dataset.drink; refreshHUD(); });
 $('#weapon').addEventListener('click', () => swapHands());
+$('#online').addEventListener('click', () => { panel === 'online' ? closePanel() : openPanel('online'); });
 document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { const n = b.dataset.open; panel === n ? closePanel() : openPanel(n); }));
 function refreshQuest() {
   if (!P) return;
@@ -5116,7 +5172,7 @@ function refreshLook() {
 
 /* ---------- Панелі ---------- */
 let panel = null, selU = null, newConfirm = false;
-const TABS = [['map', '🗺️ Мапа'], ['journal', '📔 Щоденник'], ['inv', '🎒 Речі'], ['cases', '🎁 Кейси'], ['skills', '🌳 Навички'], ['drinks', '☕ Напої'], ['craft', '🛠️ Крафт'], ['work', '🔧 Майстерня'], ['shop', '🛒 Крамниця'], ['home', '🏝️ Острів'], ['stash', '📦 Сховок'], ['quest', '📜 Квест'], ['sound', '⚙️ Налаштування'], ['help', '❔ Довідка']];
+const TABS = [['map', '🗺️ Мапа'], ['journal', '📔 Щоденник'], ['inv', '🎒 Речі'], ['cases', '🎁 Кейси'], ['skills', '🌳 Навички'], ['drinks', '☕ Напої'], ['craft', '🛠️ Крафт'], ['work', '🔧 Майстерня'], ['shop', '🛒 Крамниця'], ['home', '🏝️ Острів'], ['stash', '📦 Сховок'], ['quest', '📜 Квест'], ['sound', '⚙️ Налаштування'], ['help', '❔ Довідка'], ['online', '👥 Онлайн'], ['admin', '🛡️ Адмін']];
 function openPanel(name) {
   panel = name; paused = true; input.atk = false; pl.charge = 0; input.jumpHeld = false;
   for (const k in keys) keys[k] = false;
@@ -5131,9 +5187,9 @@ const inHub = () => dist2(pl.x, pl.z, 0, 0) < ISLMAP.hub.r;
 function needChips(need) { return Object.keys(need).map(k => `<span class="chip" style="${(P.ing[k] || 0) < need[k] ? 'color:#C2335A' : ''}">${ING[k].ic} ${ING[k].n} ${P.ing[k] || 0}/${need[k]}</span>`).join(' '); }
 function renderPanel() {
   if (!panel) return;
-  $('#ptabs').innerHTML = TABS.map(([id, n]) => `<button data-tab="${id}" class="${id === panel ? 'on' : ''}">${n}${id === 'inv' && P.pts ? ' •' : ''}${id === 'skills' && P.sp ? ' •' : ''}${id === 'cases' && Object.values(P.cases || {}).some(n => n > 0) ? ' •' : ''}</button>`).join('');
+  $('#ptabs').innerHTML = TABS.filter(([id]) => (id !== 'admin' || (ACCT && ACCT.admin)) && (id !== 'online' || NET.on)).map(([id, n]) => `<button data-tab="${id}" class="${id === panel ? 'on' : ''}">${n}${id === 'inv' && P.pts ? ' •' : ''}${id === 'skills' && P.sp ? ' •' : ''}${id === 'cases' && Object.values(P.cases || {}).some(n => n > 0) ? ' •' : ''}</button>`).join('');
   const body = $('#pbody');
-  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp }[panel];
+  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, admin: renderAdmin, online: renderOnline }[panel];
   body.innerHTML = f();
   if (panel === 'map') drawMap();
 }
@@ -5348,7 +5404,7 @@ $('#pbody').addEventListener('click', e => {
   else if (a === 'tut') { closePanel(); tutStart(); return; }
   else if (a === 'opencase') { openCase(arg); return; }
   else if (a === 'buycase') { const C = CASES[arg]; if (C.price && P.coins >= C.price && inHub()) { P.coins -= C.price; addCase(arg, 1, true); sfx('coin'); } }
-  else if (a === 'reset') { if (!newConfirm) { newConfirm = true; } else { try { localStorage.removeItem(SAVE_KEY); } catch (er) { } location.reload(); return; } }
+  else if (a === 'reset') { if (!newConfirm) { newConfirm = true; } else { running = false; try { localStorage.removeItem(SAVE_KEY); } catch (er) { } if (accountMode() && ACCT) api('wipe').then(() => location.reload()); else location.reload(); return; } }
   refreshHUD(); renderPanel();
 });
 
@@ -5404,6 +5460,167 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 
+/* =====================================================================
+   АКАУНТИ (логін + пароль на сервері start.py)
+   Прогрес зберігається на сервері під акаунтом, тому не губиться, коли
+   тунель видає нове посилання (новий домен = порожній localStorage).
+   Тут же: видалення акаунта, адмін-панель (бан / розбан / кік / права).
+   ===================================================================== */
+const ACCT_KEY = 'barista-acct';
+let ACCT = null;   // { token, login, admin }
+try { ACCT = JSON.parse(localStorage.getItem(ACCT_KEY) || 'null'); } catch (e) { ACCT = null; }
+function setAcct(a) { ACCT = a; try { a ? localStorage.setItem(ACCT_KEY, JSON.stringify(a)) : localStorage.removeItem(ACCT_KEY); } catch (e) { } }
+function api(path, body) {
+  return fetch('/api/' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token: ACCT && ACCT.token }, body || {})) })
+    .then(r => r.json()).catch(() => ({ ok: false, e: 'Сервер недоступний' }));
+}
+function accountMode() { return netAvailable(); }
+
+/* ---------- Збереження на сервер ---------- */
+let syncBusy = false, syncFails = 0;
+function serverSave(data) {
+  if (!accountMode() || !ACCT || syncBusy) return;
+  syncBusy = true;
+  api('save', { data }).then(r => {
+    if (r.ok) syncFails = 0;
+    else if (r.auth) { setAcct(null); if (running) toast('🔒 ' + escapeHTML(r.e || 'Сесія завершилась') + '. Прогрес лишився в браузері — увійди знову.'); }
+    else if (++syncFails === 3 && running) toast('⚠️ Не вдається зберегти прогрес на сервері.');
+  }).finally(() => { syncBusy = false; });
+}
+/* Після входу: серверний сейв — головний. Якщо на сервері порожньо, а в браузері
+   є сейв цього ж акаунта (або «нічий», зроблений до акаунтів) — він піде на сервер. */
+function adoptServerSave(data) {
+  const local = loadSave();
+  if (data && data.P) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { } }
+  else if (local && local.owner && local.owner !== ACCT.login) { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } }
+}
+
+/* ---------- Титульний екран ---------- */
+function setupAccountUI() {
+  if (!accountMode()) return;
+  $('#netbox').hidden = false;
+  if (typeof fetch === 'function') fetch('/status').then(r => r.json()).then(j => { $('#netcount').textContent = j.players ? `Зараз у грі: ${j.players} (${j.names.slice(0, 5).join(', ')})` : 'Поки ніхто не грає — будь першим.'; }).catch(() => { });
+  const err = t => { $('#acc-err').textContent = t || ''; };
+  const go = path => {
+    const login = $('#acc-login').value.trim(), pass = $('#acc-pass').value;
+    if (!login || !pass) { err('Введи логін і пароль'); return; }
+    err('…');
+    api(path, { login, pass }).then(r => {
+      if (!r.ok) { err(r.e || 'Помилка'); return; }
+      $('#acc-pass').value = ''; err('');
+      setAcct({ token: r.token, login: r.login, admin: r.admin });
+      afterLogin();
+    });
+  };
+  $('#acc-in').addEventListener('click', () => go('login'));
+  $('#acc-reg').addEventListener('click', () => go('register'));
+  $('#acc-pass').addEventListener('keydown', e => { if (e.key === 'Enter') go('login'); });
+  $('#acc-logout').addEventListener('click', () => { api('logout'); setAcct(null); refreshAccountUI(); });
+  $('#acc-del').addEventListener('click', () => { $('#acc-delbox').hidden = !$('#acc-delbox').hidden; });
+  $('#acc-delgo').addEventListener('click', () => deleteAccount($('#acc-delpass').value, t => { $('#acc-delerr').textContent = t; }));
+  if (ACCT) api('me').then(r => { if (r.ok) { setAcct(Object.assign(ACCT, { login: r.login, admin: r.admin })); afterLogin(); } else { if (r.auth) setAcct(null); refreshAccountUI(r.banned ? r.e : ''); } });
+  refreshAccountUI();
+}
+function afterLogin() {
+  api('load').then(r => {
+    if (r.ok) adoptServerSave(r.data);
+    refreshAccountUI();
+  });
+}
+function refreshAccountUI(msg) {
+  if (!accountMode()) { refreshTitleButtons(); return; }
+  const inn = !!ACCT;
+  $('#acc-form').hidden = inn; $('#acc-box').hidden = !inn;
+  if (msg) $('#acc-err').textContent = msg;
+  if (inn) { $('#acc-name').textContent = ACCT.login; $('#acc-adm').hidden = !ACCT.admin; $('#acc-delbox').hidden = true; }
+  const nick = $('.mm-nickname'), av = $('.mm-avatar');
+  if (nick) nick.textContent = inn ? ACCT.login : 'Гість';
+  if (av) av.textContent = inn ? ACCT.login[0].toUpperCase() : '?';
+  refreshTitleButtons();
+}
+function deleteAccount(pass, onErr) {
+  if (!pass) { onErr('Введи пароль, щоб підтвердити'); return; }
+  api('delete', { pass }).then(r => {
+    if (!r.ok) { onErr(r.e || 'Помилка'); return; }
+    NET.wanted = false; running = false;
+    setAcct(null); try { localStorage.removeItem(SAVE_KEY); } catch (e) { }
+    location.reload();
+  });
+}
+
+/* ---------- Мережеві події акаунта ---------- */
+function netAccountMsg(m) {
+  if (m.t === 'banned' || m.t === 'kicked' || m.t === 'auth') {
+    NET.wanted = false;
+    if (m.t === 'banned') { setAcct(null); running = false; paused = true; $('#banmsg').textContent = m.m || ''; $('#banned').hidden = false; }
+    else toast('🚪 ' + escapeHTML(m.m || 'Тебе відключено від сервера'));
+    return true;
+  }
+  return false;
+}
+
+/* ---------- Панель «Акаунт» у налаштуваннях ---------- */
+function accountPanelHTML() {
+  if (!accountMode()) return '';
+  if (!ACCT) return `<h3>Акаунт</h3><p class="note">Ти не в акаунті — прогрес зберігається лише в цьому браузері. Вийди в головне меню й увійди, щоб він не загубився при зміні посилання.</p>`;
+  return `<h3>Акаунт</h3><p class="muted" style="font-size:13px">Ти граєш як <b>${escapeHTML(ACCT.login)}</b>${ACCT.admin ? ' · 🛡️ адмін' : ''}. Прогрес зберігається на сервері — заходь з будь-якого посилання чи пристрою.</p>
+  <div class="btns"><button class="btn alt" data-acc="logout">Вийти з акаунта</button><button class="btn alt" data-acc="del">Видалити акаунт…</button></div>
+  <div id="pdel" hidden class="detail"><p style="font-size:13px;margin:0 0 6px">Акаунт і весь прогрес буде видалено <b>назавжди</b>.</p><input id="pdelpass" type="password" placeholder="Пароль" class="ainp"><div class="btns"><button class="btn" data-acc="delgo" style="background:#C2335A">Так, видалити</button></div><div id="pdelerr" class="aerr"></div></div>`;
+}
+$('#pbody').addEventListener('click', e => {
+  const b = e.target.closest('[data-acc]'); if (!b) return;
+  const a = b.dataset.acc;
+  if (a === 'logout') { save(); api('logout').then(() => { setAcct(null); NET.wanted = false; location.reload(); }); }
+  else if (a === 'del') $('#pdel').hidden = !$('#pdel').hidden;
+  else if (a === 'delgo') deleteAccount($('#pdelpass').value, t => { $('#pdelerr').textContent = t; });
+});
+
+/* ---------- Адмін-панель ---------- */
+const ADM = { users: null, q: '', err: '' };
+const ACT_UA = { atk: '⚔️ атакує', brew: '☕ варить', fish: '🎣 рибалить', dig: '⛏️ копає', swim: '🏊 пливе', glide: '🪂 планує', boss: '💼 б’ється з босом', menu: '📋 у меню', sit: '🪑 відпочиває', dead: '💀 вигорів', drink: '🥤 частує', chair: '🛒 катається', '': '🚶 гуляє' };
+function renderAdmin() {
+  if (!ACCT || !ACCT.admin) return '<p class="muted">Тільки для адміністраторів.</p>';
+  if (!ADM.users) { loadAdmin(); return '<h3>🛡️ Адмін-панель</h3><p class="muted">Завантаження…</p>'; }
+  const q = ADM.q.toLowerCase();
+  const rows = ADM.users.filter(u => !q || u.login.toLowerCase().includes(q)).map(u => {
+    const ago = u.online ? '<b style="color:#2F9A52">● онлайн</b>' : 'був ' + timeAgo(u.seen);
+    const doing = u.online ? ` · ${ACT_UA[u.act] || ACT_UA['']}${u.zone && ISLMAP[u.zone] ? ' · ' + ISLMAP[u.zone].n : ''}` : '';
+    const me = u.login === ACCT.login;
+    const L = escapeHTML(u.login);
+    return `<div class="row" style="${u.banned ? 'background:#FFE1E5' : ''}"><span class="ic">${u.banned ? '⛔' : u.admin ? '🛡️' : '☕'}</span><div class="tx"><b>${L}</b> · рів. ${u.lvl}${me ? ' · це ти' : ''}<div class="need">${ago}${doing} · IP ${escapeHTML(u.ip || '?')}</div>${u.banned ? `<div class="need" style="color:#C2335A">Бан${u.reason ? ': ' + escapeHTML(u.reason) : ''}</div>` : ''}</div>
+      <div class="btns" style="margin:0;justify-content:flex-end">${me ? '' : u.banned ? `<button class="btn" data-adm="unban" data-login="${L}">Розбанити</button>` : `<button class="btn" data-adm="ban" data-login="${L}" style="background:#C2335A">Бан</button>`}
+      ${u.online && !me ? `<button class="btn alt" data-adm="kick" data-login="${L}">Кік</button>` : ''}
+      ${me ? '' : `<button class="btn alt" data-adm="${u.admin ? 'unadmin' : 'admin'}" data-login="${L}">${u.admin ? 'Зняти адміна' : 'Зробити адміном'}</button><button class="btn alt" data-adm="delete" data-login="${L}">🗑️</button>`}</div></div>`;
+  }).join('');
+  const on = ADM.users.filter(u => u.online).length, ban = ADM.users.filter(u => u.banned).length;
+  return `<h3>🛡️ Адмін-панель</h3>
+  <div class="chips" style="margin-bottom:10px"><span class="chip">Акаунтів: ${ADM.users.length}</span><span class="chip">Онлайн: ${on}</span><span class="chip">У бані: ${ban}</span><button class="fchip" data-adm="refresh">⟳ Оновити</button></div>
+  <div class="arow"><input id="adm-reason" class="ainp" maxlength="120" placeholder="Причина (для бану й кіку)"><input id="adm-q" class="ainp" placeholder="Пошук гравця" value="${escapeHTML(ADM.q)}"></div>
+  <div class="arow"><input id="adm-msg" class="ainp" maxlength="200" placeholder="Оголошення всім гравцям"><button class="btn" data-adm="announce">📢 Надіслати</button></div>
+  ${ADM.err ? `<p class="note">${escapeHTML(ADM.err)}</p>` : ''}
+  <div class="list">${rows || '<span class="muted">Нікого не знайдено</span>'}</div>`;
+}
+function timeAgo(t) {
+  const s = Date.now() / 1000 - (t || 0);
+  if (s < 90) return 'щойно'; if (s < 3600) return Math.round(s / 60) + ' хв тому';
+  if (s < 86400) return Math.round(s / 3600) + ' год тому'; return Math.round(s / 86400) + ' дн тому';
+}
+function loadAdmin() {
+  api('admin', { act: 'list' }).then(r => {
+    if (r.ok) { ADM.users = r.users; ADM.err = ''; } else { ADM.users = ADM.users || []; ADM.err = r.e || 'Помилка'; }
+    if (panel === 'admin') renderPanel();
+  });
+}
+const ADM_CONFIRM = { ban: 'Забанити', delete: 'ВИДАЛИТИ акаунт і прогрес', unadmin: 'Зняти права адміна з' };
+$('#pbody').addEventListener('click', e => {
+  const b = e.target.closest('[data-adm]'); if (!b) return;
+  const act = b.dataset.adm, login = b.dataset.login;
+  if (act === 'refresh') { loadAdmin(); return; }
+  if (act === 'announce') { const m = $('#adm-msg').value.trim(); if (m) api('admin', { act, m }).then(() => toast('📢 Надіслано')); return; }
+  if (ADM_CONFIRM[act] && !confirm(`${ADM_CONFIRM[act]} «${login}»?`)) return;
+  api('admin', { act, login, reason: ($('#adm-reason') || {}).value || '' }).then(r => { ADM.err = r.ok ? '' : (r.e || 'Помилка'); loadAdmin(); });
+});
+$('#pbody').addEventListener('input', e => { if (e.target.id === 'adm-q') { ADM.q = e.target.value; const pos = e.target.selectionStart; renderPanel(); const i = $('#adm-q'); i.focus(); i.setSelectionRange(pos, pos); } });
 /* =====================================================================
    ЗВУК: адаптивна lo-fi музика + просторові ефекти (WebAudio, без файлів)
    Шари музики: keys (електропіано), bass, drums, tension (бій), lead (бос), crackle (вініл).
@@ -5770,30 +5987,13 @@ mergeStatics();
 applyGfx(false);
 requestAnimationFrame(frame);
 
-/* ---------- Завантаження серверного save → localStorage ---------- */
+/* ---------- Кнопки титулу: онлайн — тільки після входу в акаунт ---------- */
 function refreshTitleButtons() {
-  if (loadSave()) { $('#b-continue').hidden = false; $('#b-new').classList.add('alt'); }
+  const locked = accountMode() && !ACCT;
+  $('#b-new').hidden = locked;
+  if (!locked && loadSave()) { $('#b-continue').hidden = false; $('#b-new').classList.add('alt'); }
   else { $('#b-continue').hidden = true; $('#b-new').classList.remove('alt'); }
 }
-
-(function tryLoadServerSave() {
-  const name = myName();
-  if (!name || name.length < 2) { refreshTitleButtons(); return; }
-  fetch('/api/load', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name })
-  }).then(r => r.json()).then(res => {
-    if (res.ok && res.data) {
-      const local = loadSave();
-      const serverLvl = (res.data.P && res.data.P.lvl) || 0;
-      const localLvl = (local && local.P && local.P.lvl) || 0;
-      // Серверний save має пріоритет (свіжіший при зміні тунелю/домену)
-      if (serverLvl >= localLvl) {
-        try { localStorage.setItem(SAVE_KEY, JSON.stringify(res.data)); } catch (e) { }
-      }
-    }
-    refreshTitleButtons();
-  }).catch(() => { refreshTitleButtons(); });
-})();
 
 $('#b-continue').addEventListener('click', () => startGame(false));
 $('#b-new').addEventListener('click', () => {
@@ -5801,7 +6001,7 @@ $('#b-new').addEventListener('click', () => {
   startGame(true);
 });
 $('#b-respawn').addEventListener('click', respawn);
-setupNetTitle();
+setupAccountUI(); refreshTitleButtons();
 if (IS_TOUCH) $('#keys-desk').hidden = true;
 
 /* ---------- Головне меню → Екран заголовку ---------- */

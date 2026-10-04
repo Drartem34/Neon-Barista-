@@ -339,8 +339,12 @@ body.touch #fishui{bottom:calc(env(safe-area-inset-bottom,0px) + 232px)}
 #artneedle{position:absolute;left:50%;top:50%;width:6px;height:96px;margin-left:-3px;margin-top:-96px;transform-origin:50% 100%;background:linear-gradient(#2E2346,#2E2346 30%,transparent);border-radius:3px}
 #artheart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:64px;color:#FFF3E6;opacity:0;transition:opacity .3s;text-shadow:0 0 8px rgba(255,255,255,.6)}
 #fps{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 4px);transform:translateX(-50%);font-size:11px;background:rgba(46,35,70,.6);padding:2px 8px;border-radius:8px}
-.nametag{position:absolute;left:0;top:0;font-size:12px;font-weight:700;color:#fff;background:rgba(46,35,70,.62);padding:2px 8px;border-radius:9px;white-space:nowrap;pointer-events:none}
-#online{font-weight:700;background:rgba(46,35,70,.5);padding:5px 10px;border-radius:12px;font-size:13px;white-space:nowrap}
+.nametag{position:absolute;left:0;top:0;font-size:12px;font-weight:500;color:#fff;background:rgba(46,35,70,.62);padding:2px 8px 4px;border-radius:9px;white-space:nowrap;pointer-events:none;text-align:center;transition:background .2s}
+.nametag small{display:block;font-size:11px;opacity:.95}
+.nametag.fight{background:rgba(194,51,90,.75)}
+.nametag .nhp{display:block;height:3px;margin-top:2px;border-radius:2px;background:rgba(0,0,0,.35);overflow:hidden}
+.nametag .nhp i{display:block;height:100%;background:#7FE0A8}
+#online{font-weight:700;background:rgba(46,35,70,.5);padding:5px 10px;border-radius:12px;font-size:13px;white-space:nowrap;border:0;color:#fff;pointer-events:auto}
 #chatlog{position:absolute;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 90px);width:min(360px,70vw);display:flex;flex-direction:column;gap:3px;pointer-events:none}
 #chatlog .cl{background:rgba(46,35,70,.62);padding:5px 9px;border-radius:9px;font-size:13px;line-height:1.35;transition:opacity 1s}
 #chatlog .cl.me{background:rgba(127,214,185,.45)}
@@ -351,7 +355,10 @@ body.touch #chatlog{bottom:calc(env(safe-area-inset-bottom,0px) + 300px)}
 body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
 #netbox{margin:14px 0 4px;padding:12px;border-radius:14px;background:var(--soft)}
 #netbox label{font-size:13px;font-weight:600;display:block;margin-bottom:6px}
-#netbox input{width:100%;font:inherit;font-size:15px;border:2px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;color:var(--ink)}
+#netbox input,.ainp{width:100%;min-width:0;font:inherit;font-size:15px;border:2px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;color:var(--ink);-webkit-user-select:text;user-select:text}
+.arow{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.arow .btn{flex:none}
+.aerr{font-size:13px;color:#C2335A;min-height:1em;margin-top:4px}
 #netcount{font-size:12px;color:var(--muted);margin-top:6px}
 @media (prefers-reduced-motion: reduce){.toast{animation:none}#zone,#event{transition:none}}
 </style>
@@ -372,7 +379,7 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
     </div>
     <div id="coins">🪙 0</div>
     <div id="clock">☀️ 08:00</div>
-    <div id="online" hidden>👥</div>
+    <button id="online" hidden title="Хто онлайн і що робить">👥</button>
   </div>
   <div id="hud-tr">
     <div class="menu-btns">
@@ -470,7 +477,20 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
   <div class="card">
     <h1>Бариста Кінця Світу</h1>
     <p class="sub">Світ розвалився на літаючі острови від тотального вигорання. Ти — бариста-кур’єр. Ухиляйся від задовбаних життям монстрів, збирай дивні інгредієнти й вари їм каву, доки вони не видихнуть.</p>
-    <div id="netbox" hidden><label for="netname">Ти граєш онлайн. Твоє ім’я:</label><input id="netname" maxlength="20" autocomplete="off"><div id="netcount"></div></div>
+    <div id="netbox" hidden>
+      <div id="acc-form">
+        <label for="acc-login">Акаунт — прогрес зберігається на сервері, навіть якщо посилання зміниться</label>
+        <div class="arow"><input id="acc-login" class="ainp" maxlength="20" placeholder="Логін" autocomplete="username"><input id="acc-pass" class="ainp" type="password" maxlength="64" placeholder="Пароль" autocomplete="current-password"></div>
+        <div class="btns" style="margin-top:6px"><button class="btn" id="acc-in">Увійти</button><button class="btn alt" id="acc-reg">Зареєструватися</button></div>
+        <div id="acc-err" class="aerr"></div>
+      </div>
+      <div id="acc-box" hidden>
+        <div style="font-size:14px">Ти в акаунті <b id="acc-name"></b> <span id="acc-adm" class="chip" hidden>🛡️ адмін</span></div>
+        <div class="btns" style="margin-top:6px"><button class="btn alt" id="acc-logout">Вийти</button><button class="btn alt" id="acc-del">Видалити акаунт…</button></div>
+        <div id="acc-delbox" hidden style="margin-top:8px"><div style="font-size:13px;margin-bottom:6px">Акаунт і весь прогрес буде видалено <b>назавжди</b>. Введи пароль:</div><div class="arow"><input id="acc-delpass" class="ainp" type="password" placeholder="Пароль"><button class="btn" id="acc-delgo" style="background:#C2335A">Видалити</button></div><div id="acc-delerr" class="aerr"></div></div>
+      </div>
+      <div id="netcount"></div>
+    </div>
     <div class="btns">
       <button class="btn big" id="b-continue" hidden>Продовжити зміну</button>
       <button class="btn big" id="b-new">Нова зміна</button>
@@ -487,6 +507,14 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
       <kbd>I · B · K · C</kbd><span>інвентар · кейси · навички · напої й крафт</span>
     </div>
     <p class="fine">Остаточно заспокоїти монстра може лише кава: удари знімають стрес максимум до чверті. Прогрес зберігається у браузері. Кооператив, соціальний хаб і рейди на 10–15 гравців потребують сервера, тому тут їх замінює одиночна версія: бос-рейд «CEO-психопат» і хаб «Кавова Гуща», куди сходяться заспокоєні NPC.</p>
+  </div>
+</div>
+
+<div id="banned" class="screen" hidden style="z-index:120">
+  <div class="card">
+    <h1>⛔ Доступ закрито</h1>
+    <p class="sub" id="banmsg"></p>
+    <button class="btn big" onclick="location.reload()">На головну</button>
   </div>
 </div>
 

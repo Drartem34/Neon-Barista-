@@ -4,27 +4,17 @@
    Світ (вороги, лут) у кожного свій — сервер синхронізує тільки присутність.
    ===================================================================== */
 const NET = { on: false, ws: null, id: null, players: {}, sendT: 0, retry: 0, wanted: false };
-const NAME_KEY = 'barista-name';
 function netAvailable() {
   if (window.__NO_NET || typeof WebSocket !== 'function') return false;
   return /^https?:$/.test(location.protocol) && !!location.host && !/claude\.ai|claudeusercontent|anthropic|claude\.site/.test(location.hostname);
 }
-function myName() { try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; } }
-function setupNetTitle() {
-  if (!netAvailable()) return;
-  const box = $('#netbox'); box.hidden = false;
-  const inp = $('#netname'); inp.value = myName() || ('Бариста-' + Math.floor(100 + Math.random() * 900));
-  inp.addEventListener('change', () => { try { localStorage.setItem(NAME_KEY, inp.value.trim().slice(0, 20)); } catch (e) { } });
-  if (typeof fetch === 'function') fetch('/status').then(r => r.json()).then(j => { $('#netcount').textContent = j.players ? `Зараз у грі: ${j.players} (${j.names.slice(0, 5).join(', ')})` : 'Поки ніхто не грає — будь першим.'; }).catch(() => { });
-}
+function myName() { return ACCT ? ACCT.login : ''; }
 function netConnect() {
-  if (!netAvailable()) return;
+  if (!netAvailable() || !ACCT) return;
   NET.wanted = true;
-  const name = ($('#netname').value || myName() || 'Бариста').trim().slice(0, 20);
-  try { localStorage.setItem(NAME_KEY, name); } catch (e) { }
   const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
   NET.ws = ws;
-  ws.onopen = () => { NET.on = true; NET.retry = 0; ws.send(JSON.stringify({ t: 'join', name })); $('#online').hidden = false; $('#chatbtn').hidden = false; };
+  ws.onopen = () => { NET.on = true; NET.retry = 0; ws.send(JSON.stringify({ t: 'join', token: ACCT && ACCT.token })); $('#online').hidden = false; $('#chatbtn').hidden = false; };
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } netMsg(m); };
   ws.onclose = () => {
     const was = NET.on; NET.on = false; NET.ws = null;
@@ -36,6 +26,7 @@ function netConnect() {
 }
 function netSend(o) { if (NET.on && NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(o)); }
 function netMsg(m) {
+  if (netAccountMsg(m)) return;
   if (m.t === 'hello') { NET.id = m.id; m.players.forEach(p => { addRemote(p.id, p.name); if (p.s) applyState(p.id, p.s, true); }); toast(`👥 Ти в мережі як <b>${escapeHTML(myName())}</b>. Онлайн: ${m.players.length + 1}. Enter — чат.`); refreshOnline(); }
   else if (m.t === 'join') { addRemote(m.id, m.name); toast(`👋 <b>${escapeHTML(m.name)}</b> зайшов у гру`); sfx('waypoint'); refreshOnline(); }
   else if (m.t === 'leave') { const r = NET.players[m.id]; if (r) toast(`🚪 ${escapeHTML(r.name)} вийшов`); dropRemote(m.id); refreshOnline(); }
@@ -60,7 +51,7 @@ function addRemote(id, name) {
   if (NET.players[id] || id === NET.id) return;
   const h = buildPlayer();
   const tag = document.createElement('div'); tag.className = 'nametag'; tag.textContent = name; fxLayer.appendChild(tag);
-  NET.players[id] = { id, name, h, tag, x: 0, z: 0, y: 0, tx: 0, tz: 0, ty: 0, face: 0, tf: 0, m: 0, w: 0, g: 0, ph: 0, bh: 2.4, dead: false, item: '', apron: '', emote: null, emoteT: 0, seen: false, lvl: 1, zone: '' };
+  NET.players[id] = { id, name, h, tag, act: '', tg: '', hp: 100, atkPh: 0, x: 0, z: 0, y: 0, tx: 0, tz: 0, ty: 0, face: 0, tf: 0, m: 0, w: 0, g: 0, ph: 0, bh: 2.4, dead: false, item: '', apron: '', emote: null, emoteT: 0, seen: false, lvl: 1, zone: '' };
 }
 function dropRemote(id) {
   const r = NET.players[id]; if (!r) return;
@@ -79,7 +70,11 @@ function applyState(id, s, snap) {
     if (r.held) r.h.hand.add(r.held);
   }
   if (s.e && s.e !== r.lastE) { r.lastE = s.e; }
-  r.tag.textContent = `${r.name} · ${r.lvl}`;
+  if ((s.act || '') === 'atk' && r.act !== 'atk') r.atkPh = .3;
+  r.act = s.act || ''; r.tg = s.tg || ''; r.hp = s.hp == null ? 100 : s.hp;
+  const st = actLabel(r.act, r.tg);
+  const html = `<b>${escapeHTML(r.name)}</b> · ${r.lvl}${st ? `<small>${st}</small>` : ''}<i class="nhp"><i style="width:${r.hp}%"></i></i>`;
+  if (r.tagHTML !== html) { r.tag.innerHTML = html; r.tagHTML = html; r.tag.classList.toggle('fight', r.act === 'atk' || r.act === 'boss'); }
 }
 function updRemotes(dt) {
   const k = 1 - Math.exp(-dt * 12);
@@ -87,10 +82,17 @@ function updRemotes(dt) {
     const r = NET.players[id], h = r.h;
     r.x = lerp(r.x, r.tx, k); r.z = lerp(r.z, r.tz, k); r.y = lerp(r.y, r.ty, k); r.face = lerpAng(r.face, r.tf, k);
     if (r.m) r.ph += dt * 10;
+    if (r.act === 'atk') { r.atkPh -= dt; if (r.atkPh < -.15) r.atkPh = .3; }
     h.root.position.set(r.x, r.y, r.z); h.root.rotation.y = r.face;
     const sw = r.m ? Math.sin(r.ph) * .6 : 0;
     h.l1.rotation.x = sw; h.l2.rotation.x = -sw; h.aL.rotation.x = -sw * .7; h.aR.rotation.x = -.35 - sw * .3;
-    h.body.rotation.x = r.w ? .5 : r.g ? .25 : 0; h.body.rotation.y = 0; h.body.position.y = r.m ? Math.abs(Math.sin(r.ph)) * .06 : 0;
+    if (r.act === 'atk' && r.atkPh > 0) { const k = Math.sin(r.atkPh / .3 * Math.PI); h.aR.rotation.x = -2.3 * k; h.aR.rotation.z = .4 * k; }
+    else if (r.act === 'brew' || r.act === 'drink') h.aR.rotation.x = -1.2;
+    else if (r.act === 'fish') h.aR.rotation.x = -1.6 + Math.sin(gameTime * 3) * .1;
+    else if (r.act === 'dig') h.aR.rotation.x = -1.2 - Math.sin(gameTime * 18) * .8;
+    h.aR.rotation.z = r.act === 'atk' && r.atkPh > 0 ? h.aR.rotation.z : 0;
+    h.body.rotation.x = r.w ? .5 : r.g ? .25 : 0; h.body.rotation.y = 0;
+    if (r.act === 'dead') { h.body.rotation.x = 1.2; h.body.position.y = -.5; } h.body.position.y = r.m ? Math.abs(Math.sin(r.ph)) * .06 : 0;
     if (r.emoteT > 0) {
       r.emoteT -= dt;
       if (r.emote === 'wave') { h.aR.rotation.x = -2.8; h.aR.rotation.z = Math.sin(gameTime * 14) * .5; }
@@ -106,14 +108,44 @@ function updRemotes(dt) {
     r.tag.style.transform = `translate(${p.x}px,${p.y}px) translate(-50%,-100%)`;
   }
   if (!NET.on) return;
+  if (panel === 'online' && (NET.listT = (NET.listT || 0) - dt) <= 0) { NET.listT = 1; renderPanel(); }
   NET.sendT -= dt;
   if (NET.sendT <= 0) {
     NET.sendT = .1;
     const it = eqItem('hand1');
-    netSend({ t: 's', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), f: +pl.face.toFixed(2), m: pl.moving ? 1 : 0, w: isWet(pl.terr) && pl.y < -.3 ? 1 : 0, g: pl.gliding ? 1 : 0, a: P.cos, i: it && !it.broken ? it.b : '', zn: curZone ? curZone.id : '', l: P.lvl });
+    const act = myAct();
+    netSend({ t: 's', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), f: +pl.face.toFixed(2), m: pl.moving ? 1 : 0, w: isWet(pl.terr) && pl.y < -.3 ? 1 : 0, g: pl.gliding ? 1 : 0, a: P.cos, i: it && !it.broken ? it.b : '', zn: curZone ? curZone.id : '', l: P.lvl, act, tg: act === 'atk' && lastHitM && gameTime - lastHitT < 2 ? (lastHitM.T.n || '').slice(0, 23) : '', hp: Math.round(clamp(pl.hp / S.maxHP, 0, 1) * 100) });
   }
 }
+/* Що зараз робить гравець — бачать інші (над головою, у вкладці «Онлайн», в адмінці й моніторі сервера). */
+function myAct() {
+  if (pl.dead) return 'dead';
+  if (typeof chairRide === 'function' && chairRide()) return 'chair';
+  if (fishing) return 'fish';
+  if (pl.dig) return 'dig';
+  if (activeBosses().some(b => dist2(pl.x, pl.z, b.x, b.z) < 14)) return 'boss';
+  if (gameTime - (pl.lastAtk || -9) < 1.2 || pl.charge > 0) return 'atk';
+  if (panel) return 'menu';
+  if (P.brew && nearBar()) return 'brew';
+  if (isWet(pl.terr) && pl.y < -.3) return 'swim';
+  if (pl.gliding) return 'glide';
+  if (pl.emote === 'sit' && pl.emoteT > 0) return 'sit';
+  return '';
+}
+const ACT_TXT = { atk: '⚔️ атакує', brew: '☕ варить каву', fish: '🎣 рибалить', dig: '⛏️ копає', swim: '🏊 пливе', glide: '🪂 планує', boss: '💼 б’ється з босом', menu: '📋 у меню', sit: '🪑 відпочиває', dead: '💀 вигорів', chair: '🛒 катається' };
+function actLabel(act, tg) { const t = ACT_TXT[act] || ''; return t && act === 'atk' && tg ? `${t}: ${escapeHTML(tg)}` : t; }
+function renderOnline() {
+  if (!NET.on) return '<h3>👥 Онлайн</h3><p class="muted">Немає зв’язку з сервером.</p>';
+  const me = `<div class="row" style="background:#E3F6EE"><span class="ic">☕</span><div class="tx"><b>${escapeHTML(myName())}</b> (ти) · рів. ${P.lvl}<div class="need">${actLabel(myAct()) || '🚶 гуляє'} · ${curZone ? curZone.n : ''}</div></div></div>`;
+  const others = Object.values(NET.players).map(r => {
+    const d = Math.round(dist2(r.x, r.z, pl.x, pl.z));
+    const zn = ISLMAP[r.zone] ? ISLMAP[r.zone].n : '…';
+    return `<div class="row"><span class="ic">${r.act === 'atk' || r.act === 'boss' ? '⚔️' : '🧑‍🍳'}</span><div class="tx"><b>${escapeHTML(r.name)}</b> · рів. ${r.lvl}<div class="need">${actLabel(r.act, r.tg) || '🚶 гуляє'} · ${zn} · ${d} м від тебе</div><div class="bar" style="height:6px;margin-top:4px;max-width:180px"><i style="transform:scaleX(${r.hp / 100})"></i></div></div></div>`;
+  }).join('');
+  return `<h3>👥 Онлайн · ${Object.keys(NET.players).length + 1}</h3><div class="list">${me}${others || '<p class="muted">Поки тільки ти. Кинь друзям посилання!</p>'}</div><p class="muted" style="font-size:12px;margin-top:10px">Enter — чат · /wave /dance /cheer /sit — емоції · біля гравця F — пригостити кавою.</p>`;
+}
 function refreshOnline() {
+  if (panel === 'online') renderPanel();
   const n = Object.keys(NET.players).length + (NET.on ? 1 : 0);
   $('#online').textContent = NET.on ? `👥 ${n}` : '👥 офлайн';
 }

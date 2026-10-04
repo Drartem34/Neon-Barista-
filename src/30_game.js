@@ -9,6 +9,7 @@ const MON = [], PROJ = [], TELE = [], DROPS = [];
 let hero = null, heldMesh = null, heldKey = '';
 let running = false, paused = false, timeScale = 1, slowT = 0, shake = 0, gameTime = 0;
 let selDrink = 'latte';
+let lastHitM = null, lastHitT = -9;   // кого востаннє вдарили (для статусу в онлайні)
 const EV = { t: 70, happy: 0, reports: 0 };
 const BOSS = { rad: 1.4, lvl: 1, active: false, asleep: false, stress: 0, max: 0, x: 58, z: 16, face: 0, cd: 2.5, atkI: 0, charge: null, sleepT: 0, mesh: null, wakeLine: 0, dead: false, bh: 4.6, y: 0, offT: 0 };
 
@@ -32,16 +33,9 @@ function newPlayer() {
 }
 function save() {
   if (!P) return;
-  const data = { P, boss: BOSS.lvl };
+  const data = { P, boss: BOSS.lvl, owner: ACCT ? ACCT.login : undefined };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { }
-  // Серверний sync (fire-and-forget, не блокує гру)
-  const name = (typeof myName === 'function' ? myName() : '') || '';
-  if (name.length >= 2 && !save._busy) {
-    save._busy = true;
-    fetch('/api/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, data })
-    }).catch(() => {}).finally(() => { save._busy = false; });
-  }
+  serverSave(data);   // акаунт на сервері (fire-and-forget, не блокує гру)
 }
 function loadSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 
@@ -354,6 +348,7 @@ function applyHit(m, dmg, kx, kz, isBoss) {
   const before = m.stress;
   if (m.stress > floor) m.stress = Math.max(floor, m.stress - dmg);
   const real = before - m.stress;
+  lastHitM = m; lastHitT = gameTime;
   if (isBoss) return real;
   m.lastHit = gameTime; flashMonster(m);
   m.vx += kx / m.mass; m.vz += kz / m.mass;

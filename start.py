@@ -14,6 +14,11 @@
   python3 start.py --port 8088     # інший порт
   python3 start.py --tunnel none   # тільки локальна мережа
   python3 start.py --tunnel ngrok  # примусово ngrok (cloudflared / ssh — так само)
+  python3 start.py --admin Логін   # зробити акаунт адміном (перший зареєстрований — адмін і так)
+  python3 start.py --unban Логін   # розбанити акаунт з консолі
+
+Акаунти й сейви лежать у saves/ (accounts.json + acc_<логін>.json) — прогрес
+не губиться, коли тунель дає нове посилання.
 
 Потрібен лише Python 3.8+. psutil — за бажанням (для CPU/RAM у моніторі).
 Клавіші в моніторі: [T] тунель увімк/вимк · [Q] вихід.
@@ -27,6 +32,7 @@ import json
 import mimetypes
 import os
 import re
+import secrets
 import shutil
 import socket
 import struct
@@ -187,10 +193,11 @@ class Tunnel:
 
 # ===================== ГРАВЦІ =====================
 class Player:
-    __slots__ = ('id', 'name', 'writer', 'state', 'joined', 'msgs', 'last', 'ip')
+    __slots__ = ('id', 'name', 'writer', 'state', 'joined', 'msgs', 'last', 'ip', 'login')
 
     def __init__(self, pid, writer, ip):
         self.id, self.writer, self.ip = pid, writer, ip
+        self.login = None
         self.name = f'Бариста-{pid}'
         self.state = {}
         self.joined = time.time()
@@ -303,8 +310,21 @@ async def ws_session(reader, writer, headers, ip):
 
 async def handle_msg(p: Player, m):
     t = m.get('t')
+    if t != 'join' and not p.login:
+        return
     if t == 'join':
-        p.name = clean_name(m.get('name')) or p.name
+        u = user_by_token(m.get('token'))
+        if not u or u.get('banned'):
+            await send(p, {'t': 'banned' if u else 'auth', 'm': ('Акаунт заблоковано' + (f': {u["reason"]}' if u.get('reason') else '')) if u else 'Увійди в акаунт, щоб грати онлайн'})
+            p.writer.close(); return
+        old = player_of(u['login'])
+        if old and old is not p:
+            await send(old, {'t': 'kicked', 'm': 'Твій акаунт зайшов з іншого вікна'})
+            try: old.writer.close()
+            except Exception: pass
+        p.login = u['login']
+        p.name = u['login']
+        u['seen'], u['ip'] = time.time(), p.ip
         await send(p, {'t': 'hello', 'id': p.id, 'players': [{'id': o.id, 'name': o.name, 's': o.state} for o in PLAYERS.values() if o is not p]})
         await broadcast({'t': 'join', 'id': p.id, 'name': p.name}, skip=p)
         log(f'  #{p.id} назвався «{p.name}»')
@@ -316,9 +336,10 @@ async def handle_msg(p: Player, m):
                 s[k] = round(float(v), 2)
         for k in ('m', 'w', 'g', 'e'):
             if k in m: s[k] = m[k] if isinstance(m[k], (int, bool)) or (isinstance(m[k], str) and len(m[k]) < 12) else 0
-        for k in ('a', 'i', 'zn'):
+        for k in ('a', 'i', 'zn', 'act', 'tg'):
             v = m.get(k)
             if isinstance(v, str) and len(v) < 24: s[k] = v
+        if isinstance(m.get('hp'), (int, float)): s['hp'] = max(0, min(100, int(m['hp'])))
         if isinstance(m.get('l'), int): s['l'] = m['l']
         p.state = s
     elif t == 'chat':
@@ -350,15 +371,239 @@ async def ticker():
             snap = {str(p.id): p.state for p in PLAYERS.values() if p.state}
             await broadcast({'t': 'states', 'p': snap})
 
-# ===================== HTTP =====================
+# ===================== АКАУНТИ =====================
+# Прогрес живе на сервері під логіном і паролем — тому він не губиться,
+# коли тунель видає нове посилання (у браузера інший домен → порожній localStorage).
 SAVES_DIR = os.path.join(ROOT, 'saves')
 os.makedirs(SAVES_DIR, exist_ok=True)
+ACC_PATH = os.path.join(SAVES_DIR, 'accounts.json')
+LOGIN_RE = re.compile(r'^[\w\-]{3,20}$', re.UNICODE)
+PBKDF_ROUNDS = 120_000
+MAX_TOKENS = 8
+FAILS = {}                      # ip → [час невдалих входів]
+
+def _load_accounts():
+    try:
+        with open(ACC_PATH, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+        if isinstance(d, dict) and isinstance(d.get('users'), dict):
+            return d
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log(f'accounts.json пошкоджено: {e}')
+    return {'users': {}}
+
+ACC = _load_accounts()
+
+def save_accounts():
+    tmp = ACC_PATH + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(ACC, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, ACC_PATH)
 
 def safe_filename(name):
     """Перетворює нік на безпечне ім'я файлу."""
     name = re.sub(r'[^\w\-]', '_', name.strip().lower(), flags=re.UNICODE)
     return name[:40] or '_anon'
 
+def save_path(login):
+    return os.path.join(SAVES_DIR, 'acc_' + safe_filename(login) + '.json')
+
+def hash_pw(pw, salt):
+    return hashlib.pbkdf2_hmac('sha256', pw.encode('utf-8'), bytes.fromhex(salt), PBKDF_ROUNDS).hex()
+
+def user_of(login):
+    return ACC['users'].get(str(login or '').lower())
+
+def user_by_token(token):
+    if not isinstance(token, str) or len(token) < 20:
+        return None
+    for u in ACC['users'].values():
+        if token in u.get('tokens', []):
+            return u
+    return None
+
+def new_token(u):
+    t = secrets.token_urlsafe(24)
+    u['tokens'] = (u.get('tokens', []) + [t])[-MAX_TOKENS:]
+    return t
+
+def too_many_fails(ip):
+    now = time.time()
+    FAILS[ip] = [t for t in FAILS.get(ip, []) if now - t < 300]
+    return len(FAILS[ip]) >= 10
+
+def pub_user(u, token=None):
+    d = {'ok': True, 'login': u['login'], 'admin': bool(u.get('admin'))}
+    if token: d['token'] = token
+    return d
+
+def player_of(login):
+    for p in PLAYERS.values():
+        if p.login and p.login.lower() == login.lower():
+            return p
+    return None
+
+async def kick(login, msg, kind='kicked'):
+    p = player_of(login)
+    if p:
+        await send(p, {'t': kind, 'm': msg})
+        try: p.writer.close()
+        except Exception: pass
+
+def api_register(req, ip):
+    login = str(req.get('login') or '').strip()
+    pw = str(req.get('pass') or '')
+    if not LOGIN_RE.match(login):
+        return {'ok': False, 'e': 'Логін: 3–20 символів — літери, цифри, _ або -'}
+    if not (4 <= len(pw) <= 64):
+        return {'ok': False, 'e': 'Пароль: від 4 до 64 символів'}
+    if user_of(login):
+        return {'ok': False, 'e': 'Такий логін уже зайнятий'}
+    salt = secrets.token_hex(16)
+    u = {'login': login, 'salt': salt, 'hash': hash_pw(pw, salt), 'created': time.time(),
+         'admin': not ACC['users'], 'banned': False, 'reason': '', 'ip': ip, 'seen': time.time(), 'lvl': 1}
+    ACC['users'][login.lower()] = u
+    # Старий сейв за ніком (до акаунтів) переходить до акаунта з таким самим ім'ям
+    legacy = os.path.join(SAVES_DIR, safe_filename(login) + '.json')
+    if os.path.isfile(legacy) and not os.path.isfile(save_path(login)):
+        try:
+            os.replace(legacy, save_path(login))
+            log(f'  ↪ старий сейв «{login}» прив’язано до акаунта')
+        except Exception as e:
+            log(f'  міграція сейву: {e}')
+    tok = new_token(u)
+    save_accounts()
+    log(f'  🆕 акаунт «{login}» з {ip}{" (адмін)" if u["admin"] else ""}')
+    return pub_user(u, tok)
+
+def api_login(req, ip):
+    if too_many_fails(ip):
+        return {'ok': False, 'e': 'Забагато спроб. Зачекай 5 хвилин.'}
+    u = user_of(req.get('login'))
+    pw = str(req.get('pass') or '')
+    if not u or not secrets.compare_digest(hash_pw(pw, u['salt']), u['hash']):
+        FAILS.setdefault(ip, []).append(time.time())
+        return {'ok': False, 'e': 'Невірний логін або пароль'}
+    if u.get('banned'):
+        return {'ok': False, 'e': 'Акаунт заблоковано' + (f': {u["reason"]}' if u.get('reason') else ''), 'banned': True}
+    u['ip'], u['seen'] = ip, time.time()
+    tok = new_token(u)
+    save_accounts()
+    log(f'  🔑 вхід «{u["login"]}» з {ip}')
+    return pub_user(u, tok)
+
+def auth(req):
+    u = user_by_token(req.get('token'))
+    if not u:
+        return None, {'ok': False, 'e': 'Сесія застаріла — увійди ще раз', 'auth': True}
+    if u.get('banned'):
+        return None, {'ok': False, 'e': 'Акаунт заблоковано' + (f': {u["reason"]}' if u.get('reason') else ''), 'banned': True, 'auth': True}
+    return u, None
+
+def delete_account(u):
+    ACC['users'].pop(u['login'].lower(), None)
+    try: os.remove(save_path(u['login']))
+    except FileNotFoundError: pass
+    save_accounts()
+
+async def api_admin(req, me):
+    act = req.get('act')
+    if act == 'list':
+        users = []
+        for u in sorted(ACC['users'].values(), key=lambda u: -u.get('seen', 0)):
+            p = player_of(u['login'])
+            users.append({'login': u['login'], 'admin': bool(u.get('admin')), 'banned': bool(u.get('banned')),
+                          'reason': u.get('reason', ''), 'lvl': u.get('lvl', 1), 'seen': u.get('seen', 0),
+                          'created': u.get('created', 0), 'ip': u.get('ip', ''), 'online': bool(p),
+                          'act': (p.state.get('act') if p else '') or '', 'zone': (p.state.get('zn') if p else '') or ''})
+        return {'ok': True, 'users': users, 'online': len(PLAYERS)}
+    if act == 'announce':
+        text = clean_text(req.get('m'))
+        if text:
+            await broadcast({'t': 'sys', 'm': f'📢 {text}'})
+            log(f'  📢 «{me["login"]}»: {text}')
+        return {'ok': True}
+    u = user_of(req.get('login'))
+    if not u:
+        return {'ok': False, 'e': 'Немає такого акаунта'}
+    if u is me and act in ('ban', 'delete', 'unadmin'):
+        return {'ok': False, 'e': 'Із собою так не можна'}
+    reason = clean_text(req.get('reason'), 120)
+    if act == 'ban':
+        u['banned'], u['reason'], u['tokens'] = True, reason, []
+        await kick(u['login'], 'Тебе заблоковано' + (f': {reason}' if reason else ''), 'banned')
+    elif act == 'unban':
+        u['banned'], u['reason'] = False, ''
+    elif act == 'kick':
+        await kick(u['login'], 'Адмін вигнав тебе з сервера' + (f': {reason}' if reason else ''))
+    elif act == 'admin':
+        u['admin'] = True
+    elif act == 'unadmin':
+        u['admin'] = False
+    elif act == 'delete':
+        await kick(u['login'], 'Акаунт видалено адміністратором', 'banned')
+        delete_account(u)
+    else:
+        return {'ok': False, 'e': 'Невідома дія'}
+    save_accounts()
+    log(f'  🛡️ «{me["login"]}» → {act} «{u["login"]}» {reason}')
+    return {'ok': True}
+
+async def api(path, req, ip):
+    """Усі /api/* — POST JSON → JSON."""
+    if path == '/api/register':
+        return api_register(req, ip)
+    if path == '/api/login':
+        return api_login(req, ip)
+    u, err = auth(req)
+    if err:
+        return err
+    if path == '/api/me':
+        return pub_user(u)
+    if path == '/api/logout':
+        u['tokens'] = [t for t in u.get('tokens', []) if t != req.get('token')]
+        save_accounts()
+        return {'ok': True}
+    if path == '/api/save':
+        data = req.get('data')
+        if not isinstance(data, dict) or not isinstance(data.get('P'), dict):
+            return {'ok': False, 'e': 'bad payload'}
+        with open(save_path(u['login']) + '.tmp', 'w', encoding='utf-8') as f:
+            json.dump({'name': u['login'], 'data': data, 'ts': time.time()}, f, ensure_ascii=False)
+        os.replace(save_path(u['login']) + '.tmp', save_path(u['login']))
+        lvl = data['P'].get('lvl')
+        if isinstance(lvl, int) and lvl != u.get('lvl'):
+            u['lvl'] = lvl
+            save_accounts()
+        u['seen'] = time.time()
+        return {'ok': True}
+    if path == '/api/load':
+        try:
+            with open(save_path(u['login']), 'r', encoding='utf-8') as f:
+                return {'ok': True, 'data': json.load(f).get('data')}
+        except FileNotFoundError:
+            return {'ok': True, 'data': None}
+    if path == '/api/wipe':
+        try: os.remove(save_path(u['login']))
+        except FileNotFoundError: pass
+        log(f'  🧹 «{u["login"]}» почав нову гру')
+        return {'ok': True}
+    if path == '/api/delete':
+        if not secrets.compare_digest(hash_pw(str(req.get('pass') or ''), u['salt']), u['hash']):
+            return {'ok': False, 'e': 'Невірний пароль'}
+        await kick(u['login'], 'Акаунт видалено', 'banned')
+        delete_account(u)
+        log(f'  🗑️ «{u["login"]}» видалив свій акаунт')
+        return {'ok': True}
+    if path == '/api/admin':
+        if not u.get('admin'):
+            return {'ok': False, 'e': 'Тільки для адміністраторів'}
+        return await api_admin(req, u)
+    return {'ok': False, 'e': 'not found'}
+
+# ===================== HTTP =====================
 def resolve_static(path):
     path = path.split('?', 1)[0].split('#', 1)[0]
     if path in ('', '/'):
@@ -395,52 +640,22 @@ async def handle_conn(reader, writer):
             return
         STATS['http'] += 1
 
-        # ---------- API: збереження прогресу ----------
-        if path == '/api/save' and method == 'POST':
-            body = await read_body(reader, headers)
-            if not body:
+        # ---------- API: акаунти, збереження, адмінка ----------
+        if path.startswith('/api/'):
+            if method != 'POST':
+                await respond(writer, 405, b'{"ok":false}', 'application/json'); return
+            body = await read_body(reader, headers, 2 * 1024 * 1024)
+            try:
+                req = json.loads(body.decode('utf-8')) if body else None
+                if not isinstance(req, dict): raise ValueError
+            except Exception:
                 await respond(writer, 400, b'{"ok":false,"e":"bad request"}', 'application/json'); return
             try:
-                req = json.loads(body.decode('utf-8'))
-                name = clean_name(req.get('name'))
-                data = req.get('data')
-                if not name or len(name) < 2 or not isinstance(data, dict):
-                    raise ValueError('invalid')
-            except Exception:
-                await respond(writer, 400, b'{"ok":false,"e":"bad payload"}', 'application/json'); return
-            fpath = os.path.join(SAVES_DIR, safe_filename(name) + '.json')
-            try:
-                with open(fpath, 'w', encoding='utf-8') as f:
-                    json.dump({'name': name, 'data': data, 'ts': time.time()}, f, ensure_ascii=False)
-                log(f'  💾 save «{name}» → {os.path.basename(fpath)}')
+                res = await api(path.split('?', 1)[0], req, ip)
             except Exception as e:
-                log(f'  save error: {e}')
-                await respond(writer, 500, b'{"ok":false,"e":"write error"}', 'application/json'); return
-            await respond(writer, 200, b'{"ok":true}', 'application/json'); return
-
-        if path == '/api/load' and method == 'POST':
-            body = await read_body(reader, headers)
-            if not body:
-                await respond(writer, 400, b'{"ok":false}', 'application/json'); return
-            try:
-                req = json.loads(body.decode('utf-8'))
-                name = clean_name(req.get('name'))
-                if not name or len(name) < 2:
-                    raise ValueError('invalid')
-            except Exception:
-                await respond(writer, 400, b'{"ok":false}', 'application/json'); return
-            fpath = os.path.join(SAVES_DIR, safe_filename(name) + '.json')
-            if not os.path.isfile(fpath):
-                await respond(writer, 200, b'{"ok":false}', 'application/json'); return
-            try:
-                with open(fpath, 'r', encoding='utf-8') as f:
-                    save = json.load(f)
-                resp = json.dumps({'ok': True, 'data': save.get('data', {})}, ensure_ascii=False).encode()
-                log(f'  📂 load «{name}» ← {os.path.basename(fpath)}')
-                await respond(writer, 200, resp, 'application/json'); return
-            except Exception as e:
-                log(f'  load error: {e}')
-                await respond(writer, 200, b'{"ok":false}', 'application/json'); return
+                log(f'API {path} помилка: {e}')
+                res = {'ok': False, 'e': 'server error'}
+            await respond(writer, 200, json.dumps(res, ensure_ascii=False).encode(), 'application/json; charset=utf-8'); return
 
         if method not in ('GET', 'HEAD'):
             await respond(writer, 405, b'Method Not Allowed', 'text/plain; charset=utf-8'); return
@@ -472,6 +687,9 @@ async def respond(writer, code, body, ctype, length=None):
         writer.close()
 
 # ===================== МОНІТОР У ТЕРМІНАЛІ =====================
+ACT_NAMES = {'atk': 'атакує', 'brew': 'варить каву', 'fish': 'рибалить', 'dig': 'копає', 'swim': 'пливе', 'glide': 'планує',
+             'boss': 'б’ється з босом', 'menu': 'у меню', 'sit': 'відпочиває', 'dead': 'вигорів', 'drink': 'частує кавою', 'chair': 'катається'}
+
 class Monitor:
     def __init__(self, port, tunnel):
         self.port, self.tunnel = port, tunnel
@@ -504,7 +722,8 @@ class Monitor:
         for p in shown:
             s = p.state
             zone = s.get('zn', '…')
-            out.append(row(f'  #{p.id:<3} {p.name[:18]:<18} рівень {s.get("l", "?"):<3} {C.DIM}{zone:<10} {int(time.time() - p.joined) // 60} хв{C.RESET}'))
+            act = ACT_NAMES.get(s.get('act', ''), '')
+            out.append(row(f'  #{p.id:<3} {p.name[:18]:<18} рівень {s.get("l", "?"):<3} {C.DIM}{zone:<10} {act:<14} {int(time.time() - p.joined) // 60} хв{C.RESET}'))
         if len(PLAYERS) > 10:
             out.append(row(f'  … і ще {len(PLAYERS) - 10}'))
         out.append(bar('├', '┤'))
@@ -596,7 +815,17 @@ if __name__ == '__main__':
     ap.add_argument('--host', default='0.0.0.0', help='адреса прослуховування (0.0.0.0 — уся мережа)')
     ap.add_argument('--tunnel', default='auto', choices=['auto', 'cloudflared', 'ngrok', 'ssh', 'serveo', 'none'], help='який тунель піднімати')
     ap.add_argument('--no-ui', action='store_true', help='без живого монітора (для запуску у фоні)')
+    ap.add_argument('--admin', metavar='ЛОГІН', help='видати права адміністратора акаунту й вийти')
+    ap.add_argument('--unban', metavar='ЛОГІН', help='розблокувати акаунт і вийти')
     args = ap.parse_args()
+    if args.admin or args.unban:
+        u = user_of(args.admin or args.unban)
+        if not u:
+            print(f'{C.RED}Немає акаунта «{args.admin or args.unban}»{C.RESET}'); sys.exit(1)
+        if args.admin: u['admin'] = True
+        else: u['banned'], u['reason'] = False, ''
+        save_accounts()
+        print(f'{C.GREEN}Готово: «{u["login"]}» — {"адмін" if args.admin else "розблоковано"}{C.RESET}'); sys.exit(0)
     if not args.no_ui:
         os.system('cls' if os.name == 'nt' else 'clear')
         print(fr"""{C.CYAN}

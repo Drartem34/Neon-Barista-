@@ -225,13 +225,18 @@ body.touch .slot.big{width:54px;height:54px;font-size:26px}
 body.touch #quest{max-width:190px;font-size:12px}
 
 #panel{position:fixed;inset:0;background:rgba(46,35,70,.38);display:grid;place-items:center;padding:calc(env(safe-area-inset-top,0px) + 10px) 10px calc(env(safe-area-inset-bottom,0px) + 10px);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
-.pbox{width:min(940px,100%);max-height:100%;display:flex;flex-direction:column;background:var(--paper);color:var(--ink);border-radius:22px;box-shadow:0 20px 60px rgba(46,35,70,.35);overflow:hidden}
-.phead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
-.tabs{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;min-width:0;padding-bottom:2px;-webkit-overflow-scrolling:touch}
-.tabs button{white-space:nowrap;flex:none}
-.phead{min-width:0}
-.tabs button{border:0;background:var(--soft);border-radius:10px;padding:8px 12px;font-weight:600;color:var(--ink)}
+.pbox{width:min(1080px,100%);height:min(760px,100%);display:grid;grid-template-columns:200px minmax(0,1fr);background:var(--paper);color:var(--ink);border-radius:22px;box-shadow:0 20px 60px rgba(46,35,70,.35);overflow:hidden}
+.pmain{display:flex;flex-direction:column;min-width:0;min-height:0}
+.phead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);min-width:0}
+.phead h2{margin:0;font-family:'Comfortaa',sans-serif;font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabs{display:flex;flex-direction:column;gap:3px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;padding:10px 8px;background:var(--soft);border-right:1px solid var(--line);min-height:0}
+.tabs button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;white-space:nowrap;flex:none;border:0;background:none;border-radius:10px;padding:8px 10px;font-weight:600;color:var(--ink);font-size:14px}
+.tabs button:hover{background:rgba(46,35,70,.07)}
+.tabs button .ti{font-size:18px;width:22px;text-align:center;flex:none}
+.tabs button .tl{overflow:hidden;text-overflow:ellipsis}
+.tabs button .td{width:8px;height:8px;border-radius:50%;background:#FF6B93;margin-left:auto;flex:none}
 .tabs button.on{background:var(--ink);color:var(--paper)}
+@media (max-width:700px){.pbox{grid-template-columns:54px minmax(0,1fr);height:100%}.tabs{padding:8px 5px}.tabs button{justify-content:center;padding:9px 0;position:relative}.tabs button .tl{display:none}.tabs button .td{position:absolute;top:5px;right:5px}}
 #pclose{border:0;background:var(--soft);width:38px;height:38px;border-radius:10px;font-size:16px;color:var(--ink);flex:none}
 #pbody{padding:14px;overflow:auto;-webkit-overflow-scrolling:touch;min-height:0}
 #pbody h3{font-family:'Comfortaa',sans-serif;margin:4px 0 10px;font-size:17px}
@@ -460,7 +465,7 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
   </div>
 </div>
 
-<div id="panel" hidden><div class="pbox" role="dialog" aria-modal="true"><div class="phead"><div class="tabs" id="ptabs"></div><button id="pclose" aria-label="Закрити">✕</button></div><div id="pbody"></div></div></div>
+<div id="panel" hidden><div class="pbox" role="dialog" aria-modal="true"><nav class="tabs" id="ptabs" aria-label="Розділи меню"></nav><div class="pmain"><div class="phead"><h2 id="ptitle"></h2><button id="pclose" aria-label="Закрити">✕</button></div><div id="pbody"></div></div></div></div>
 
 <div id="artui" hidden><div class="artbox"><h3 class="disp" style="margin:0">Латте-арт</h3><div class="artcup"><div id="arttarget"></div><div id="artheart">♥</div><div id="artneedle"></div></div><p id="arttxt" style="font-size:14px;margin:0 0 10px"></p><div class="btns" style="justify-content:center"><button class="btn" id="artgo">Лити!</button><button class="btn alt" id="artskip">Без арту</button></div></div></div>
 <div id="caseov" hidden><div class="cbox" role="dialog" aria-modal="true"><h3 id="ctitle"></h3><div class="cstrip-wrap"><div class="cmark"></div><div class="cstrip" id="cstrip"></div></div><div class="cprize" id="cprize"></div><div class="btns" id="cbtns" style="justify-content:center"></div></div></div>

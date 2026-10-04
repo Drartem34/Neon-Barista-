@@ -372,7 +372,12 @@ const inHub = () => dist2(pl.x, pl.z, 0, 0) < ISLMAP.hub.r;
 function needChips(need) { return Object.keys(need).map(k => `<span class="chip" style="${(P.ing[k] || 0) < need[k] ? 'color:#C2335A' : ''}">${ING[k].ic} ${ING[k].n} ${P.ing[k] || 0}/${need[k]}</span>`).join(' '); }
 function renderPanel() {
   if (!panel) return;
-  $('#ptabs').innerHTML = TABS.filter(([id]) => (id !== 'admin' || (ACCT && ACCT.admin)) && (id !== 'online' || NET.on)).map(([id, n]) => `<button data-tab="${id}" class="${id === panel ? 'on' : ''}">${n}${id === 'inv' && P.pts ? ' •' : ''}${id === 'skills' && P.sp ? ' •' : ''}${id === 'cases' && Object.values(P.cases || {}).some(n => n > 0) ? ' •' : ''}</button>`).join('');
+  $('#ptabs').innerHTML = TABS.filter(([id]) => (id !== 'admin' || (ACCT && ACCT.admin)) && (id !== 'online' || NET.on)).map(([id, n]) => {
+    const sp = n.indexOf(' '), ic = n.slice(0, sp), lb = n.slice(sp + 1);
+    const dot = (id === 'inv' && P.pts) || (id === 'skills' && P.sp) || (id === 'cases' && Object.values(P.cases || {}).some(n => n > 0));
+    return `<button data-tab="${id}" class="${id === panel ? 'on' : ''}" title="${lb}"><span class="ti">${ic}</span><span class="tl">${lb}</span>${dot ? '<i class="td"></i>' : ''}</button>`;
+  }).join('');
+  const cur = TABS.find(([id]) => id === panel); $('#ptitle').textContent = cur ? cur[1] : '';
   const on = $('#ptabs .on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const body = $('#pbody');
   const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, admin: renderAdmin, online: renderOnline }[panel];

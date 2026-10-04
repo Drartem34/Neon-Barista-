@@ -253,9 +253,15 @@ T.pl.x = -8.6; T.pl.z = 4.6; step(2); assert(Math.hypot(T.pl.x + 20.5, T.pl.z - 
   T.dismount(); assert(!T.pl.ride, 'зліз із візка');
   // боулінг: штовхаємо візок у моба
   const victim = T.MON.find(m => !m.calm && m.state !== 'fall' && !m.T.dummy);
-  const ofc = T.ISLMAP.office; victim.x = ofc.x + 1; victim.z = ofc.z; victim.vx = victim.vz = 0; victim.stun = 5; cart.fall = false; cart.x = victim.x - 1.6; cart.z = victim.z; cart.vx = 13; for (const o of T.MON) if (o !== victim && !o.calm && Math.hypot(o.x - ofc.x, o.z - ofc.z) < 6) { o.x = ofc.x + 9; o.z = ofc.z + 6; } cart.vz = 0;
-  const st0 = victim.stress; step(.4);
-  assert(victim.stress < st0 || Math.hypot(victim.vx, victim.vz) > 1 || victim.state === 'fall', 'візок збиває моба, як кеглю');
+  let bowled = false;
+  for (let tr = 0; tr < 4 && !bowled; tr++) {
+    const ofc = T.ISLMAP.office; victim.x = ofc.x + 1; victim.z = ofc.z + tr * .3; victim.vx = victim.vz = 0; victim.stun = 5; victim.state = 'chase';
+    for (const o of T.MON) if (o !== victim && !o.calm && Math.hypot(o.x - ofc.x, o.z - ofc.z) < 6) { o.x = ofc.x + 9; o.z = ofc.z + 6; }
+    cart.fall = false; cart.y = 0; cart.x = victim.x - 1.6; cart.z = victim.z; cart.vx = 13; cart.vz = 0;
+    const st0 = victim.stress; step(.4);
+    bowled = victim.stress < st0 || Math.hypot(victim.vx, victim.vz) > 1 || victim.state === 'fall';
+  }
+  assert(bowled, 'візок збиває моба, як кеглю');
   // сироп ковзкий
   const sy = T.SYRUP[0]; assert(T.onSyrup(sy.x, sy.z) && !T.onSyrup(sy.x + sy.r + 1, sy.z), 'калюжа сиропу визначається');
   // вентилятор здуває

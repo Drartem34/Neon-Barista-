@@ -21,6 +21,7 @@ function applyGfx(runtime) {
   }
   PMUL = PMULS[q];
   renderer.toneMappingExposure = GFX.exp;
+  if (LAMP_LIGHTS.length) applyLampQuality();
   camera.far = q === 'low' ? 170 : 400; camera.updateProjectionMatrix();
   resize();
 }

@@ -272,7 +272,7 @@ function buildBiomes() {
   const jg = ISLMAP.jungle;
   steppedPyramid(35, 65, [8, 5.6, 3.8], 1.13, '#9AA58A', '#8C9A7E');
   addStatic(35, 65, 4.2, 3.4);
-  for (const [x, z] of [[33.2, 66.8], [36.8, 63.2]]) { const t = mesh(flat(new THREE.CylinderGeometry(.08, .1, .8, 6)), '#8C6447'); t.position.set(x, 3.8, z); scene.add(t); const f = mesh(new THREE.IcosahedronGeometry(.16, 0), glow('#FFB547'), false); f.position.set(x, 4.3, z); scene.add(f); ANIM.glows.push(f.material); }
+  for (const [x, z] of [[33.2, 66.8], [36.8, 63.2]]) { const t = mesh(flat(new THREE.CylinderGeometry(.08, .1, .8, 6)), '#8C6447'); t.position.set(x, 3.8, z); scene.add(t); const f = mesh(new THREE.IcosahedronGeometry(.16, 0), glow('#FFB547'), false); f.position.set(x, 4.3, z); scene.add(f); ANIM.glows.push(f.material); addLampGlow(scene, x, 4.3, z, '#FFB547', 2, { pool: false }); }
   // будиночок на дереві
   const th = new THREE.Group(); th.position.set(39, 0, 53); scene.add(th);
   put(th, mesh(flat(new THREE.CylinderGeometry(.45, .6, 3.6, 7)), '#8C6447'), 0, 1.8, 0);

@@ -38,6 +38,7 @@ function startGame(fresh) {
 buildWorld();
 buildSky(); buildHomeBase();
 mergeStatics();
+initLampLights();
 applyGfx(false);
 requestAnimationFrame(frame);
 

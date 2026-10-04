@@ -64,7 +64,7 @@ function decorMesh(id) {
   const g = new THREE.Group();
   switch (id) {
     case 'flowerbed': put(g, mesh(flat(new THREE.CylinderGeometry(.75, .8, .25, 9)), '#A47C5B'), 0, .12, 0); for (let i = 0; i < 9; i++) { const a = i / 9 * 6.28; put(g, mesh(new THREE.IcosahedronGeometry(.14, 0), pick(['#FF9AB6', '#FFD27A', '#B9A4FF', '#FFFFFF'])), Math.cos(a) * .45, .42, Math.sin(a) * .45); } break;
-    case 'lantern': put(g, mesh(flat(new THREE.CylinderGeometry(.05, .07, 1.8, 6)), '#4E4A6E'), 0, .9, 0); put(g, mesh(new THREE.BoxGeometry(.35, .45, .35), glow('#FFB38A')), 0, 1.95, 0); break;
+    case 'lantern': put(g, mesh(flat(new THREE.CylinderGeometry(.05, .07, 1.8, 6)), '#4E4A6E'), 0, .9, 0); put(g, mesh(new THREE.BoxGeometry(.35, .45, .35), bulb('#FFB38A')), 0, 1.95, 0); addLampGlow(g, 0, 1.95, 0, '#FFB38A', 2.2, { poolR: 4.5 }); break;
     case 'bench': put(g, mesh(new THREE.BoxGeometry(1.6, .1, .5), '#D6A87B'), 0, .45, 0); put(g, mesh(new THREE.BoxGeometry(1.6, .4, .08), '#C4956A'), 0, .75, -.22); break;
     case 'palm': { const t = new THREE.Group(); g.add(t); for (let i = 0; i < 4; i++) put(t, mesh(flat(new THREE.CylinderGeometry(.12, .15, .7, 6)), '#A47C5B'), i * .06, .35 + i * .66, 0); for (let i = 0; i < 6; i++) { const l = mesh(new THREE.BoxGeometry(.3, .05, 1.5).translate(0, 0, .75), '#6FC08C'); l.position.set(.2, 2.7, 0); l.rotation.y = i; l.rotation.x = .45; t.add(l); } break; }
     case 'pine': for (let i = 0; i < 3; i++) put(g, mesh(new THREE.ConeGeometry(1 - i * .27, 1.1, 7), '#5E9C8A'), 0, .9 + i * .75, 0); put(g, mesh(flat(new THREE.CylinderGeometry(.12, .16, .8, 6)), '#8C6447'), 0, .4, 0); break;

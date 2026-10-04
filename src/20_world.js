@@ -40,7 +40,7 @@ function mat(c, o) {
   if (!MC[k]) MC[k] = new THREE.MeshStandardMaterial(Object.assign({ color: c, flatShading: true, roughness: .85, metalness: 0 }, o || {}));
   return MC[k];
 }
-function glow(c) { return mat(c, { emissive: c, emissiveIntensity: .45 }); }
+function glow(c) { return regGlow(mat(c, { emissive: c, emissiveIntensity: .45 }), .45); }
 function basic(c, op) {
   const k = c + '|' + (op || 1);
   if (!BC[k]) BC[k] = new THREE.MeshBasicMaterial({ color: c, transparent: op != null, opacity: op == null ? 1 : op, depthWrite: op == null });
@@ -242,7 +242,9 @@ function pillar(x, z, h) {
 function lamp(x, z) {
   const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
   put(g, mesh(flat(new THREE.CylinderGeometry(.05, .07, 2.4, 6)), '#4E4A6E'), 0, 1.2, 0);
-  put(g, mesh(new THREE.IcosahedronGeometry(.2, 0), glow('#FFD9A0'), false), 0, 2.5, 0);
+  put(g, mesh(new THREE.BoxGeometry(.5, .06, .5), '#4E4A6E', false), 0, 2.74, 0);
+  put(g, mesh(new THREE.IcosahedronGeometry(.22, 1), bulb('#FFD9A0'), false), 0, 2.5, 0);
+  addLampGlow(g, 0, 2.5, 0, '#FFD9A0', 2.6, { poolR: 6 });
   addStatic(x, z, .25);
 }
 function bench(x, z, rot) {
@@ -281,7 +283,11 @@ function barCounter(x, z, big) {
   for (const a of [-2, -.7, .7, 2]) addStatic(x + a, z, .75);
   if (big) {
     // гірлянда над баром
-    for (let i = 0; i < 9; i++) put(g, mesh(new THREE.IcosahedronGeometry(.09, 0), glow(pick(['#FFD9A0', '#FFB3C7', '#B9F5DE'])), false), -2.4 + i * .6, 3.5 - Math.sin(i / 8 * Math.PI) * .3, -.4);
+    for (let i = 0; i < 9; i++) {
+      const c = pick(['#FFD9A0', '#FFB3C7', '#B9F5DE']), bx = -2.4 + i * .6, by = 3.5 - Math.sin(i / 8 * Math.PI) * .3;
+      put(g, mesh(new THREE.IcosahedronGeometry(.1, 0), bulb(c), false), bx, by, -.4);
+      addLampGlow(g, bx, by, -.4, c, .9, { pool: false, light: i === 4 });
+    }
   }
 }
 function workbench(x, z) {

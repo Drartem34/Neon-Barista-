@@ -636,7 +636,7 @@ function frame(now) {
     updBoss(dt); updProj(dt); updTele(dt); updProps(dt); updNodes(dt); updChests(dt); updDrops(dt);
     updSpawns(dt); updEvents(dt); updBrew(dt); updCrowd(dt); updGiver(); updInteract(); updDummy(dt); updTut(dt); updExplore(dt); updRemotes(dt);
   }
-  updParticles(live ? dt : 0); updFX(live ? dt : 0);
+  updParticles(live ? dt : 0); updFX(live ? dt : 0); updLights(rdt);
   updWorldAnim(rdt); updCamera(rdt); updOverlays(live ? rdt : 0); updCase(rdt); updArt(rdt); updFps(rdt);
   if (running) updHUDFrame();
   musicTick();

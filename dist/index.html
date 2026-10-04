@@ -1054,7 +1054,7 @@ function mat(c, o) {
   if (!MC[k]) MC[k] = new THREE.MeshStandardMaterial(Object.assign({ color: c, flatShading: true, roughness: .85, metalness: 0 }, o || {}));
   return MC[k];
 }
-function glow(c) { return mat(c, { emissive: c, emissiveIntensity: .45 }); }
+function glow(c) { return regGlow(mat(c, { emissive: c, emissiveIntensity: .45 }), .45); }
 function basic(c, op) {
   const k = c + '|' + (op || 1);
   if (!BC[k]) BC[k] = new THREE.MeshBasicMaterial({ color: c, transparent: op != null, opacity: op == null ? 1 : op, depthWrite: op == null });
@@ -1256,7 +1256,9 @@ function pillar(x, z, h) {
 function lamp(x, z) {
   const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
   put(g, mesh(flat(new THREE.CylinderGeometry(.05, .07, 2.4, 6)), '#4E4A6E'), 0, 1.2, 0);
-  put(g, mesh(new THREE.IcosahedronGeometry(.2, 0), glow('#FFD9A0'), false), 0, 2.5, 0);
+  put(g, mesh(new THREE.BoxGeometry(.5, .06, .5), '#4E4A6E', false), 0, 2.74, 0);
+  put(g, mesh(new THREE.IcosahedronGeometry(.22, 1), bulb('#FFD9A0'), false), 0, 2.5, 0);
+  addLampGlow(g, 0, 2.5, 0, '#FFD9A0', 2.6, { poolR: 6 });
   addStatic(x, z, .25);
 }
 function bench(x, z, rot) {
@@ -1295,7 +1297,11 @@ function barCounter(x, z, big) {
   for (const a of [-2, -.7, .7, 2]) addStatic(x + a, z, .75);
   if (big) {
     // гірлянда над баром
-    for (let i = 0; i < 9; i++) put(g, mesh(new THREE.IcosahedronGeometry(.09, 0), glow(pick(['#FFD9A0', '#FFB3C7', '#B9F5DE'])), false), -2.4 + i * .6, 3.5 - Math.sin(i / 8 * Math.PI) * .3, -.4);
+    for (let i = 0; i < 9; i++) {
+      const c = pick(['#FFD9A0', '#FFB3C7', '#B9F5DE']), bx = -2.4 + i * .6, by = 3.5 - Math.sin(i / 8 * Math.PI) * .3;
+      put(g, mesh(new THREE.IcosahedronGeometry(.1, 0), bulb(c), false), bx, by, -.4);
+      addLampGlow(g, bx, by, -.4, c, .9, { pool: false, light: i === 4 });
+    }
   }
 }
 function workbench(x, z) {
@@ -1970,7 +1976,7 @@ function buildBiomes() {
   const jg = ISLMAP.jungle;
   steppedPyramid(35, 65, [8, 5.6, 3.8], 1.13, '#9AA58A', '#8C9A7E');
   addStatic(35, 65, 4.2, 3.4);
-  for (const [x, z] of [[33.2, 66.8], [36.8, 63.2]]) { const t = mesh(flat(new THREE.CylinderGeometry(.08, .1, .8, 6)), '#8C6447'); t.position.set(x, 3.8, z); scene.add(t); const f = mesh(new THREE.IcosahedronGeometry(.16, 0), glow('#FFB547'), false); f.position.set(x, 4.3, z); scene.add(f); ANIM.glows.push(f.material); }
+  for (const [x, z] of [[33.2, 66.8], [36.8, 63.2]]) { const t = mesh(flat(new THREE.CylinderGeometry(.08, .1, .8, 6)), '#8C6447'); t.position.set(x, 3.8, z); scene.add(t); const f = mesh(new THREE.IcosahedronGeometry(.16, 0), glow('#FFB547'), false); f.position.set(x, 4.3, z); scene.add(f); ANIM.glows.push(f.material); addLampGlow(scene, x, 4.3, z, '#FFB547', 2, { pool: false }); }
   // будиночок на дереві
   const th = new THREE.Group(); th.position.set(39, 0, 53); scene.add(th);
   put(th, mesh(flat(new THREE.CylinderGeometry(.45, .6, 3.6, 7)), '#8C6447'), 0, 1.8, 0);
@@ -2203,7 +2209,7 @@ function decorMesh(id) {
   const g = new THREE.Group();
   switch (id) {
     case 'flowerbed': put(g, mesh(flat(new THREE.CylinderGeometry(.75, .8, .25, 9)), '#A47C5B'), 0, .12, 0); for (let i = 0; i < 9; i++) { const a = i / 9 * 6.28; put(g, mesh(new THREE.IcosahedronGeometry(.14, 0), pick(['#FF9AB6', '#FFD27A', '#B9A4FF', '#FFFFFF'])), Math.cos(a) * .45, .42, Math.sin(a) * .45); } break;
-    case 'lantern': put(g, mesh(flat(new THREE.CylinderGeometry(.05, .07, 1.8, 6)), '#4E4A6E'), 0, .9, 0); put(g, mesh(new THREE.BoxGeometry(.35, .45, .35), glow('#FFB38A')), 0, 1.95, 0); break;
+    case 'lantern': put(g, mesh(flat(new THREE.CylinderGeometry(.05, .07, 1.8, 6)), '#4E4A6E'), 0, .9, 0); put(g, mesh(new THREE.BoxGeometry(.35, .45, .35), bulb('#FFB38A')), 0, 1.95, 0); addLampGlow(g, 0, 1.95, 0, '#FFB38A', 2.2, { poolR: 4.5 }); break;
     case 'bench': put(g, mesh(new THREE.BoxGeometry(1.6, .1, .5), '#D6A87B'), 0, .45, 0); put(g, mesh(new THREE.BoxGeometry(1.6, .4, .08), '#C4956A'), 0, .75, -.22); break;
     case 'palm': { const t = new THREE.Group(); g.add(t); for (let i = 0; i < 4; i++) put(t, mesh(flat(new THREE.CylinderGeometry(.12, .15, .7, 6)), '#A47C5B'), i * .06, .35 + i * .66, 0); for (let i = 0; i < 6; i++) { const l = mesh(new THREE.BoxGeometry(.3, .05, 1.5).translate(0, 0, .75), '#6FC08C'); l.position.set(.2, 2.7, 0); l.rotation.y = i; l.rotation.x = .45; t.add(l); } break; }
     case 'pine': for (let i = 0; i < 3; i++) put(g, mesh(new THREE.ConeGeometry(1 - i * .27, 1.1, 7), '#5E9C8A'), 0, .9 + i * .75, 0); put(g, mesh(flat(new THREE.CylinderGeometry(.12, .16, .8, 6)), '#8C6447'), 0, .4, 0); break;
@@ -2266,6 +2272,95 @@ function addHealFlower(s, fx) {
     }
     return;
   }
+}
+/* =====================================================================
+   СВІТЛО ЛАМП: емісія, що розгоряється вночі, м'які ореоли навколо
+   лампочок, теплі плями світла на землі й кілька справжніх точкових
+   джерел, що «переїжджають» до найближчих до гравця ламп.
+   Усе тут прозоре або не-«пласке», тож mergeStatics() його не злипає.
+   ===================================================================== */
+const GLOW_MATS = [];          // { m, base } — усі емісивні матеріали
+const LIGHT_SRC = [];          // { halo, pool, c, size, light, ph }
+const LAMP_LIGHTS = [];        // пул PointLight
+let lampT = 0;
+const _lw = new THREE.Vector3();
+
+function radialTex(stops) {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d');
+  const g = x && x.createRadialGradient ? x.createRadialGradient(32, 32, 0, 32, 32, 32) : null;
+  if (g) { stops.forEach(([o, col]) => g.addColorStop(o, col)); x.fillStyle = g; x.fillRect(0, 0, 64, 64); }
+  return new THREE.CanvasTexture(c);
+}
+let HALO_TEX = null, POOL_TEX = null;
+function lightTextures() {
+  if (!HALO_TEX) {
+    HALO_TEX = radialTex([[0, 'rgba(255,255,255,1)'], [.18, 'rgba(255,255,255,.75)'], [.45, 'rgba(255,255,255,.22)'], [1, 'rgba(255,255,255,0)']]);
+    POOL_TEX = radialTex([[0, 'rgba(255,255,255,.9)'], [.5, 'rgba(255,255,255,.35)'], [1, 'rgba(255,255,255,0)']]);
+  }
+}
+/* Емісивний матеріал, що світиться сильніше вночі. base — денна інтенсивність. */
+function regGlow(m, base) { if (!m._glow) { m._glow = 1; GLOW_MATS.push({ m, base }); } return m; }
+function bulb(c) { return regGlow(mat(c, { emissive: c, emissiveIntensity: 1 }), 1); }
+
+/* Додає світіння до лампочки: ореол (sprite), пляму на землі й джерело світла.
+   parent — група або сцена; x,y,z — локальні координати лампочки в parent. */
+function addLampGlow(parent, x, y, z, c, size = 2, opt = {}) {
+  lightTextures();
+  const sm = new THREE.SpriteMaterial({ map: HALO_TEX, color: c, transparent: true, opacity: .3, blending: THREE.AdditiveBlending, depthWrite: false, fog: true });
+  const halo = new THREE.Sprite(sm); halo.position.set(x, y, z); halo.scale.setScalar(size); halo.renderOrder = 2;
+  parent.add(halo);
+  let pool = null;
+  if (opt.pool !== false) {
+    const pm = new THREE.MeshBasicMaterial({ map: POOL_TEX, color: c, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+    pool = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), pm); pool.rotation.x = -Math.PI / 2;
+    const r = opt.poolR || size * 2.2; pool.scale.set(r, r, 1);
+    pool.position.set(x, (opt.groundY || 0) + .04, z); pool.renderOrder = 1;
+    parent.add(pool);
+  }
+  const src = { halo, pool, c: new THREE.Color(c), size, light: opt.light !== false, ph: Math.random() * 6 };
+  LIGHT_SRC.push(src);
+  return src;
+}
+function inScene(o) { for (let p = o; p; p = p.parent) if (p === scene) return o.visible !== false; return false; }
+
+function initLampLights() {
+  for (let i = 0; i < 6; i++) {
+    const L = new THREE.PointLight(0xFFD9A0, 0, 11, 2); L.castShadow = false;
+    scene.add(L); LAMP_LIGHTS.push(L);
+  }
+  applyLampQuality();
+}
+function applyLampQuality() {
+  const n = GFX.q === 'high' ? 6 : GFX.q === 'medium' ? 3 : 0;
+  LAMP_LIGHTS.forEach((L, i) => { L.visible = i < n; });
+}
+
+function updLights(dt) {
+  const k = nightK, t = gameTime;
+  for (const g of GLOW_MATS) if (!ANIM.glows.includes(g.m)) g.m.emissiveIntensity = g.base * (.85 + k * 1.9);
+  for (const s of LIGHT_SRC) {
+    const fl = 1 + Math.sin(t * 7 + s.ph) * .04 + Math.sin(t * 13.3 + s.ph * 2) * .03;   // ледь помітне мерехтіння
+    s.halo.material.opacity = (.22 + k * .7) * fl;
+    s.halo.scale.setScalar(s.size * (1 + k * .45) * fl);
+    if (s.pool) s.pool.material.opacity = k * .5 * fl;
+  }
+  // точкові джерела — до найближчих до гравця ламп (раз на півсекунди)
+  lampT -= dt;
+  const active = LAMP_LIGHTS.filter(L => L.visible);
+  if (lampT <= 0 && active.length) {
+    lampT = .5;
+    const near = [];
+    for (const s of LIGHT_SRC) {
+      if (!s.light || !inScene(s.halo)) continue;
+      s.halo.getWorldPosition(_lw);
+      const d = (_lw.x - pl.x) ** 2 + (_lw.z - pl.z) ** 2;
+      if (d < 40 * 40) near.push([d, _lw.x, _lw.y, _lw.z, s]);
+    }
+    near.sort((a, b) => a[0] - b[0]);
+    active.forEach((L, i) => { const n = near[i]; L.userData.src = n ? n[4] : null; if (n) { L.position.set(n[1], n[2] - .1, n[3]); L.color.copy(n[4].c); } });
+  }
+  for (const L of active) { const s = L.userData.src; L.intensity = s ? k * 1.7 * (1 + Math.sin(t * 7 + s.ph) * .05) : 0; }
 }
 /* =====================================================================
    ІГРОВА ЛОГІКА
@@ -4066,6 +4161,7 @@ function applyGfx(runtime) {
   }
   PMUL = PMULS[q];
   renderer.toneMappingExposure = GFX.exp;
+  if (LAMP_LIGHTS.length) applyLampQuality();
   camera.far = q === 'low' ? 170 : 400; camera.updateProjectionMatrix();
   resize();
 }
@@ -5453,7 +5549,7 @@ function frame(now) {
     updBoss(dt); updProj(dt); updTele(dt); updProps(dt); updNodes(dt); updChests(dt); updDrops(dt);
     updSpawns(dt); updEvents(dt); updBrew(dt); updCrowd(dt); updGiver(); updInteract(); updDummy(dt); updTut(dt); updExplore(dt); updRemotes(dt);
   }
-  updParticles(live ? dt : 0); updFX(live ? dt : 0);
+  updParticles(live ? dt : 0); updFX(live ? dt : 0); updLights(rdt);
   updWorldAnim(rdt); updCamera(rdt); updOverlays(live ? rdt : 0); updCase(rdt); updArt(rdt); updFps(rdt);
   if (running) updHUDFrame();
   musicTick();
@@ -5984,6 +6080,7 @@ function startGame(fresh) {
 buildWorld();
 buildSky(); buildHomeBase();
 mergeStatics();
+initLampLights();
 applyGfx(false);
 requestAnimationFrame(frame);
 

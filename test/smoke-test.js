@@ -31,7 +31,7 @@ w.AudioContext = FakeAC;
 let mapCalls = 0;
 w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : (...a) => { mapCalls++; }, set: (o, k, v) => { o[k] = v; return true; } });
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-src += `;window.__T={get P(){return P},pl,MON,BOSS,CHESTS,PROPS,TELE,DROPS,startGame,frame,openPanel,closePanel,useDrink,dash,startBrew,openChest,acceptQuest,turnInQuest,equip,makeItem,addItem,input,setDrink:d=>{selDrink=d},AC:()=>AC,respawn,useDrink,startBrew,HOME,sleepHammock,openPanel,setDrink2:d=>{selDrink=d},get paused(){return paused},get panel(){return panel},attack,atkDown,atkUp,jumpPress,jumpRelease,startArt,artTap,get art(){return art},MBS,activeBosses,addHeal,healOf,worldHeal,P_:()=>P,mergeStats:()=>mergeStats,autoEquip,bulkCommon,renderHome,SKY,applyGfx,GFX,get hitStopT(){return hitStopT},terrainAt,groundH,ISLMAP,LANDMARKS,WAYPOINTS,NOTES,DIG,startDig,FISH_SPOTS,startFishing,reelFish,get fishing(){return fishing},PETW,get petF(){return petF},tamePet,travelTo,spawnMonster,monsterAttack,isNight,PADS,interact,steal,get stormT(){return stormT},renderMap,renderJournal,BASE,eqItem,spawnProj,PROJ,initAudio,openCase,addCase,get caseAnim(){return caseAnim},closeCase,getDummy,tutEvent,sfx,SFXD};`;
+src += `;window.__T={get P(){return P},pl,MON,BOSS,CHESTS,PROPS,TELE,DROPS,startGame,frame,openPanel,closePanel,useDrink,dash,startBrew,openChest,acceptQuest,turnInQuest,equip,makeItem,addItem,input,setDrink:d=>{selDrink=d},AC:()=>AC,respawn,useDrink,startBrew,HOME,sleepHammock,openPanel,setDrink2:d=>{selDrink=d},get paused(){return paused},get panel(){return panel},attack,atkDown,atkUp,jumpPress,jumpRelease,startArt,artTap,get art(){return art},MBS,activeBosses,addHeal,healOf,worldHeal,P_:()=>P,mergeStats:()=>mergeStats,autoEquip,bulkCommon,renderHome,SKY,applyGfx,GFX,get hitStopT(){return hitStopT},terrainAt,groundH,ISLMAP,LANDMARKS,WAYPOINTS,NOTES,DIG,startDig,FISH_SPOTS,startFishing,reelFish,get fishing(){return fishing},PETW,get petF(){return petF},tamePet,travelTo,spawnMonster,monsterAttack,isNight,PADS,interact,steal,get stormT(){return stormT},renderMap,renderJournal,BASE,eqItem,spawnProj,PROJ,initAudio,openCase,addCase,get caseAnim(){return caseAnim},closeCase,getDummy,tutEvent,sfx,SFXD,QUESTS,syncQuest,questEvent};`;
 w.eval(src);
 const T = w.__T; let now = 1000;
 const swing = sec => { for (let i = 0; i < sec * 10; i++) { T.pl.atkCd = 0; T.attack(); step(.1); } };
@@ -224,4 +224,16 @@ for (let i = 0; i < 10 && !T.BOSS.asleep; i++) { T.pl.x = T.BOSS.x; T.pl.z = T.B
 assert(T.BOSS.asleep && T.P.bossWins === 1, 'CEO заснув');
 T.pl.x = 0; T.pl.z = 13; step(3); assert(!T.pl.falling, 'падіння з острова → респавн');
 T.pl.x = -8.6; T.pl.z = 4.6; step(2); assert(Math.hypot(T.pl.x + 20.5, T.pl.z - 18.6) < 1, 'батут перекидає на таємний острів');
+// --- квест «Мандрівник»: острови, відкриті ДО квесту, зараховуються
+{
+  const qi = T.QUESTS.findIndex(q => q.ev === 'biome');
+  T.P.quest = qi; T.P.qstate = 'offer'; T.P.qprog = 0;
+  for (const k in T.P.disc) delete T.P.disc[k]; Object.assign(T.P.disc, { hub: 1, home: 1, office: 1, park: 1, sea: 1 });
+  T.acceptQuest();
+  assert(T.P.qstate === 'active' && T.P.qprog === 3, 'квест «Мандрівник»: 3 острови зараховано заздалегідь');
+  T.P.disc.snow = 1; T.questEvent('biome');
+  assert(T.P.qstate === 'done' && T.P.qprog === 4, 'квест «Мандрівник» виконано з урахуванням старих островів');
+  T.P.qstate = 'active'; T.P.qprog = 0; Object.assign(T.P.disc, { jungle: 1, desert: 1 }); T.syncQuest(true);
+  assert(T.P.qstate === 'done', 'застряглий квест зі старого збереження розблоковується при завантаженні');
+}
 console.log('ALL OK'); process.exit(0);

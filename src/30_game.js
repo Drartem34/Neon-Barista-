@@ -266,20 +266,45 @@ function updDrops(dt) {
 
 /* ---------- Квести ---------- */
 function curQuest() { return QUESTS[Math.min(P.quest, QUESTS.length - 1)]; }
+/* Скільки вже зроблено ДО квесту: відкриті острови, приручені улюбленці тощо.
+   null — квест рахує лише нові дії (риба, удари, варіння). */
+function questDoneBefore(q) {
+  const ev = q.ev;
+  if (ev === 'biome') return ISL.filter(i => P.disc[i.id] && i.id !== 'hub' && i.id !== 'home').length;
+  if (ev === 'altar') return P.disc.altar ? 1 : 0;
+  if (ev === 'secret') return P.chests && P.chests.secret ? 1 : 0;
+  if (ev === 'tame') return Object.keys(P.pets || {}).filter(k => P.pets[k]).length;
+  if (ev === 'miniboss') return Object.keys(P.mb || {}).filter(k => P.mb[k] > 0).length;
+  if (ev === 'healed') return HEAL_REGIONS.filter(id => (P.heal[id] || 0) >= 100).length;
+  if (ev === 'boss') return P.bossWins > 0 ? 1 : 0;
+  if (ev.startsWith('ing:')) return P.ing[ev.slice(4)] || 0;
+  return null;
+}
+function questComplete(q) { P.qstate = 'done'; banner(`Квест виконано: «${q.n}». Повернись до Маріанни.`); sfx('level'); }
+/* Підтягує прогрес активного квесту до того, що гравець уже зробив раніше. */
+function syncQuest(silent) {
+  if (!P || P.qstate !== 'active') return;
+  const q = curQuest(), have = questDoneBefore(q);
+  if (have != null && have > P.qprog) P.qprog = Math.min(q.need, have);
+  if (P.qprog >= q.need) { P.qprog = q.need; if (silent) P.qstate = 'done'; else questComplete(q); }
+}
 function questEvent(ev) {
   if (ev === 'calm') P.calmed++;
   if (P.qstate !== 'active') return;
   const q = curQuest();
   if (q.ev === ev) {
     P.qprog++;
-    if (P.qprog >= q.need) { P.qstate = 'done'; banner(`Квест виконано: «${q.n}». Повернись до Маріанни.`); sfx('level'); }
+    syncQuest();
     refreshQuest();
   }
 }
 function acceptQuest() {
   const q = curQuest(); P.qstate = 'active'; P.qprog = 0;
   if (q.onAccept && q.onAccept.recipe) learn('d', q.onAccept.recipe);
-  toast(`Новий квест: <b>${q.n}</b>`); refreshQuest(); save();
+  toast(`Новий квест: <b>${q.n}</b>`);
+  const before = questDoneBefore(q);
+  if (before) toast(`Зараховано вже зроблене: <b>${Math.min(before, q.need)} / ${q.need}</b>`);
+  syncQuest(); refreshQuest(); save();
 }
 function turnInQuest() {
   const q = curQuest(), r = q.rw;

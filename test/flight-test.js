@@ -27,10 +27,18 @@ const F = w.__flight;
 T.startGame(true); T.P.tut = -1; T.pl.hp = 9999; step(.3);
 T.keydown('Escape'); step(.05); body().querySelector('[data-mode="flight"]').click(); step(.5);
 assert(Math.abs(T.pl.x - (F.BOARD.x + .5)) < .6, 'Esc → «Кавовий рейс» переносить на борт');
+// підказки
+assert(F.goal().id === 'start' && w.document.getElementById('fl-intro'), 'до вильоту: інструкція й підказка «▶ СТАРТ»');
+w.document.querySelector('#fl-intro button').click(); assert(!w.document.getElementById('fl-intro') && T.P.addons.flight.intro === 1, 'інструкцію закрив — більше не показується');
+step(.1); assert(/СТАРТ/.test(w.document.getElementById('flight-goal').textContent), 'у HUD рядок «👉 що робити зараз»');
 // посадка
 T.pl.x = F.BOARD.x + .3; T.pl.z = F.BOARD.z + .6; step(.1);
 let it = T.getInteract(); assert(it && /посадку/.test(it.l), 'біля дверей F — «Оголосити посадку»'); it.fn(); step(.2);
 assert(F.ST.on, 'рейс вилетів');
+{ const p0 = F.ST.pass[0], ap = F.ST.t; F.ST.t = 30; F.ST.pass.forEach(p => p.want = ''); p0.want = 'tea'; p0.pat = .2;
+  assert(F.goal().id === 'tea', 'пасажир хоче чай — підказка веде до «🍵 Чай»');
+  F.setHeld('tea'); assert(F.goal().id === 'seat', 'з чаєм у руках — веде до пасажира'); F.setHeld('');
+  F.damage('hole'); assert(F.goal().id === 'hole', 'пробоїна — підказка веде латати'); F.ST.holes.length = 0; p0.want = ''; F.ST.t = ap; }
 // стіни салону не випускають
 T.pl.x = -30 + 6; T.pl.z = 118; step(.1); T.pl.z = 118 + 4.5; step(.1); assert(Math.abs(T.pl.z - 118) < 2.6, 'з літака не випадеш (стіни салону)');
 // пілот

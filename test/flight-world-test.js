@@ -66,7 +66,7 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
     const before = F.ST.served; it = b.getInteract(); if (it && /Подати/.test(it.l)) { it.fn(); await tick([a, b], .8); if (F.ST.served > before) served++; }
   }
   assert(served >= 2 && G.ST.served === F.ST.served, `Стюард обслужив пасажирів — бачать обоє (${F.ST.served})`);
-  G.setHeld('tea'); for (let k = 0; k < 8 && !F.V.remote.has(b.NET.id); k++) await tick([a, b], .5);   // таця дублюється кожні 3 с
+  for (let k = 0; k < 10 && !F.V.remote.has(b.NET.id); k++) { if (!G.V.held) G.setHeld('tea'); await tick([a, b], .5); }   // гроза може вибити тацю з рук — беремо знову
   assert(F.V.remote.has(b.NET.id), 'Пілот бачить чай на таці в Стюарда');
   G.setHeld(''); await tick([a, b], 1);
   assert(!F.V.remote.has(b.NET.id), 'віддав — таця зникла й у Пілота');

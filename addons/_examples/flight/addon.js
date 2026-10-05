@@ -13,7 +13,7 @@
    - Друзі бачать, що в тебе на таці. Своя музика рейсу.
    У спільному світі рейс один на всіх: пасажирів, погоду, поломки й двері рахує сервер.
    Картинку для картки в меню поклади поруч: addons/flight/flight-bg.jpg */
-const A = Addon.info({ name: 'Кавовий рейс', version: '1.1', desc: 'Кооп на 1–4 у літаку: пілот, бортпровідники, поломки й ремонт, двері в кабіну, на крила й назовні, вантажний відсік, музика.' });
+const A = Addon.info({ name: 'Кавовий рейс', version: '1.2', desc: 'Кооп на 1–4 у літаку: пілот, бортпровідники, поломки й ремонт, двері в кабіну, на крила й назовні, вантажний відсік, музика.' });
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);
@@ -186,7 +186,7 @@ A.on('world', () => {
 });
 
 /* ======================= ДАЛІ — ЛИШЕ В ГРАВЦЯ ======================= */
-const V = { cdoor: null, exitM: null, stair: null, out: false, clouds: [], seats: [], hud: null, radar: null, held: '', heldMesh: null, brew: null, fix: null, sendT: 0, auto: false, joined: false, last: null, lastW: '', holes: new Map(), doorM: [], engM: [], dark: null, bombs: 0, heldSendT: 0, remote: new Map(), wind: 0, music: -1 };
+const V = { lbl: null, glbl: null, gArrow: null, gMark: null, goal: null, cdoor: null, exitM: null, stair: null, out: false, clouds: [], seats: [], hud: null, radar: null, held: '', heldMesh: null, brew: null, fix: null, sendT: 0, auto: false, joined: false, last: null, lastW: '', holes: new Map(), doorM: [], engM: [], dark: null, bombs: 0, heldSendT: 0, remote: new Map(), wind: 0, music: -1 };
 const amPilot = () => ST.pilot && ST.pilot === myKey();
 const HULL = '#C9B8F0', HULL2 = '#9F8BE0', INNER = '#ECE6FB';
 
@@ -436,7 +436,7 @@ function clientTick(dt) {
   // таці друзів: руки вперед
   for (const [id] of V.remote) { const r = NET.players[id]; if (!r) { V.remote.delete(id); continue; } r.h.aR.rotation.x = r.h.aL.rotation.x = -1.3; }
   updBrew(dt); updFix(dt);
-  hud(); darkness();
+  hud(); darkness(); guide();
   if (!running || pl.dead) return;
   const here = inPlane(pl.x, pl.z);
   if (!here) { if (V.held) setHeld(''); V.last = null; return; }
@@ -477,6 +477,93 @@ function darkness() {
   const on = running && ST.on && !ST.lights && inPlane(pl.x, pl.z) && !panel;
   V.dark.style.opacity = on ? (Math.random() < .03 ? .6 : 1) : 0;
   if (on) { const p = screenPos(pl.x, 1, pl.z); V.dark.style.background = `radial-gradient(circle at ${Math.round(p.x)}px ${Math.round(p.y)}px, rgba(10,6,25,0) 0, rgba(10,6,25,.15) 90px, rgba(10,6,25,.9) 240px)`; }
+}
+
+/* ---------- Підказки: підписи місць, «що робити зараз» і стрілка до цілі ---------- */
+const PLACES = [
+  { id: 'start', p: BOARD, y: 2.1, t: '▶ СТАРТ · посадка (F)', on: () => !ST.on },
+  { id: 'coffee', p: ST_COFFEE, y: 2, t: '☕ Кава' }, { id: 'tea', p: ST_TEA, y: 2, t: '🍵 Чай' }, { id: 'food', p: ST_FOOD, y: 1.8, t: '🥐 Круасан' },
+  { id: 'trash', p: TRASH, y: 1.2, t: '🗑️ Смітник', on: () => !!V.held },
+  { id: 'pilot', p: COCKPIT, y: 2, t: '🧑‍✈️ Штурвал' },
+  { id: 'cdoor', p: { x: CK_X, z: FZ }, y: 1.9, t: '🚪 Кабіна пілота', on: () => !ST.cdoor },
+  { id: 'fuse', p: FUSE, y: 2, t: '⚡ Щиток світла' }, { id: 'bombs', p: BOMBS, y: 1.5, t: '💣 Бомби' },
+  { id: 'cargo', p: { x: X0 + 2.4, z: FZ }, y: 2.2, t: '📦 Вантажний відсік' },
+  ...DOORS.map((d, i) => ({ id: 'door' + i, p: { x: d.x, z: FZ + d.side * (HW - .2) }, y: 1.8, t: '🚪 На крило' })),
+  { id: 'exit', p: { x: EXIT.x, z: FZ + EXIT.side * (HW - .2) }, y: 1.8, t: ST => ST.on ? '🪂 EXIT' : '🚪 Вихід' },
+];
+const STN = { coffee: ST_COFFEE, tea: ST_TEA, food: ST_FOOD };
+function goal() {
+  const near = o => dist2(pl.x, pl.z, o.x, o.z);
+  if (!ST.on) return { id: 'start', tg: BOARD, txt: 'Підійди до <b>▶ СТАРТ</b> (табличка BOARDING біля камбуза) і натисни <b>F</b> — літак вилітає.' };
+  if (amPilot()) return { txt: 'Ти пілот: <b>A/D</b> — крен. Обходь ⚡ грози на радарі (праворуч унизу), щоб вони не пролітали над твоїм ▲. <b>F</b> — встати.' };
+  if (V.fix) return { txt: `🔧 Ремонтую ${Math.round(V.fix.t / V.fix.need * 100)}% — не відходь!` };
+  if (V.brew) return { txt: `${ITEM[V.brew.st.item].ic} Готую ${Math.round(V.brew.t / V.brew.st.t * 100)}% — стій поруч.` };
+  if (ST.holes.length) { const h = ST.holes.reduce((a, b) => near(a) < near(b) ? a : b); return { id: 'hole', tg: { x: h.x, z: FZ + h.side * (HW - .4) }, txt: '🕳️ <b>Пробоїна!</b> Вона всмоктує людей і каву. Підійди й тримай <b>F</b> 3 с.' }; }
+  if (!ST.lights) return { id: 'fuse', tg: FUSE, txt: '🌑 <b>Нема світла.</b> Біжи в хвіст до <b>⚡ щитка</b> і тримай F.' };
+  const bad = [0, 1].find(i => !ST.eng[i]);
+  if (bad !== undefined) {
+    const d = DOORS[bad], w = where(pl.x, pl.z);
+    if (w === 'cabin') return { id: 'door' + bad, tg: { x: d.x, z: FZ + d.side * (HW - .4) }, txt: `🔥 <b>${bad ? 'Правий' : 'Лівий'} двигун горить!</b> Відчини 🚪 двері на крило (F) і вийди до двигуна.` };
+    return { id: 'engine', tg: engFix(bad), txt: '🔥 Тримайся на крилі (вітер зносить!) і тримай <b>F</b> біля двигуна 4 с.' };
+  }
+  if (!ST.pilot && ST.t < 15) return { id: 'pilot', tg: COCKPIT, txt: '🧑‍✈️ Хтось має сісти за <b>штурвал</b> (кабіна попереду, двері F). Або розноси каву — слабкий автопілот трохи тримає.' };
+  if (V.held) {
+    let best = -1; ST.pass.forEach((p, i) => { if (p.want === V.held && (best < 0 || p.pat < ST.pass[best].pat)) best = i; });
+    if (best >= 0) { const s = SEATS[best]; return { id: 'seat', tg: { x: s.x + .2, z: s.z - s.side * .6 }, txt: `Неси ${ITEM[V.held].ic} пасажиру з іконкою ${ITEM[V.held].ic} над головою і натисни <b>F</b> поруч.` }; }
+    return { id: 'trash', tg: TRASH, txt: `Зараз ніхто не просить ${ITEM[V.held].ic}. Зачекай або викинь у 🗑️ смітник.` };
+  }
+  let best = -1; ST.pass.forEach((p, i) => { if (p.want && (best < 0 || p.pat < ST.pass[best].pat)) best = i; });
+  if (best >= 0) { const w = ST.pass[best].want; return { id: w, tg: STN[w], txt: `Пасажир хоче ${ITEM[w].ic} <b>${ITEM[w].n}</b> → іди до «${ITEM[w].ic}» на камбузі й натисни <b>F</b>.` }; }
+  return { txt: 'Усі задоволені 👌 Стеж за ⚡ грозами й поломками — і чекай нових замовлень.' };
+}
+function guide() {
+  if (!V.lbl) {
+    V.lbl = document.createElement('div'); V.lbl.style.cssText = 'position:fixed;inset:0;z-index:2;pointer-events:none';
+    const css = document.createElement('style');
+    css.textContent = `.fl-lbl{position:absolute;left:0;top:0;padding:3px 9px;border-radius:10px;background:rgba(46,35,70,.78);color:#fff;font:700 12px/1.3 system-ui,sans-serif;white-space:nowrap;transform:translate(-50%,-100%);transition:opacity .2s}
+      .fl-lbl.goal{background:#FFE066;color:#2E2346;font-size:14px;box-shadow:0 0 0 3px rgba(255,224,102,.35),0 6px 16px rgba(0,0,0,.3);animation:flB .8s ease-in-out infinite alternate}
+      @keyframes flB{to{margin-top:-6px}}`;
+    document.head.appendChild(css); document.body.appendChild(V.lbl);
+    for (const P of PLACES) { P.el = document.createElement('div'); P.el.className = 'fl-lbl'; V.lbl.appendChild(P.el); }
+    V.glbl = document.createElement('div'); V.glbl.className = 'fl-lbl goal'; V.lbl.appendChild(V.glbl);
+    V.gArrow = new THREE.Group(); const sh = mesh(new THREE.ConeGeometry(.28, .7, 3), bulb('#FFE066'), false); sh.rotation.z = -Math.PI / 2; sh.position.x = 1.25; V.gArrow.add(sh); scene.add(V.gArrow);
+    V.gMark = new THREE.Mesh(new THREE.TorusGeometry(.6, .07, 6, 24), new THREE.MeshBasicMaterial({ color: '#FFE066', transparent: true, opacity: .9, depthWrite: false })); V.gMark.rotation.x = Math.PI / 2; scene.add(V.gMark);
+  }
+  const show = running && !pl.dead && !panel && inPlane(pl.x, pl.z) && (ST.lights || !ST.on);
+  V.lbl.style.display = show ? '' : 'none';
+  const g = show ? goal() : { txt: '' }; V.goal = g;
+  V.gArrow.visible = V.gMark.visible = !!(show && g.tg);
+  if (!show) return;
+  const pos = (el, x, y, z) => { const q = screenPos(x, y, z); el.style.display = q.vis ? '' : 'none'; el.style.transform = `translate(${Math.round(q.x)}px,${Math.round(q.y)}px) translate(-50%,-100%)`; };
+  for (const P of PLACES) {
+    const on = (!P.on || P.on()) && P.id !== g.id;
+    P.el.style.opacity = on ? (dist2(pl.x, pl.z, P.p.x, P.p.z) < 7 ? 1 : .6) : 0;
+    if (on) { const t = typeof P.t === 'function' ? P.t(ST) : P.t; if (P.el.textContent !== t) P.el.textContent = t; pos(P.el, P.p.x, P.p.y || P.y, P.p.z); }
+  }
+  V.glbl.style.opacity = g.tg ? 1 : 0;
+  if (g.tg) {
+    const P = PLACES.find(q => q.id === g.id), t = '👉 ' + (P ? (typeof P.t === 'function' ? P.t(ST) : P.t) : g.id === 'hole' ? '🕳️ Латай тут (F)' : g.id === 'engine' ? '🔥 Лагодь тут (F)' : g.id === 'seat' ? `${ITEM[V.held] ? ITEM[V.held].ic : ''} Сюди!` : 'Сюди');
+    if (V.glbl.textContent !== t) V.glbl.textContent = t; pos(V.glbl, g.tg.x, 3, g.tg.z);
+    const d = dist2(pl.x, pl.z, g.tg.x, g.tg.z);
+    V.gMark.position.set(g.tg.x, .08, g.tg.z); V.gMark.scale.setScalar(1 + Math.sin(gameTime * 5) * .12);
+    V.gArrow.visible = d > 2.2; V.gArrow.position.set(pl.x, .15, pl.z); V.gArrow.rotation.y = -Math.atan2(g.tg.z - pl.z, g.tg.x - pl.x);
+  }
+}
+/* коротка інструкція при першому вході */
+function intro(force) {
+  const d = A.data(); if ((d.intro && !force) || SIMSIDE || document.getElementById('fl-intro')) return;
+  const el = document.createElement('div'); el.id = 'fl-intro';
+  el.style.cssText = 'position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(20,12,40,.55);padding:16px';
+  el.innerHTML = `<div style="max-width:440px;width:100%;background:#2E2346;color:#fff;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)">
+    <div style="font:800 20px system-ui;margin-bottom:8px">✈️ Кавовий рейс — як грати</div>
+    <div>1. <b>▶ СТАРТ</b>: підійди до таблички BOARDING біля камбуза й натисни <b>F</b> — вилітаємо.</div>
+    <div>2. <b>🧑‍✈️ Пілот</b>: F біля штурвала (кабіна попереду), <b>A/D</b> — крен, обходь ⚡ грози на радарі.</div>
+    <div>3. <b>☕ Бортпровідники</b>: над пасажиром іконка ☕/🍵/🥐 — приготуй це на камбузі (F) і віднеси (F поруч).</div>
+    <div>4. <b>🔧 Поломки</b>: пробоїни, двигуни, світло — підходь і тримай F.</div>
+    <div style="margin-top:8px;color:#FFE066">Жовта стрілка під ногами й жовта мітка завжди показують, куди йти зараз. Підказка — вгорі екрана 👆</div>
+    <button class="btn" style="margin-top:12px;width:100%">Зрозуміло, летимо!</button></div>`;
+  document.body.appendChild(el);
+  el.querySelector('button').addEventListener('click', () => { el.remove(); d.intro = 1; save(); });
 }
 
 /* ---------- Камбуз і ремонт: тримай поруч ---------- */
@@ -556,6 +643,9 @@ updInput = function () { _updInput.apply(this, arguments); if (amPilot()) { inpu
 /* ---------- HUD: рейс, поломки, а пілоту — авіагоризонт і радар ---------- */
 function hud() {
   if (!V.hud) {
+    V.goalEl = document.createElement('div'); V.goalEl.id = 'flight-goal';
+    V.goalEl.style.cssText = 'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 150px);transform:translateX(-50%);z-index:2;pointer-events:none;background:#FFE066;color:#2E2346;border-radius:12px;padding:7px 14px;font:700 14px/1.4 system-ui,sans-serif;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.25);width:max-content;max-width:min(560px,90vw)';
+    document.body.appendChild(V.goalEl);
     V.hud = document.createElement('div'); V.hud.id = 'flight-hud';
     V.hud.style.cssText = 'position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translateX(-50%);z-index:2;pointer-events:none;background:rgba(46,35,70,.85);color:#fff;border-radius:14px;padding:7px 14px;font:700 13px/1.4 system-ui,sans-serif;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.25);white-space:nowrap';
     document.body.appendChild(V.hud);
@@ -564,7 +654,7 @@ function hud() {
     document.body.appendChild(V.radar);
   }
   const show = running && !pl.dead && !panel && inPlane(pl.x, pl.z);
-  V.hud.style.display = show ? '' : 'none'; V.radar.style.display = show && (amPilot() || ST.on) ? '' : 'none';
+  V.hud.style.display = show ? '' : 'none'; V.goalEl.style.visibility = show ? '' : 'hidden'; V.radar.style.display = show && (amPilot() || ST.on) ? '' : 'none';
   if (!show) return;
   let h;
   if (ST.on) {
@@ -573,7 +663,8 @@ function hud() {
     const dmg = [ST.holes.length ? `🕳️ пробоїн ${ST.holes.length}` : '', !ST.eng[0] ? '🔥 лівий двигун' : '', !ST.eng[1] ? '🔥 правий двигун' : '', !ST.lights ? '🌑 світло' : '', ST.doors[0] || ST.doors[1] || ST.exit ? '🚪 двері відчинені' : ''].filter(Boolean).join(' · ');
     const pilot = ST.pilot ? `🧑‍✈️ ${escapeHTML(ST.pilot === 'me' ? 'ти' : ST.pilot)}` : ST.ap > 0 ? `🤖 автопілот ${Math.ceil(ST.ap)} с` : '<span style="color:#FFD27A">слабкий автопілот!</span>';
     h = `✈️ ESPRESSO FLIGHT · до «Гущі» ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')} · обслужено ${ST.served} · ${pilot}<br><span style="font-weight:600;font-size:12px">Настрій ${bar(mood)} · чекають ${want}${angry ? ` · <span style="color:#FF5C7A">злі ${angry}</span>` : ''}${V.held ? ` · у руках ${ITEM[V.held].ic}` : ''}${V.brew ? ` · готую ${Math.round(V.brew.t / V.brew.st.t * 100)}%` : ''}${V.fix ? ` · 🔧 ${Math.round(V.fix.t / V.fix.need * 100)}%` : ''}</span>${dmg ? `<br><span style="font-size:12px;color:#FF8A7A">${dmg}</span>` : ''}`;
-  } else h = '✈️ Espresso Flight · <span style="font-weight:600">BOARDING біля камбуза (F) — вилітаємо. Кабіна попереду, вантажний відсік у хвості.</span>';
+  } else h = '✈️ Espresso Flight · <span style="font-weight:600">літак на землі — чекаємо посадки</span>';
+  if (V.goalEl) { const gt = V.goal && V.goal.txt ? `👉 ${V.goal.txt}` : ''; V.goalEl.style.display = gt ? '' : 'none'; if (V.goalEl.innerHTML !== gt) V.goalEl.innerHTML = gt; }
   if (V.hud.innerHTML !== h) V.hud.innerHTML = h;
   const c = V.radar, x = c.getContext && c.getContext('2d'); if (!x || !x.fillRect) return;
   x.clearRect(0, 0, 240, 150);
@@ -610,7 +701,7 @@ if (!SIMSIDE && typeof scheduleStep === 'function') {
 }
 
 /* ---------- Режим у паузі, вкладка, картка в меню ---------- */
-function goFlight() { const f = $('#fade'); closePanel(); if (f) f.style.opacity = 1; sfx('travel'); setTimeout(() => { pl.x = BOARD.x + .5; pl.z = FZ; pl.y = 0; pl.falling = false; pl.jump = null; pl.safe = { x: FX - 4, z: FZ }; V.last = { x: pl.x, z: pl.z }; V.lastW = 'cabin'; camPos.set(pl.x, 20, pl.z + 15); camLook.set(pl.x, .5, pl.z); if (f) f.style.opacity = 0; toast('✈️ Espresso Flight! Хтось — за штурвал (кабіна попереду), решта — на камбуз. Посадка — табличка BOARDING (F).'); }, 260); return true; }
+function goFlight() { const f = $('#fade'); closePanel(); if (f) f.style.opacity = 1; sfx('travel'); setTimeout(() => { pl.x = BOARD.x + .5; pl.z = FZ; pl.y = 0; pl.falling = false; pl.jump = null; pl.safe = { x: FX - 4, z: FZ }; V.last = { x: pl.x, z: pl.z }; V.lastW = 'cabin'; camPos.set(pl.x, 20, pl.z + 15); camLook.set(pl.x, .5, pl.z); if (f) f.style.opacity = 0; toast('✈️ Espresso Flight! Жовта стрілка показує, куди йти. Старт — табличка ▶ СТАРТ (F).'); intro(); }, 260); return true; }
 function goOut() {
   if (V.out) return; V.out = true; V.last = null; V.joined = false;
   const fly = ST.on; leaveFlight();
@@ -624,7 +715,7 @@ A.tab('flight', '✈️ Рейс', () => {
   const d = A.data(), here = inPlane(pl.x, pl.z);
   return `<h3>✈️ Кавовий рейс · Espresso Flight</h3>
     <p style="font-size:13px;line-height:1.5;margin:4px 0 10px">Кооператив на 1–4 гравці. Літак летить 4 хвилини до «Гущі», салон повний пасажирів — усі чогось хочуть, а літак розвалюється.</p>
-    <div class="btns">${here ? (ST.on ? '' : '<button class="btn" data-fl="start">✈️ Вилітаємо!</button>') : '<button class="btn" data-fl="go">✈️ На борт</button>'}</div>
+    <div class="btns"><button class="btn alt" data-fl="help">❓ Як грати</button>${here ? (ST.on ? '' : '<button class="btn" data-fl="start">✈️ Вилітаємо!</button>') : '<button class="btn" data-fl="go">✈️ На борт</button>'}</div>
     <div class="list" style="margin-top:10px;font-size:13px;line-height:1.55">
       <div>🧑‍✈️ <b>Пілот</b> — F у кабіні, <b>A/D</b> — крен. Грози на радарі обходиш креном (але крен хитає салон). Встав — автопілот тримає 25 с, потім слабне.</div>
       <div>☕ <b>Камбуз</b> (біля вантажного відсіку): кава 2 с, чай 1,5 с, круасан. Неси пасажиру з такою ж іконкою. Друзі бачать, що в тебе на таці.</div>
@@ -635,7 +726,7 @@ A.tab('flight', '✈️ Рейс', () => {
     <p class="muted" style="font-size:12px;margin-top:10px">Рейсів: ${d.flights || 0} · успішних посадок: ${d.landed || 0} · рекорд обслуговування: ${d.best || 0} · найкраща оцінка: ${'⭐'.repeat(d.stars || 0) || '—'}</p>`;
 }, e => {
   const b = e.target.closest('[data-fl]'); if (!b) return;
-  if (b.dataset.fl === 'go') goFlight(); else { req('start'); closePanel(); }
+  if (b.dataset.fl === 'help') { closePanel(); intro(true); } else if (b.dataset.fl === 'go') goFlight(); else { req('start'); closePanel(); }
 });
 if (!SIMSIDE && typeof document !== 'undefined') {
   const box = document.querySelector('#main-menu .mm-container');
@@ -653,4 +744,4 @@ if (!SIMSIDE && typeof document !== 'undefined') {
   }
 }
 A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(goFlight, 700); });
-if (window.__ADDON_TEST) window.__flight = { ST, AU, V, SEATS, STATIONS, COCKPIT, CK_X, EXIT, goOut, BOARD, DOORS, ENGINES, engFix, FUSE, BOMBS, setHeld, nearSeat, damage, where };
+if (window.__ADDON_TEST) window.__flight = { ST, AU, V, SEATS, STATIONS, COCKPIT, goal, intro, CK_X, EXIT, goOut, BOARD, DOORS, ENGINES, engFix, FUSE, BOMBS, setHeld, nearSeat, damage, where };

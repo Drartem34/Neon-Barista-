@@ -305,6 +305,7 @@ async def ws_session(reader, writer, headers, ip):
         pass
     finally:
         PLAYERS.pop(pid, None)
+        WORLD.send({'t': 'leave', 'id': pid})
         log(f'- гравець #{pid} «{p.name}» вийшов')
         await broadcast({'t': 'leave', 'id': pid})
         try: writer.close()
@@ -327,7 +328,8 @@ async def handle_msg(p: Player, m):
         p.login = u['login']
         p.name = u['login']
         u['seen'], u['ip'] = time.time(), p.ip
-        await send(p, {'t': 'hello', 'id': p.id, 'players': [{'id': o.id, 'name': o.name, 's': o.state} for o in PLAYERS.values() if o is not p]})
+        WORLD.send({'t': 'join', 'id': p.id, 'name': p.name})
+        await send(p, {'t': 'hello', 'id': p.id, 'world': WORLD.ready, 'players': [{'id': o.id, 'name': o.name, 's': o.state} for o in PLAYERS.values() if o is not p]})
         await broadcast({'t': 'join', 'id': p.id, 'name': p.name}, skip=p)
         log(f'  #{p.id} назвався «{p.name}»')
     elif t == 's':
@@ -359,6 +361,14 @@ async def handle_msg(p: Player, m):
         e = m.get('e')
         if e in ('wave', 'dance', 'cheer', 'sit'):
             await broadcast({'t': 'emote', 'id': p.id, 'e': e}, skip=p)
+    elif t == 'w':
+        # дія в спільному світі (удар, кидок, підняти…) — до сервера світу
+        now = time.time()
+        p.msgs = [x for x in p.msgs if now - x < 10]
+        p.fx = [x for x in p.fx if now - x < 1]
+        if len(p.fx) < 60 and isinstance(m, dict) and len(json.dumps(m)) < 2048:
+            p.fx.append(now)
+            WORLD.send({'t': 'in', 'id': p.id, 'm': {k: v for k, v in m.items() if k != 't'}})
     elif t == 'ax':
         # Повідомлення аддонів (режими, міні-ігри): ретранслюємо всім іншим, з лімітом
         now = time.time()
@@ -396,9 +406,128 @@ async def handle_msg(p: Player, m):
             await send(to, {'t': 'gift', 'from': p.id, 'name': p.name, 'd': d})
             log(f'  «{p.name}» пригостив «{to.name}»: {d}')
 
+# ===================== СЕРВЕР СВІТУ (Node.js) =====================
+# Моби, боси, візки, баки, ящики й снаряди рахує окремий процес server/world.js —
+# той самий код гри без графіки. Тут ми передаємо йому позиції й дії гравців,
+# а його знімки світу розсилаємо гравцям. Без Node.js гра працює по-старому.
+class World:
+    def __init__(self):
+        self.proc = None
+        self.ready = False
+        self.status = 'ВИМКНЕНО'
+        self.stats = {}
+        self.enabled = True
+        self.installing = False
+
+    def node(self):
+        return shutil.which('node') or shutil.which('nodejs')
+
+    def has_modules(self):
+        return all(os.path.isdir(os.path.join(ROOT, 'node_modules', m)) for m in ('jsdom', 'three'))
+
+    async def install(self):
+        npm = shutil.which('npm')
+        if not npm:
+            self.status = 'НЕМАЄ npm (встанови Node.js разом з npm)'
+            return False
+        self.installing = True
+        self.status = 'ВСТАНОВЛЮЮ ЗАЛЕЖНОСТІ (npm install)…'
+        log('Світ: npm install…')
+        proc = await asyncio.create_subprocess_exec(npm, 'install', '--omit=dev', '--no-audit', '--no-fund', cwd=ROOT,
+                                                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        out, _ = await proc.communicate()
+        _log.write(out.decode('utf-8', 'replace')); _log.flush()
+        self.installing = False
+        if proc.returncode != 0:
+            self.status = 'npm install НЕ ВДАВСЯ — дивись лог'
+            return False
+        return True
+
+    async def run(self):
+        while self.enabled:
+            if not self.node():
+                self.status = 'НЕМАЄ Node.js — моби в кожного свої (встанови nodejs.org)'
+                return
+            if not self.has_modules() and not await self.install():
+                return
+            self.status = 'ЗАПУСК…'
+            try:
+                self.proc = await asyncio.create_subprocess_exec(self.node(), os.path.join(ROOT, 'server', 'world.js'), cwd=ROOT,
+                                                                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+                                                                 stderr=asyncio.subprocess.PIPE, limit=16 * 1024 * 1024)
+            except Exception as e:
+                self.status = f'ПОМИЛКА: {e}'
+                return
+            err_task = asyncio.create_task(self._stderr(self.proc))
+            await self._stdout(self.proc)
+            await self.proc.wait()
+            err_task.cancel()
+            was = self.ready
+            self.ready = False
+            self.proc = None
+            self.status = 'ВПАВ — перезапуск…'
+            log('Світ: процес завершився, перезапуск через 3 с')
+            if was:
+                await broadcast({'t': 'world', 'on': False})
+            await asyncio.sleep(3)
+
+    async def _stderr(self, proc):
+        async for line in proc.stderr:
+            _log.write(line.decode('utf-8', 'replace')); _log.flush()
+
+    async def _stdout(self, proc):
+        while True:
+            try:
+                line = await proc.stdout.readline()
+            except (ValueError, asyncio.LimitOverrunError):
+                continue
+            if not line:
+                return
+            try:
+                o = json.loads(line)
+            except Exception:
+                continue
+            to, m = o.get('to'), o.get('m')
+            if to == 'ready':
+                self.ready = True
+                self.status = 'ONLINE'
+                log('Світ: готовий')
+                for p in list(PLAYERS.values()):
+                    if p.login:
+                        self.send({'t': 'join', 'id': p.id, 'name': p.name})
+                await broadcast({'t': 'world', 'on': True})
+            elif to == 'stats':
+                self.stats = m or {}
+            elif to == '*':
+                for p in list(PLAYERS.values()):
+                    if p.login:
+                        await send(p, m)
+            else:
+                p = PLAYERS.get(to)
+                if p and p.login:
+                    await send(p, m)
+
+    def send(self, obj):
+        if not self.proc or not self.proc.stdin or self.proc.returncode is not None:
+            return
+        try:
+            self.proc.stdin.write((json.dumps(obj, ensure_ascii=False, separators=(',', ':')) + '\n').encode())
+        except Exception:
+            pass
+
+    def stop(self):
+        self.enabled = False
+        if self.proc and self.proc.returncode is None:
+            try: self.proc.kill()
+            except Exception: pass
+
+WORLD = World()
+
 async def ticker():
     while True:
         await asyncio.sleep(TICK)
+        if WORLD.ready:
+            WORLD.send({'t': 'pl', 'list': [dict(p.state, id=p.id, name=p.name) for p in PLAYERS.values() if p.login and p.state]})
         if len(PLAYERS) > 1:
             snap = {str(p.id): p.state for p in PLAYERS.values() if p.state}
             await broadcast({'t': 'states', 'p': snap})
@@ -751,7 +880,7 @@ async def handle_conn(reader, writer):
         if method not in ('GET', 'HEAD'):
             await respond(writer, 405, b'Method Not Allowed', 'text/plain; charset=utf-8'); return
         if path.startswith('/status'):
-            body = json.dumps({'players': len(PLAYERS), 'names': [p.name for p in PLAYERS.values()]}, ensure_ascii=False).encode()
+            body = json.dumps({'players': len(PLAYERS), 'names': [p.name for p in PLAYERS.values()], 'world': WORLD.ready}, ensure_ascii=False).encode()
             await respond(writer, 200, body, 'application/json; charset=utf-8'); return
         if path.split('?', 1)[0] == '/addons/index.json':
             body = json.dumps(addon_list(), ensure_ascii=False).encode()
@@ -806,6 +935,9 @@ class Monitor:
         t = self.tunnel
         tc = C.GREEN if t.status.startswith('ONLINE') else (C.YELLOW if 'ЗАПУСК' in t.status else C.RED)
         out.append(row(f' Тунель:           {tc}{t.status}{C.RESET}'))
+        wc = C.GREEN if WORLD.ready else (C.YELLOW if 'ЗАПУСК' in WORLD.status or 'ВСТАНОВЛЮЮ' in WORLD.status else C.RED)
+        ws = f' · мобів {WORLD.stats.get("mon", "?")}' if WORLD.ready else ''
+        out.append(row(f' Світ (сервер):    {wc}{WORLD.status}{ws}{C.RESET}'))
         if t.url:
             out.append(row(f' Посилання друзям: {C.MAG}{t.url} {C.RESET}'))
         out.append(bar('├', '┤'))
@@ -885,6 +1017,11 @@ async def main(args):
         threading.Thread(target=key_reader, args=(on_key,), daemon=True).start()
 
     asyncio.create_task(ticker())
+    if args.no_world:
+        WORLD.enabled = False
+        WORLD.status = 'ВИМКНЕНО (--no-world)'
+    else:
+        asyncio.create_task(WORLD.run())
     mon = Monitor(args.port, tunnel)
 
     async def ui():
@@ -900,6 +1037,7 @@ async def main(args):
     finally:
         ui_task.cancel()
         tunnel.stop()
+        WORLD.stop()
         log('Сервер зупинено')
         print(f'\n{C.YELLOW}Сервер зупинено. До зустрічі в «Кавовій Гущі»!{C.RESET}')
 
@@ -909,6 +1047,7 @@ if __name__ == '__main__':
     ap.add_argument('--host', default='0.0.0.0', help='адреса прослуховування (0.0.0.0 — уся мережа)')
     ap.add_argument('--tunnel', default='auto', choices=['auto', 'cloudflared', 'ngrok', 'ssh', 'serveo', 'none'], help='який тунель піднімати')
     ap.add_argument('--no-ui', action='store_true', help='без живого монітора (для запуску у фоні)')
+    ap.add_argument('--no-world', action='store_true', help='без сервера світу (моби в кожного гравця свої)')
     ap.add_argument('--admin', metavar='ЛОГІН', help='видати права адміністратора акаунту й вийти')
     ap.add_argument('--unban', metavar='ЛОГІН', help='розблокувати акаунт і вийти')
     args = ap.parse_args()

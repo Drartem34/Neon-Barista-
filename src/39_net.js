@@ -17,7 +17,7 @@ function netConnect() {
   ws.onopen = () => { NET.on = true; NET.retry = 0; ws.send(JSON.stringify({ t: 'join', token: ACCT && ACCT.token })); $('#online').hidden = false; $('#chatbtn').hidden = false; };
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } netMsg(m); };
   ws.onclose = () => {
-    const was = NET.on; NET.on = false; NET.ws = null;
+    const was = NET.on; NET.on = false; NET.ws = null; worldDisable();
     for (const id in NET.players) dropRemote(id);
     refreshOnline();
     if (was) toast('🔌 Зв’язок із сервером втрачено. Перепідключаюся…');
@@ -28,7 +28,10 @@ function netSend(o) { if (NET.on && NET.ws && NET.ws.readyState === 1) NET.ws.se
 function netMsg(m) {
   if (netAccountMsg(m) || funNetMsg(m)) return;
   if (m.t === 'ax') { addonNet(m); return; }
-  if (m.t === 'hello') { NET.id = m.id; m.players.forEach(p => { addRemote(p.id, p.name); if (p.s) applyState(p.id, p.s, true); }); toast(`👥 Ти в мережі як <b>${escapeHTML(myName())}</b>. Онлайн: ${m.players.length + 1}. Enter — чат.`); refreshOnline(); }
+  if (m.t === 'ws') { worldSnapshot(m); return; }
+  if (m.t === 'w') { worldPersonal(m); return; }
+  if (m.t === 'world') { m.on ? worldEnable() : worldDisable(); return; }
+  if (m.t === 'hello') { NET.id = m.id; if (m.world) worldEnable(); else worldDisable(); m.players.forEach(p => { addRemote(p.id, p.name); if (p.s) applyState(p.id, p.s, true); }); toast(`👥 Ти в мережі як <b>${escapeHTML(myName())}</b>. Онлайн: ${m.players.length + 1}. Enter — чат.`); refreshOnline(); }
   else if (m.t === 'join') { addRemote(m.id, m.name); toast(`👋 <b>${escapeHTML(m.name)}</b> зайшов у гру`); sfx('waypoint'); refreshOnline(); }
   else if (m.t === 'leave') { const r = NET.players[m.id]; if (r) toast(`🚪 ${escapeHTML(r.name)} вийшов`); dropRemote(m.id); refreshOnline(); }
   else if (m.t === 'states') { for (const id in m.p) if (+id !== NET.id) applyState(+id, m.p[id]); }

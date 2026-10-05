@@ -658,10 +658,12 @@ function frame(now) {
     updInput();
     updCharge(dt);
     updPlayer(dt);
-    MON.slice().forEach(m => { if (!m.calm && m.state !== 'fall' && dist2(m.x, m.z, pl.x, pl.z) > 48) { if (m.bar) m.bar.visible = false; if (m.wantS) m.wantS.visible = false; return; } if (!m.calm && m.state !== 'fall' && m.bar) m.bar.visible = true; updMonster(m, dt); });
-    updMinibosses(dt); updWarn(dt);
-    updBoss(dt); updProj(dt); updTele(dt); updProps(dt); updNodes(dt); updChests(dt); updDrops(dt);
-    updSpawns(dt); updEvents(dt); updBrew(dt); updCrowd(dt); updGiver(); updInteract(); updDummy(dt); updTut(dt); updExplore(dt); updRemotes(dt); updFun(dt); addonTick(dt);
+    if (WORLD.on) worldTick(dt);   // спільний світ: моби, боси, візки — із сервера
+    else {
+      MON.slice().forEach(m => { if (!m.calm && m.state !== 'fall' && dist2(m.x, m.z, pl.x, pl.z) > 48) { if (m.bar) m.bar.visible = false; if (m.wantS) m.wantS.visible = false; return; } if (!m.calm && m.state !== 'fall' && m.bar) m.bar.visible = true; updMonster(m, dt); });
+      updMinibosses(dt); updBoss(dt); updProps(dt); updSpawns(dt); updEvents(dt);
+    }
+    updWarn(dt); updProj(dt); updTele(dt); updNodes(dt); updChests(dt); updDrops(dt); updBrew(dt); updCrowd(dt); updGiver(); updInteract(); updDummy(dt); updTut(dt); updExplore(dt); updRemotes(dt); updFun(dt); addonTick(dt);
   }
   updParticles(live ? dt : 0); updFX(live ? dt : 0); updLights(rdt);
   updWorldAnim(rdt); updCamera(rdt); updOverlays(live ? rdt : 0); updCase(rdt); updArt(rdt); updFps(rdt);

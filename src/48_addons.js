@@ -95,6 +95,10 @@ function loadAddonScript(a) {
     .catch(e => addonFail(rec, e));
 }
 function loadAddons() {
+  if (window.__ADDON_CODE) {     // сервер світу: аддони вже прочитані з диска
+    for (const a of window.__ADDON_CODE) { const rec = { id: a.id, src: a.src, name: a.id, ok: true, err: '' }; ADDONS.list.push(rec); try { withAddon(rec, () => runAddonCode(a.code, 'addons/' + a.src)); } catch (e) { addonFail(rec, e); } }
+    return null;
+  }
   if (!netAvailable() || typeof fetch !== 'function') return null;
   const timeout = new Promise(r => setTimeout(r, 5000));
   const go = fetch('addons/index.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : []).catch(() => [])

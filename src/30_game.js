@@ -9,7 +9,10 @@ const MON = [], PROJ = [], TELE = [], DROPS = [];
 let hero = null, heldMesh = null, heldKey = '';
 let running = false, paused = false, timeScale = 1, slowT = 0, shake = 0, gameTime = 0;
 let selDrink = 'latte';
-let lastHitM = null, lastHitT = -9;   // кого востаннє вдарили (для статусу в онлайні)
+let lastHitM = null, lastHitT = -9;
+let curProjOwner = null;   // сервер світу: чий снаряд зараз обробляється (кому зарахувати)
+/* Зміна стану моба з боку гравця (у мережевому світі — йде на сервер). */
+function mStat(m, k, v) { m[k] = Math.max(m[k] || 0, v); if (m.proxy && typeof worldMonsterIntent === 'function') worldMonsterIntent(m, { [k]: v }); }   // кого востаннє вдарили (для статусу в онлайні)
 const EV = { t: 70, happy: 0, reports: 0 };
 const BOSS = { rad: 1.4, lvl: 1, active: false, asleep: false, stress: 0, max: 0, x: 58, z: 16, face: 0, cd: 2.5, atkI: 0, charge: null, sleepT: 0, mesh: null, wakeLine: 0, dead: false, bh: 4.6, y: 0, offT: 0 };
 
@@ -794,11 +797,11 @@ function resolveHit(pd) {
     const kb = h.kb * kbM * (isBoss ? .05 : 1) * (h.fx === 'pull' ? -.75 : 1);
     const real = applyHit(m, dmg, Math.sin(a) * kb, Math.cos(a) * kb, isBoss);
     if (h.fx === 'freeze' && !isBoss) freezeM(m, 1);
-    if (h.fx === 'sand' && !isBoss) { m.slow = 3; burst(m.x, .6, m.z, '#E2C48E', 6, 2, .5, 1); }
-    if (pd.charged && !isBoss) m.stun = Math.max(m.stun, 1.2);
+    if (h.fx === 'sand' && !isBoss) { mStat(m, 'slow', 3); burst(m.x, .6, m.z, '#E2C48E', 6, 2, .5, 1); }
+    if (pd.charged && !isBoss) mStat(m, 'stun', 1.2);
     ftext(m.x, isBoss ? 4.4 : 2.1, m.z, (counter ? 'КОНТР −' : crit ? 'КРИТ −' : '−') + Math.round(real || 0), crit || (real || 0) >= 15 ? 'crit' : '');
     if (real === 0 && !isBoss) ftext(m.x, 2.6, m.z, 'Тільки кава!', 'calm');
-    if (h.fx === 'foam') { m.slow = 1.5; }
+    if (h.fx === 'foam') mStat(m, 'slow', 1.5);
     if (h.fx === 'steam') applyCalm(m, 14, isBoss);
     if (h.fx === 'splash') applyCalm(m, 8, isBoss);
     if (h.fx === 'spin') applyCalm(m, 6, isBoss);
@@ -939,7 +942,7 @@ function spawnProj(o) {
 }
 function updProj(dt) {
   for (let i = PROJ.length - 1; i >= 0; i--) {
-    const p = PROJ[i]; p.life -= dt;
+    const p = PROJ[i]; p.life -= dt; curProjOwner = p.owner == null ? null : p.owner;
     p.x += p.vx * dt; p.z += p.vz * dt;
     p.m.position.set(p.x, p.y, p.z); p.m.rotation.y += dt * 9;
     let done = p.life <= 0;
@@ -990,9 +993,11 @@ function updTele(dt) {
     if (k >= 1) {
       burst(t.x, .5, t.z, '#FF9A5B', 16, 5, .7, 4); ringFX(t.x, t.z, t.r, '#FF9A5B', .4);
       const dpl = dist2(pl.x, pl.z, t.x, t.z);
-      if (dpl < t.r && dpl >= (t.inner || 0) && pl.y < 1) { if (pl.dashT > 0) checkPerfect(t.x, t.z, t.r + 1); hurtPlayer(t.dmg, t); }
-      for (const m of MON) if (!m.calm && m.state !== 'fall' && dist2(m.x, m.z, t.x, t.z) < t.r) { const a = angTo(t.x, t.z, m.x, m.z); applyHit(m, 5, Math.sin(a) * 9, Math.cos(a) * 9); }
-      for (const p of PROPS) if (p.alive && dist2(p.x, p.z, t.x, t.z) < t.r + p.r) damageProp(p, 20, 'boom');
+      if (t.dmg && dpl < t.r && dpl >= (t.inner || 0) && pl.y < 1) { if (pl.dashT > 0) checkPerfect(t.x, t.z, t.r + 1); hurtPlayer(t.dmg, t); }
+      if (!t.visual) {
+        for (const m of MON) if (!m.calm && m.state !== 'fall' && dist2(m.x, m.z, t.x, t.z) < t.r) { const a = angTo(t.x, t.z, m.x, m.z); applyHit(m, 5, Math.sin(a) * 9, Math.cos(a) * 9); }
+        for (const p of PROPS) if (p.alive && dist2(p.x, p.z, t.x, t.z) < t.r + p.r) damageProp(p, 20, 'boom');
+      }
       sfx('boom', t.x, t.z); shake = Math.max(shake, .25);
       scene.remove(t.ring, t.fill); if (t.paper) scene.remove(t.paper); t.ring.geometry.dispose(); t.fill.geometry.dispose(); t.ring.material.dispose(); t.fill.material.dispose();
       TELE.splice(i, 1);

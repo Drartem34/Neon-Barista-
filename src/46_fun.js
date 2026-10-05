@@ -212,7 +212,7 @@ function funMelee(range, arc, h, kbM) {
   for (const b of BODIES) {
     if (b.fall || b === pl.ride || !inArc(pl.x, pl.z, pl.face, b.x, b.z, range + b.r, arc)) continue;
     const a = angTo(pl.x, pl.z, b.x, b.z), k = f * (b.ride ? .8 : 1.15);
-    b.vx += Math.sin(a) * k; b.vz += Math.cos(a) * k; b.spin = 8; any = true;
+    bodyKick(b, Math.sin(a) * k, Math.cos(a) * k); any = true;
     ftext(b.x, 1.6, b.z, b.ride ? 'Поїхали!' : 'Удар!', 'crit');
   }
   return any;
@@ -294,12 +294,19 @@ function moveBody(b, dt) {
     for (const o of BODIES) {
       if (o === b || o.fall || o.held) continue;
       const d = dist2(b.x, b.z, o.x, o.z); if (d > b.r + o.r || d < 1e-4) continue;
-      const a = angTo(b.x, b.z, o.x, o.z); o.vx += Math.sin(a) * sp * .8; o.vz += Math.cos(a) * sp * .8; b.vx *= .6; b.vz *= .6; o.spin = 6;
+      const a = angTo(b.x, b.z, o.x, o.z); bodyKick(o, Math.sin(a) * sp * .8, Math.cos(a) * sp * .8); b.vx *= .6; b.vz *= .6;
     }
   }
   if (!onGround(b.x, b.z, .05) || isWet(terrainAt(b.x, b.z))) { b.fall = true; b.vy = 2; b.respT = 4; sfx('fall', b.x, b.z); }
 }
+/* Поштовх візка/бака: у спільному світі — запит серверу. */
+function bodyKick(b, vx, vz) {
+  if (typeof WORLD !== 'undefined' && WORLD.on && !window.__SIM) { netSend({ t: 'w', k: 'bk', i: BODIES.indexOf(b), vx: r2w(vx), vz: r2w(vz) }); b.spin = 8; return; }
+  b.vx += vx; b.vz += vz; b.spin = 8;
+}
+const r2w = v => Math.round(v * 100) / 100;
 function updBodies(dt) {
+  if (typeof WORLD !== 'undefined' && WORLD.on && !window.__SIM) return;   // позиції приходять із сервера
   for (const b of BODIES) {
     if (b.fall) {
       b.vy -= 25 * dt; b.y += b.vy * dt; b.x += b.vx * dt; b.z += b.vz * dt; b.m.rotation.x += dt * 4;
@@ -333,6 +340,7 @@ function updFans(dt) {
     if (Math.random() < dt * 20) { const t = rand(-1, 6), s = rand(0, 6); burst(br.ax + br.dx * t + ux * (s - 3), rand(.4, 1.8), br.az + br.dz * t + uz * (s - 3), '#FFFFFF', 1, .3, .5, .2); }
     const F = 8.5;
     if (!pl.dead && !pl.jump && inWind(pl.x, pl.z) && pl.y < 1.5) { if (pl.ride) { pl.ride.vx += ux * F * 1.2 * dt; pl.ride.vz += uz * F * 1.2 * dt; } else { pl.x += ux * F * dt; pl.z += uz * F * dt; } if (!f.warn || gameTime - f.warn > 2) { f.warn = gameTime; ftext(pl.x, 2.4, pl.z, 'Здуває!', 'bad'); } }
+    if (typeof WORLD !== 'undefined' && WORLD.on && !window.__SIM) continue;   // мобів і предмети дме сервер
     for (const m of MON) if (!m.calm && m.state !== 'fall' && !m.carried && inWind(m.x, m.z)) { m.vx += ux * 40 * dt; m.vz += uz * 40 * dt; }
     for (const b of BODIES) if (!b.fall && b !== pl.ride && inWind(b.x, b.z)) { b.vx += ux * 14 * dt; b.vz += uz * 14 * dt; }
   }
@@ -455,6 +463,7 @@ function propLand(p, hitSomething) {
   p.x = p.ox; p.z = p.oz; p.mesh.position.set(p.ox, 0, p.oz);   // відновиться на своєму місці
 }
 function updCarry(dt) {
+  if (typeof WORLD !== 'undefined' && WORLD.on && !window.__SIM) { if (pl.carry && hero) hero.aR.rotation.x = hero.aL.rotation.x = -2.9; return; }
   const o = pl.carry;
   if (o) {
     const k = pl.carryK || 'mon';
@@ -553,7 +562,7 @@ function updChill(dt) {
 
 /* ---------- Кава в тімейтів ---------- */
 function updCupsVsRemotes() {
-  if (!NET.on) return;
+  if (!NET.on || (typeof WORLD !== 'undefined' && WORLD.on)) return;
   for (let i = PROJ.length - 1; i >= 0; i--) {
     const p = PROJ[i]; if (p.from !== 'player') continue;
     if (p.kind === 'staple' || p.kind === 'banana') {      // скоби й банани теж влучають у друзів
@@ -600,11 +609,12 @@ function updFun(dt) {
 }
 /* Візок під тімейтом, який катається */
 function funRemoteState(r) {
-  const want = r.act === 'chair';
+  const shared = typeof WORLD !== 'undefined' && WORLD.on;   // у спільному світі візок і ношу видно як справжні об'єкти
+  const want = r.act === 'chair' && !shared;
   if (want && !r.cart) { r.cart = bodyMesh('cart'); r.cart.position.y = -.55; r.h.root.add(r.cart); }
   if (r.cart) r.cart.visible = want;
   // що друг несе над головою
-  const cr = r.cr || '';
+  const cr = shared ? '' : (r.cr || '');
   if (cr !== (r.crShown || '')) {
     if (r.crMesh) { r.h.root.remove(r.crMesh); r.crMesh = null; }
     r.crShown = cr;

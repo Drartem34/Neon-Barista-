@@ -17,7 +17,7 @@ fs.copyFileSync(path.join(root, 'addons/_examples/chaos_weapons.js'), path.join(
 fs.copyFileSync(path.join(root, 'addons/_examples/admin_items.js'), path.join(tmpRoot, 'addons/admin_items.js'));
 fs.writeFileSync(path.join(tmpRoot, 'addons/broken.js'), "const A = Addon.info({ name: 'Зламаний' }); throw new Error('бум');");
 fs.writeFileSync(path.join(tmpRoot, 'addons/_off.js'), "window.__OFF_RAN = 1;");
-const srv = spawn('python3', [path.join(tmpRoot, 'start.py'), '--no-ui', '--tunnel', 'none', '--port', String(PORT)], { stdio: 'ignore' });
+const srv = spawn('python3', [path.join(tmpRoot, 'start.py'), '--no-ui', '--no-world', '--tunnel', 'none', '--port', String(PORT)], { stdio: 'ignore' });
 const post = async (p, body) => (await fetch(`http://127.0.0.1:${PORT}/api/${p}`, { method: 'POST', body: JSON.stringify(body) })).json();
 function cleanup(code) { try { srv.kill(); } catch (e) { } try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (e) { } process.exit(code); }
 class FakeR { constructor() { this.shadowMap = {}; this.info = { render: { calls: 0 } }; } setPixelRatio() { } setSize() { } render() { } }

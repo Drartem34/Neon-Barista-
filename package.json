@@ -6,9 +6,9 @@
     "build": "bash build.sh",
     "test": "bash build.sh && node test/smoke-test.js",
     "start": "bash build.sh && python3 start.py",
-    "test:net": "bash build.sh && node test/net-test.js"
+    "test:net": "bash build.sh && node test/net-test.js && node test/world-test.js"
   },
-  "devDependencies": {
+  "dependencies": {
     "three": "0.128.0",
     "jsdom": "^22.1.0"
   }

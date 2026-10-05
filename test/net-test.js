@@ -14,6 +14,7 @@ fs.cpSync(path.join(root, 'dist'), path.join(tmpRoot, 'dist'), { recursive: true
 fs.mkdirSync(path.join(tmpRoot, 'addons'));
 fs.copyFileSync(path.join(root, 'addons/_examples/disco_island.js'), path.join(tmpRoot, 'addons/disco.js'));
 fs.copyFileSync(path.join(root, 'addons/_examples/chaos_weapons.js'), path.join(tmpRoot, 'addons/chaos.js'));
+fs.copyFileSync(path.join(root, 'addons/_examples/admin_items.js'), path.join(tmpRoot, 'addons/admin_items.js'));
 fs.writeFileSync(path.join(tmpRoot, 'addons/broken.js'), "const A = Addon.info({ name: 'Зламаний' }); throw new Error('бум');");
 fs.writeFileSync(path.join(tmpRoot, 'addons/_off.js'), "window.__OFF_RAN = 1;");
 const srv = spawn('python3', [path.join(tmpRoot, 'start.py'), '--no-ui', '--tunnel', 'none', '--port', String(PORT)], { stdio: 'ignore' });
@@ -29,7 +30,7 @@ async function client(name) {
   w.console.warn = () => { }; w.fetch = (u, o) => fetch(new URL(u, `http://127.0.0.1:${PORT}/`), o); w.setInterval = () => 0;
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
   let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-  src += ';window.__T={get P(){return P},pl,NET,startGame,frame,sendChat,giftCoffee,nearRemote,setAcct,save,atk:attack,get ACCT(){return ACCT},FUN,useDrink,input,equip,makeItem,addItem,setDrink:d=>{selDrink=d},ADDONS,ISLMAP,BR,TABS,openPanel,closePanel,get worldReady(){return worldReady},STATICS,BASE,MON,PROPS,spawnMonster,pickUp,eqItem,attack,breakProp};';
+  src += ';window.__T={get P(){return P},pl,NET,startGame,frame,sendChat,giftCoffee,nearRemote,setAcct,save,atk:attack,get ACCT(){return ACCT},FUN,useDrink,input,equip,makeItem,addItem,setDrink:d=>{selDrink=d},ADDONS,ISLMAP,BR,TABS,openPanel,closePanel,get worldReady(){return worldReady},STATICS,BASE,MON,PROPS,spawnMonster,pickUp,eqItem,attack,breakProp,applyPendingGifts,renderPanel,ADM:()=>ADM};';
   w.eval(src);
   const reg = await (await fetch(`http://127.0.0.1:${PORT}/api/register`, { method: 'POST', body: JSON.stringify({ login: name, pass: 'pass-' + name }) })).json();
   if (!reg.ok) throw new Error('register ' + name + ': ' + reg.e);
@@ -91,6 +92,27 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
     assert(!em.alive, 'кинутий моб підірвав кавоварку');
     a.input.aimOk = false; a.pl.x = ax; a.pl.z = az; await tick([a, b], .3);
   }
+  // --- аддон «Видача предметів» (тільки адміни)
+  assert(rec('admin_items') && rec('admin_items').ok, 'аддон видачі предметів завантажився');
+  a.openPanel('admin'); for (let k = 0; k < 20 && !a.ADM().users; k++) await tick([a, b], .1); a.renderPanel();
+  assert(a.w.document.querySelector('#pbody').textContent.includes('Видача предметів') && a.w.document.querySelector('[data-ai="give"]'), 'у вкладці Адмін є каталог предметів');
+  a.closePanel(); b.openPanel('admin');
+  assert(!b.w.document.querySelector('[data-ai="give"]'), 'звичайний гравець каталогу не бачить'); b.closePanel();
+  assert(!(await post('admin', { token: b.reg.token, act: 'give', login: 'Тарас', kind: 'coins', id: 'coins', n: 999 })).ok, 'не-адмін не може видати собі монети');
+  const mops = b.P.inv.filter(i => i.b === 'mop' && i.r === 4).length;
+  const g1 = await post('admin', { token: a.reg.token, act: 'give', login: 'Тарас', kind: 'item', id: 'mop', n: 2, r: 4 });
+  await tick([a, b], .5);
+  assert(g1.ok && b.P.inv.filter(i => i.b === 'mop' && i.r === 4).length === mops + 2, 'адмін видав онлайн-гравцю 2 Epic швабри');
+  const c0 = b.P.coins; await post('admin', { token: a.reg.token, act: 'give', login: 'Тарас', kind: 'coins', id: 'coins', n: 500 }); await tick([a, b], .4);
+  assert(b.P.coins === c0 + 500, 'видача монет онлайн');
+  const off = await post('register', { login: 'Офлайн', pass: 'abcd' });
+  await post('save', { token: off.token, data: { P: { lvl: 1, coins: 0 } } });
+  const g2 = await post('admin', { token: a.reg.token, act: 'give', login: 'Офлайн', kind: 'ing', id: 'syrup', n: 5 });
+  const offSave = await post('load', { token: off.token });
+  assert(g2.ok && /офлайн/.test(g2.where) && offSave.data.P.gifts.length === 1 && offSave.data.P.gifts[0].id === 'syrup', 'офлайн-гравцю подарунок чекає в сейві');
+  b.P.gifts = [{ kind: 'ing', id: 'syrup', n: 5, r: 0, by: 'Оля' }]; const s0 = b.P.ing.syrup || 0; b.applyPendingGifts();
+  assert(b.P.ing.syrup === s0 + 5 && !b.P.gifts, 'накопичені подарунки видаються при вході');
+  assert(!(await post('admin', { token: a.reg.token, act: 'give', login: 'Тарас', kind: 'item', id: '../x', n: 1 })).ok, 'сміттєві id відхиляються');
   // --- акаунти: сейв на сервері переживає зміну посилання (новий домен = порожній localStorage)
   a.P.coins = 4242; a.save(); await tick([a, b], .5);
   const ld = await post('load', { token: a.reg.token });
@@ -103,7 +125,7 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
   assert(a.reg.admin && !b.reg.admin, 'перший акаунт — адмін');
   assert(!(await post('admin', { token: b.reg.token, act: 'list' })).ok, 'звичайний гравець не має доступу до адмінки');
   const list = await post('admin', { token: a.reg.token, act: 'list' });
-  assert(list.ok && list.users.length === 2 && list.users.every(u => u.online), 'адмін бачить список гравців онлайн');
+  assert(list.ok && list.users.filter(u => u.online).length === 2 && list.users.some(u => !u.online), 'адмін бачить список гравців онлайн');
   b.pl.atkCd = 0; b.pl.x = 0; b.pl.z = 3; b.atk(); await tick([a, b], .4);
   const rb = Object.values(a.NET.players)[0];
   assert(rb.act === 'atk', 'інші гравці бачать, що гравець атакує');

@@ -217,7 +217,7 @@ const keys = {};
 const raycaster = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), _hit = new THREE.Vector3(), _ndc = new THREE.Vector2();
 addEventListener('keydown', e => {
   if (!running) return;
-  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
   const c = e.code;
   if (caseOpen) { e.preventDefault(); if ((c === 'Escape' || c === 'Enter' || c === 'Space') && caseAnim) { if (caseAnim.done) closeCase(); else caseAnim.t = caseAnim.dur; } return; }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(c)) e.preventDefault();

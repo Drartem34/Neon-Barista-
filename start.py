@@ -540,6 +540,39 @@ def delete_account(u):
     except FileNotFoundError: pass
     save_accounts()
 
+GIFT_KINDS = ('item', 'ing', 'drink', 'coins', 'case')
+
+async def admin_give(me, u, req):
+    """Адмін видає гравцю предмет / інгредієнт / напій / монети / кейс.
+    Онлайн — одразу через WebSocket, офлайн — у сейв (P.gifts), отримає при вході."""
+    kind, gid = req.get('kind'), str(req.get('id') or '')
+    n, r = req.get('n', 1), req.get('r', 0)
+    if kind not in GIFT_KINDS or (kind != 'coins' and not re.fullmatch(r'[a-z0-9_]{1,24}', gid)):
+        return {'ok': False, 'e': 'Невірний предмет'}
+    if not isinstance(n, int) or not 1 <= n <= (100000 if kind == 'coins' else 999) or not isinstance(r, int) or not 0 <= r <= 5:
+        return {'ok': False, 'e': 'Невірна кількість або рідкість'}
+    g = {'kind': kind, 'id': gid, 'n': n, 'r': r, 'by': me['login']}
+    p = player_of(u['login'])
+    if p:
+        await send(p, {'t': 'agive', 'g': g})
+        where = 'онлайн'
+    else:
+        try:
+            with open(save_path(u['login']), 'r', encoding='utf-8') as f:
+                sv = json.load(f)
+        except FileNotFoundError:
+            return {'ok': False, 'e': 'Гравець ще жодного разу не грав — нема куди видати'}
+        P = (sv.get('data') or {}).get('P')
+        if not isinstance(P, dict):
+            return {'ok': False, 'e': 'Сейв гравця пошкоджено'}
+        P['gifts'] = (P.get('gifts') if isinstance(P.get('gifts'), list) else [])[-199:] + [g]
+        with open(save_path(u['login']) + '.tmp', 'w', encoding='utf-8') as f:
+            json.dump(sv, f, ensure_ascii=False)
+        os.replace(save_path(u['login']) + '.tmp', save_path(u['login']))
+        where = 'офлайн — отримає при вході'
+    log(f'  🎁 «{me["login"]}» видав «{u["login"]}»: {kind} {gid} ×{n} r{r}')
+    return {'ok': True, 'where': where}
+
 async def api_admin(req, me):
     act = req.get('act')
     if act == 'list':
@@ -560,6 +593,8 @@ async def api_admin(req, me):
     u = user_of(req.get('login'))
     if not u:
         return {'ok': False, 'e': 'Немає такого акаунта'}
+    if act == 'give':
+        return await admin_give(me, u, req)
     if u is me and act in ('ban', 'delete', 'unadmin'):
         return {'ok': False, 'e': 'Із собою так не можна'}
     reason = clean_text(req.get('reason'), 120)

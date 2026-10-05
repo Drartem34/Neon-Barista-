@@ -18,6 +18,7 @@ function startGame(fresh) {
   } else { newPlayer(); try { localStorage.removeItem(SAVE_KEY); } catch (e) { } }
   funOnStart();
   P.addons = P.addons || {};
+  applyPendingGifts();
   syncQuest(true);   // старі збереження: квест міг «застрягнути», бо острови відкрили раніше
   calcStats(); pl.hp = S.maxHP; pl.st = S.maxSt; pl.charges = S.charges;
   hero = buildPlayer(); refreshLook();

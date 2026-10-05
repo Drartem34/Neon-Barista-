@@ -227,19 +227,13 @@ class Tunnel:
             res = self._probe(host)
             waited = int(time.time() - t0)
             if res == 'ok':
-                if getattr(self, 'local_dns', True):
-                    self.status = f'ONLINE ({self.kind}) ✅ посилання працює'
-                    log(f'Тунель: {url} — перевірено, гра відкривається')
-                    return
-                self.status = '✅ друзям працює · тобі поки — через localhost'
-            else:
-                self.status = f'ЗАПУСК ({self.kind}) · НЕ ВІДКРИВАЙ ще посилання — чекаю ({waited} с)…'
-                if waited // 20 != getattr(self, '_lastlog', -1):
-                    self._lastlog = waited // 20
-                    log(f'Тунель: перевірка {host} через {waited} с → {res} (nodns — адреси ще нема в DNS, noconn — немає з’єднання, http NNN — відповідь Cloudflare)')
-            if res == 'ok':
-                time.sleep(10)
-                continue
+                self.status = f'ONLINE ({self.kind}) ✅ посилання працює'
+                log(f'Тунель: {url} — перевірено, гра відкривається' + ('' if getattr(self, 'local_dns', True) else ' (системний DNS цього компа ще не бачить адресу — якщо в браузері не відкривається, грай через localhost)'))
+                return
+            self.status = f'ЗАПУСК ({self.kind}) · НЕ ВІДКРИВАЙ ще посилання — чекаю ({waited} с)…'
+            if waited // 20 != getattr(self, '_lastlog', -1):
+                self._lastlog = waited // 20
+                log(f'Тунель: перевірка {host} через {waited} с → {res} (nodns — адреси ще нема в DNS, noconn — немає з’єднання, http NNN — відповідь Cloudflare)')
             if waited > 120:
                 log(f'Тунель: {url} не відповідає 2 хв ({res}) — беру нове посилання')
                 self.status = f'посилання не запрацювало ({res}) — перезапускаю тунель…'

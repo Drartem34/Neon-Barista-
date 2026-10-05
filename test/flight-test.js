@@ -41,6 +41,14 @@ w.dispatchEvent(new w.KeyboardEvent('keydown', { code: 'KeyD' })); step(1.2); co
 w.dispatchEvent(new w.KeyboardEvent('keydown', { code: 'KeyA' })); step(1.2); const r2 = F.ST.roll; w.dispatchEvent(new w.KeyboardEvent('keyup', { code: 'KeyA' }));
 assert(r1 > r2 + .3, `A/D керують креном (${r1.toFixed(2)} → ${r2.toFixed(2)})`);
 T.getInteract().fn(); step(.2); assert(!F.ST.pilot && F.ST.ap > 20, `встав з-за штурвала — сильний автопілот ${Math.round(F.ST.ap)} с, пілот ходить по салону`);
+// двері кабіни пілота: зачинені — не пройдеш, відчинені — проходиш
+{
+  const walk = () => { T.pl.x = F.CK_X - .9; T.pl.z = 118; F.ST.roll = 0; step(.05); for (let k = 0; k < 20; k++) { T.pl.x += .1; T.pl.z = 118; F.ST.roll = 0; step(.02); } return T.pl.x; };
+  if (F.ST.cdoor) { T.pl.x = F.CK_X - .75; T.pl.z = 118; step(.05); T.getInteract().fn(); step(.1); }
+  assert(walk() < F.CK_X, 'зачинені двері кабіни не пускають до пілота');
+  T.pl.x = F.CK_X - .75; T.pl.z = 118; step(.05); it = T.getInteract(); assert(it && /кабіну пілота/.test(it.l), 'F — «Відчинити двері в кабіну пілота»'); it.fn(); step(.3);
+  assert(F.ST.cdoor === 1 && walk() > F.CK_X + .5, 'через відчинені двері зайшов у кабіну');
+}
 // пасажири хочуть — несемо
 let served = 0;
 for (let k = 0; k < 40 && served < 3; k++) {
@@ -112,4 +120,15 @@ assert(spilled, 'сильний крен — кава розлилась');
 for (const p of F.ST.pass) { p.want = ''; p.angry = 0; p.mood = .9; }
 F.ST.t = F.ST.dur - .5; const c0 = T.P.coins; step(1.5);
 assert(!F.ST.on && T.P.coins > c0 && T.P.addons.flight.landed === 1, `посадка в «Гущі»: +${T.P.coins - c0} 🪙`);
+// вихідні двері: на землі — трапом на двір, у польоті — парашут
+{
+  const out = () => { T.pl.x = F.EXIT.x; T.pl.z = 118 + F.EXIT.side * (2.6 - .4); step(.05); for (let k = 0; k < 30 && Math.abs(T.pl.z - 118) < 10; k++) { T.pl.z += F.EXIT.side * .1; step(.02); } step(.4); return Math.hypot(T.pl.x, T.pl.z - 3) < 1; };
+  assert(!out(), 'зачинені вихідні двері не випускають');
+  T.pl.x = F.EXIT.x; T.pl.z = 118 + F.EXIT.side * (2.6 - .4); step(.05); it = T.getInteract(); assert(it && /трап/.test(it.l), 'на землі F — «Відчинити вихідні двері (трап)»'); it.fn(); step(.3);
+  assert(F.ST.exit === 1 && out(), 'спустився трапом — вийшов на двір («Гуща»)');
+  T.keydown('Escape'); step(.05); body().querySelector('[data-mode="flight"]').click(); step(.5);
+  T.pl.x = F.BOARD.x + .3; T.pl.z = F.BOARD.z + .6; step(.1); T.getInteract().fn(); step(.2); assert(F.ST.on && !F.ST.exit, 'новий рейс — вихідні двері зачинені');
+  T.pl.x = F.EXIT.x; T.pl.z = 118 + F.EXIT.side * (2.6 - .4); step(.05); it = T.getInteract(); assert(it && /парашут/.test(it.l), 'у польоті F — «… стрибок із парашутом»'); it.fn(); step(.3);
+  assert(out() && !F.V.joined, 'у польоті вистрибнув із парашутом у «Гущу»');
+}
 console.log('ALL OK'); process.exit(0);

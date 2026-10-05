@@ -7,12 +7,13 @@
      тягне вбік, двигун горить), вимикає світло (темрява). Ремонт — F і тримай поруч:
      пробоїна — на місці, двигун — на крилі (через двері!), світло — щиток у вантажному відсіку.
    - Двері (F) відчиняються — можна вийти на крило. На крилі вітер: не встоїш — здує!
+   - Двері COCKPIT у перегородці кабіни пілота; двері EXIT біля кабіни: на землі — трап на двір, у польоті — парашут.
    - Вантажний відсік у хвості: коробки й офісні крісла (F підняти / сісти), ящик з бомбами (💣, G — кинути
      з аддоном «Еспресо-Сплав»), щиток.
    - Друзі бачать, що в тебе на таці. Своя музика рейсу.
    У спільному світі рейс один на всіх: пасажирів, погоду, поломки й двері рахує сервер.
    Картинку для картки в меню поклади поруч: addons/flight/flight-bg.jpg */
-const A = Addon.info({ name: 'Кавовий рейс', version: '1.0', desc: 'Кооп на 1–4 у літаку: пілот, бортпровідники, поломки й ремонт, двері на крила, вантажний відсік, музика.' });
+const A = Addon.info({ name: 'Кавовий рейс', version: '1.1', desc: 'Кооп на 1–4 у літаку: пілот, бортпровідники, поломки й ремонт, двері в кабіну, на крила й назовні, вантажний відсік, музика.' });
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);
@@ -20,6 +21,8 @@ const FX = -30, FZ = 118, ISL_R = 20, HW = 2.6;
 const X0 = FX - 15, X1 = FX + 10.5, PART_X = FX - 11;            // хвіст … кабіна; перегородка вантажного відсіку
 const COCKPIT = { x: X1 - 1.3, z: FZ };
 const DOORS = [{ x: FX + .4, side: -1 }, { x: FX + .4, side: 1 }];
+const CK_X = FX + 6.6, CK_W = .55;                                // перегородка кабіни пілота і двері в ній
+const EXIT = { x: FX + 5.7, side: 1 };                             // вихідні двері з трапом (правий борт, біля кабіни)
 const BOARD = { x: FX - 8.6, z: FZ - HW + .7 };                   // табличка «Посадка» біля камбуза
 const ST_COFFEE = { x: FX - 10.2, z: FZ - 1.9, item: 'coffee', t: 2.2 }, ST_TEA = { x: FX - 10.2, z: FZ + 1.9, item: 'tea', t: 1.6 }, ST_FOOD = { x: FX - 8.6, z: FZ + 2.05, item: 'food', t: .3 };
 const STATIONS = [ST_COFFEE, ST_TEA, ST_FOOD], TRASH = { x: FX - 9.4, z: FZ - 2.05 };
@@ -39,7 +42,7 @@ buildIsland = function (s) { if (s.biome !== 'plane') return _buildIsland.apply(
 
 /* ---------- Стан рейсу ---------- */
 const ST = { on: false, t: 0, dur: 240, roll: 0, rv: 0, py: 0, storms: [], pass: SEATS.map(() => ({ want: '', pat: 1, mood: .8, angry: 0 })), pilot: '', served: 0, mood: .8, turb: 0,
-  holes: [], eng: [1, 1], lights: 1, doors: [0, 0], ap: 0 };
+  holes: [], eng: [1, 1], lights: 1, doors: [0, 0], ap: 0, cdoor: 0, exit: 0 };
 const AU = { reqT: 4, stormT: 10, inA: 0, inT: 0, stT: 0, sid: 0, hid: 0, failT: 50 };
 const myKey = () => (NET.on && typeof WORLD !== 'undefined' && WORLD.on ? myName() : 'me');
 const keyOf = from => SIMSIDE ? String(from && from.name || '') : 'me';
@@ -47,7 +50,7 @@ const r2 = v => Math.round(v * 100) / 100;
 function snap() {
   return { on: ST.on ? 1 : 0, t: r2(ST.t), dur: ST.dur, r: r2(ST.roll), rv: r2(ST.rv), py: r2(ST.py), tb: r2(ST.turb), s: ST.storms.map(s => [s.id, r2(s.d), r2(s.y)]),
     p: ST.pass.map(p => [p.want, r2(p.pat), r2(p.mood), p.angry ? 1 : 0]), pi: ST.pilot, sv: ST.served, m: r2(ST.mood),
-    h: ST.holes.map(h => [h.id, r2(h.x), h.side]), e: ST.eng, li: ST.lights, dr: ST.doors, ap: r2(ST.ap) };
+    h: ST.holes.map(h => [h.id, r2(h.x), h.side]), e: ST.eng, li: ST.lights, dr: ST.doors, ap: r2(ST.ap), cd: ST.cdoor, ex: ST.exit };
 }
 function applySnap(d) {
   Object.assign(ST, { on: !!d.on, t: +d.t || 0, dur: +d.dur || 240, py: +d.py || 0, turb: +d.tb || 0, pilot: String(d.pi || ''), served: d.sv | 0, mood: +d.m || 0, ap: +d.ap || 0 });
@@ -58,6 +61,7 @@ function applySnap(d) {
   if (Array.isArray(d.e)) ST.eng = [d.e[0] ? 1 : 0, d.e[1] ? 1 : 0];
   ST.lights = d.li ? 1 : 0;
   if (Array.isArray(d.dr)) ST.doors = [d.dr[0] ? 1 : 0, d.dr[1] ? 1 : 0];
+  ST.cdoor = d.cd ? 1 : 0; ST.exit = d.ex ? 1 : 0;
 }
 function pushState() { if (SIMSIDE) A.send('st', snap()); }
 function emit(e) { if (SIMSIDE) A.send('ev', e); else onEvent(e); }
@@ -76,6 +80,8 @@ function onReq(d, from) {
     else if (!ST.pilot) { ST.pilot = k; ST.ap = 0; emit({ k: 'msg', txt: `🧑‍✈️ ${who} за штурвалом!` }); pushState(); }
   }
   else if (d.k === 'in') { if (ST.pilot === k) { AU.inA = clamp(+d.a || 0, -1, 1); AU.inT = .6; } }
+  else if (d.k === 'cdoor') { ST.cdoor = ST.cdoor ? 0 : 1; emit({ k: 'door', cd: 1, open: ST.cdoor }); pushState(); }
+  else if (d.k === 'exit') { ST.exit = ST.exit ? 0 : 1; emit({ k: 'door', ex: 1, open: ST.exit }); pushState(); }
   else if (d.k === 'door') { const i = d.i ? 1 : 0; ST.doors[i] = ST.doors[i] ? 0 : 1; emit({ k: 'door', i, open: ST.doors[i] }); pushState(); }
   else if (d.k === 'fix') {
     if (d.what === 'hole') { const i = ST.holes.findIndex(h => h.id === d.id); if (i >= 0) { ST.holes.splice(i, 1); emit({ k: 'fixed', what: 'hole', who: k }); } }
@@ -92,7 +98,7 @@ function onReq(d, from) {
   }
 }
 function startFlight(from) {
-  Object.assign(ST, { on: true, t: 0, roll: 0, rv: 0, py: 0, storms: [], served: 0, mood: .8, turb: 0, holes: [], eng: [1, 1], lights: 1, doors: [0, 0], ap: 0 });
+  Object.assign(ST, { on: true, t: 0, roll: 0, rv: 0, py: 0, storms: [], served: 0, mood: .8, turb: 0, holes: [], eng: [1, 1], lights: 1, doors: [0, 0], ap: 0, exit: 0 });
   for (const p of ST.pass) Object.assign(p, { want: '', pat: 1, mood: .8, angry: 0 });
   Object.assign(AU, { reqT: 3, stormT: 12, inA: 0, inT: 0, stT: 0, failT: rand(40, 60) });
   emit({ k: 'msg', big: 1, txt: `✈️ Рейс «Еспресо» вилітає! ${from && from.name && SIMSIDE ? escapeHTML(from.name) + ' оголосив посадку. ' : ''}Хтось — за штурвал, решта — на камбуз!` });
@@ -150,7 +156,7 @@ function authTick(dt) {
     if (free.length) { const p = ST.pass[pick(free)]; p.want = pick(['coffee', 'coffee', 'tea', 'food']); p.pat = 1; }
   }
   const shaky = Math.abs(ST.roll) > .5 ? Math.abs(ST.roll) : 0;
-  const trouble = ST.holes.length * .01 + (2 - ST.eng[0] - ST.eng[1]) * .006 + (ST.lights ? 0 : .008) + (ST.doors[0] + ST.doors[1]) * .005;
+  const trouble = ST.holes.length * .01 + (2 - ST.eng[0] - ST.eng[1]) * .006 + (ST.lights ? 0 : .008) + (ST.doors[0] + ST.doors[1] + ST.exit) * .005;
   for (const p of ST.pass) {
     if (p.want) { p.pat -= dt / (ST.lights ? 32 : 26); if (p.pat <= 0 && !p.angry) { p.angry = 1; p.pat = 0; p.mood = Math.max(0, p.mood - .25); } }
     if (p.angry) p.mood = Math.max(0, p.mood - .012 * dt);
@@ -170,7 +176,8 @@ A.on('tick', dt => {
 
 /* ---------- Фізичний світ літака (і на сервері, і в гравців): стіни, крісла, вантаж ---------- */
 A.on('world', () => {
-  for (let x = X0 + .2; x < X1; x += .7) for (const s of [-1, 1]) if (!DOORS.some(d => d.side === s && Math.abs(x - d.x) < .9)) addStatic(x, FZ + s * (HW + .2), .35, 1.2);
+  for (let x = X0 + .2; x < X1; x += .7) for (const s of [-1, 1]) if (!DOORS.some(d => d.side === s && Math.abs(x - d.x) < .9) && !(s === EXIT.side && Math.abs(x - EXIT.x) < .9)) addStatic(x, FZ + s * (HW + .2), .35, 1.2);
+  for (let z = FZ - HW; z <= FZ + HW; z += .6) if (Math.abs(z - FZ) > CK_W + .35) addStatic(CK_X, z, .3, 1.2);
   for (let z = FZ - HW; z <= FZ + HW; z += .6) if (Math.abs(z - FZ) > .95) addStatic(PART_X, z, .3, 1.2);
   for (const s of SEATS) addStatic(s.x, s.z, .38, 1);
   addStatic(COCKPIT.x + .9, FZ, .5, 1);
@@ -179,7 +186,7 @@ A.on('world', () => {
 });
 
 /* ======================= ДАЛІ — ЛИШЕ В ГРАВЦЯ ======================= */
-const V = { clouds: [], seats: [], hud: null, radar: null, held: '', heldMesh: null, brew: null, fix: null, sendT: 0, auto: false, joined: false, last: null, lastW: '', holes: new Map(), doorM: [], engM: [], dark: null, bombs: 0, heldSendT: 0, remote: new Map(), wind: 0, music: -1 };
+const V = { cdoor: null, exitM: null, stair: null, out: false, clouds: [], seats: [], hud: null, radar: null, held: '', heldMesh: null, brew: null, fix: null, sendT: 0, auto: false, joined: false, last: null, lastW: '', holes: new Map(), doorM: [], engM: [], dark: null, bombs: 0, heldSendT: 0, remote: new Map(), wind: 0, music: -1 };
 const amPilot = () => ST.pilot && ST.pilot === myKey();
 const HULL = '#C9B8F0', HULL2 = '#9F8BE0', INNER = '#ECE6FB';
 
@@ -199,9 +206,11 @@ function buildPlane() {
   put(g, mesh(new THREE.BoxGeometry(L, .16, HW * 2 + .2), '#5B3E9A', false, true), CX, -.08, FZ);                 // фіолетовий килим
   put(g, mesh(new THREE.BoxGeometry(L - 4, .01, .7), '#7A5BC9', false), CX + 1, .005, FZ);                         // прохід
   for (const s of [-1, 1]) {
-    put(g, mesh(new THREE.BoxGeometry(L, 1.25, .22), INNER, false, true), CX, .62, FZ + s * (HW + .2));          // низькі борти
+    const gaps = [...DOORS.filter(d => d.side === s).map(d => d.x), ...(EXIT.side === s ? [EXIT.x] : [])].sort((p, q) => p - q);   // низькі борти з отворами під двері
+    let x0 = X0; for (const gx of [...gaps, X1 + .65]) { const x1 = gx - .65; if (x1 > x0) put(g, mesh(new THREE.BoxGeometry(x1 - x0, 1.25, .22), INNER, false, true), (x0 + x1) / 2, .62, FZ + s * (HW + .2)); x0 = gx + .65; }
+    for (const gx of gaps) put(g, mesh(new THREE.BoxGeometry(1.3, .14, .22), INNER, false, true), gx, 1.18, FZ + s * (HW + .2));
     put(g, mesh(new THREE.BoxGeometry(L, .14, .5), HULL2, false), CX, 1.28, FZ + s * (HW + .3));                // окантовка розрізу
-    for (let k = 0; k < 10; k++) { const wx = X0 + 1.5 + k * 2.4; if (DOORS.some(d => Math.abs(wx - d.x) < 1.2)) continue; put(g, mesh(new THREE.BoxGeometry(.55, .4, .05), bulb('#FFB3E6'), false), wx, .8, FZ + s * (HW + .08)); }
+    for (let k = 0; k < 10; k++) { const wx = X0 + 1.5 + k * 2.4; if (DOORS.some(d => Math.abs(wx - d.x) < 1.2) || s === EXIT.side && Math.abs(wx - EXIT.x) < 1.2 || Math.abs(wx - CK_X) < .5) continue; put(g, mesh(new THREE.BoxGeometry(.55, .4, .05), bulb('#FFB3E6'), false), wx, .8, FZ + s * (HW + .08)); }
   }
   // неон «ESPRESSO FLIGHT» на дальньому борті
   const sign = neonPlane('ESPRESSO FLIGHT', '#6BE7FF', 7, 1); sign.position.set(FX - 1.5, 1.95, FZ - HW - .05); g.add(sign);
@@ -241,6 +250,20 @@ function buildPlane() {
   }
   // двері (зсуваються вбік)
   for (const d of DOORS) { const m = put(g, mesh(new THREE.BoxGeometry(1.3, 1.2, .16), '#B7A6EA', false), d.x, .62, FZ + d.side * (HW + .22)); scene.remove(m); scene.add(A.dynamic(m)); V.doorM.push({ m, x: d.x }); put(g, mesh(new THREE.BoxGeometry(.12, .12, .05), bulb('#FFD27A'), false), d.x + .55, 1, FZ + d.side * (HW + .05)); }
+  // перегородка кабіни пілота з дверима (зсуваються вбік) і табличкою
+  for (const s of [-1, 1]) put(g, mesh(new THREE.BoxGeometry(.18, 1.25, HW - CK_W), INNER, false, true), CK_X, .62, FZ + s * (HW + CK_W) / 2);
+  put(g, mesh(new THREE.BoxGeometry(.2, .14, CK_W * 2 + .1), HULL2, false), CK_X, 1.3, FZ);
+  V.cdoor = put(g, mesh(new THREE.BoxGeometry(.1, 1.18, CK_W * 2), '#8F7BD6', false), CK_X, .6, FZ); scene.remove(V.cdoor); scene.add(A.dynamic(V.cdoor));
+  put(V.cdoor, mesh(new THREE.BoxGeometry(.04, .2, .5), bulb('#6BE7FF'), false), -.06, .3, 0);
+  const ck = neonPlane('COCKPIT', '#6BE7FF', 1.8, .5); ck.position.set(CK_X, 1.62, FZ + .1); g.add(ck);
+  // вихідні двері з трапом
+  V.exitM = put(g, mesh(new THREE.BoxGeometry(1.3, 1.2, .16), '#B7A6EA', false), EXIT.x, .62, FZ + EXIT.side * (HW + .22)); scene.remove(V.exitM); scene.add(A.dynamic(V.exitM));
+  put(V.exitM, mesh(new THREE.BoxGeometry(.5, .16, .04), bulb('#7FE08A'), false), 0, .38, EXIT.side * .1);
+  const ex = neonPlane('EXIT', '#7FE08A', .9, .32); ex.position.set(EXIT.x, 1.55, FZ + EXIT.side * (HW + .42)); ex.rotation.y = EXIT.side < 0 ? Math.PI : 0; g.add(ex);
+  V.stair = new THREE.Group(); V.stair.position.set(EXIT.x, 0, FZ + EXIT.side * (HW + .3)); scene.add(A.dynamic(V.stair));
+  for (let k = 0; k < 7; k++) put(V.stair, mesh(new THREE.BoxGeometry(1.1, .1, .5), k % 2 ? '#E9E2FA' : '#FFD27A', false), 0, -k * .45, EXIT.side * (.25 + k * .45));
+  for (const sx of [-.6, .6]) { const r = put(V.stair, mesh(new THREE.BoxGeometry(.06, .06, 4.2), '#4E4A6E', false), sx, -.85, EXIT.side * 1.6); r.rotation.x = EXIT.side * -.78; }
+  V.stair.scale.y = .01; V.stair.visible = false;
   // камбуз: неоновий кавовий візок
   put(g, mesh(new THREE.BoxGeometry(1, 1, 1.4), '#4E3A7C', false, true), ST_COFFEE.x - .5, .5, ST_COFFEE.z + .2);
   put(g, mesh(new THREE.BoxGeometry(1.02, .04, 1.42), bulb('#6BE7FF'), false), ST_COFFEE.x - .5, 1.02, ST_COFFEE.z + .2);
@@ -361,7 +384,11 @@ function spill(force) {
 /* ---------- Де можна стояти: салон, відчинені двері, крила ---------- */
 function where(x, z) {
   const dz = z - FZ, adz = Math.abs(dz), side = dz < 0 ? -1 : 1;
-  if (x > X0 + .35 && x < X1 - .25 && adz < HW - .25) return 'cabin';
+  if (x > X0 + .35 && x < X1 - .25 && adz < HW - .25) {
+    if (Math.abs(x - CK_X) < .3 && (!ST.cdoor || adz > CK_W - .15)) return '';   // перегородка кабіни: пройти лише у відчинені двері
+    return 'cabin';
+  }
+  if (ST.exit && side === EXIT.side && Math.abs(x - EXIT.x) < .6 && adz < HW + 1.2) return 'exit';
   for (const [i, d] of DOORS.entries()) if (ST.doors[i] && side === d.side && Math.abs(x - d.x) < .6 && adz < HW + .75) return 'door';
   const s = adz - HW;
   if (s > .45 && s < SPAN - .3) { const [a, b] = wingX(s); if (x > a + .2 && x < b - .2) return 'wing'; }
@@ -374,6 +401,9 @@ function clientTick(dt) {
   const t = gameTime;
   for (const c of V.clouds) { c.position.x -= (ST.on ? 26 : 6) * dt; if (c.position.x < FX - 36) { c.position.x = FX + 36; c.position.z = FZ + pick([-1, 1]) * rand(9, 26); } }
   // двері, двигуни, пробоїни
+  if (V.cdoor) { V.cdoor.position.z = lerp(V.cdoor.position.z, FZ + (ST.cdoor ? CK_W * 2 - .05 : 0), Math.min(1, dt * 6)); }
+  if (V.exitM) V.exitM.position.x = lerp(V.exitM.position.x, EXIT.x + (ST.exit ? -1.25 : 0), Math.min(1, dt * 6));
+  if (V.stair) { const tgt = ST.exit && !ST.on ? 1 : .01; V.stair.scale.y = lerp(V.stair.scale.y, tgt, Math.min(1, dt * 4)); V.stair.visible = V.stair.scale.y > .05; }
   V.doorM.forEach((d, i) => { const tx = d.x + (ST.doors[i] ? 1.25 : 0); d.m.position.x = lerp(d.m.position.x, tx, Math.min(1, dt * 6)); });
   V.engM.forEach((e, i) => {
     const ok = ST.eng[i]; e.fan.rotation.x += dt * (ok ? (ST.on ? 30 : 4) : .5); e.fire.visible = !ok;
@@ -430,10 +460,11 @@ function clientTick(dt) {
       if (d < 6 && d > .4) { const k = 2.6 * (1 - d / 6); pl.x += (h.x - pl.x) / d * k * dt; pl.z += (hz - pl.z) / d * k * dt; if (V.held && d < 2.4 && Math.random() < dt * .8) spill(true); }
     }
     // відчинені двері в польоті теж тягнуть
-    DOORS.forEach((dd, i) => { if (!ST.doors[i]) return; const hz = FZ + dd.side * HW, d = dist2(pl.x, pl.z, dd.x, hz); if (d < 4 && d > .3) { pl.z += (hz - pl.z) / d * 1.2 * (1 - d / 4) * dt; } });
+    [...DOORS.map((dd, i) => ST.doors[i] && dd), ST.exit && EXIT].forEach(dd => { if (!dd) return; const hz = FZ + dd.side * HW, d = dist2(pl.x, pl.z, dd.x, hz); if (d < 4 && d > .3) { pl.z += (hz - pl.z) / d * 1.2 * (1 - d / 4) * dt; } });
   }
   // стіни, двері й краї крил
   const w = where(pl.x, pl.z);
+  if (w === 'exit' && Math.abs(pl.z - FZ) > HW + .9) { goOut(); return; }
   if (w) { V.last = { x: pl.x, z: pl.z }; V.lastW = w; if (pl.y < 0) pl.y = 0; }
   else if (V.lastW === 'wing') rescue('🌬️ Тебе здуло з крила! Добре, що був страховий трос… (−здоров’я)');
   else if (V.last) { pl.x = V.last.x; pl.z = V.last.z; }
@@ -490,6 +521,8 @@ getInteract = function () {
     for (const [i, e] of ENGINES.entries()) if (!ST.eng[i] && near(engFix(i), 1.7)) return { l: '🔧 Полагодити двигун (4 с)', fn: () => startFix({ what: 'engine', i, need: 4 }) };
     if (near(FUSE, 1.4)) return ST.lights ? { l: '⚡ Щиток (світло є)', fn: () => { } } : { l: '⚡ Увімкнути світло на щитку (2,5 с)', fn: () => startFix({ what: 'power', need: 2.5 }) };
     if (near(COCKPIT, 1.5)) return ST.pilot && ST.pilot !== myKey() ? { l: '🧑‍✈️ Штурвал зайнятий', fn: () => { } } : { l: '🧑‍✈️ Сісти за штурвал (A/D — крен)', fn: () => { if (V.held) setHeld(''); req('pilot'); } };
+    if (near({ x: CK_X - .75, z: FZ }, 1) || near({ x: CK_X + .75, z: FZ }, 1)) return { l: ST.cdoor ? '🚪 Зачинити двері кабіни' : '🚪 Відчинити двері в кабіну пілота', fn: () => req('cdoor') };
+    if (near({ x: EXIT.x, z: FZ + EXIT.side * (HW - .35) }, 1.2) || near({ x: EXIT.x, z: FZ + EXIT.side * (HW + .9) }, 1.1)) return { l: ST.exit ? '🚪 Зачинити вихідні двері' : ST.on ? '🪂 Відчинити вихідні двері (вийти — стрибок із парашутом)' : '🚪 Відчинити вихідні двері (трап — вийти на двір)', fn: () => req('exit') };
     for (const [i, d] of DOORS.entries()) if (near({ x: d.x, z: FZ + d.side * (HW - .35) }, 1.2) || near({ x: d.x, z: FZ + d.side * (HW + .9) }, 1.1)) return { l: ST.doors[i] ? '🚪 Зачинити двері' : `🚪 Відчинити двері (вихід на ${d.side < 0 ? 'ліве' : 'праве'} крило)`, fn: () => req('door', { i }) };
     if (!ST.on && near(BOARD, 1.8)) return { l: '✈️ Оголосити посадку — вилітаємо!', fn: () => { req('start'); sfx('ding'); } };
     if (near(BOMBS, 1.4)) return { l: `💣 Взяти бомбу з ящика (${3 - V.bombs} лишилось на рейс)`, fn: () => takeBomb() };
@@ -537,7 +570,7 @@ function hud() {
   if (ST.on) {
     const left = Math.max(0, ST.dur - ST.t), mood = Math.round(ST.mood * 100), want = ST.pass.filter(p => p.want).length, angry = ST.pass.filter(p => p.angry).length;
     const bar = n => `<span style="color:${mood > 50 ? '#7FE08A' : mood > 25 ? '#FFD27A' : '#FF5C7A'}">${'■'.repeat(Math.round(n / 10))}</span><span style="opacity:.3">${'■'.repeat(10 - Math.round(n / 10))}</span>`;
-    const dmg = [ST.holes.length ? `🕳️ пробоїн ${ST.holes.length}` : '', !ST.eng[0] ? '🔥 лівий двигун' : '', !ST.eng[1] ? '🔥 правий двигун' : '', !ST.lights ? '🌑 світло' : '', ST.doors[0] || ST.doors[1] ? '🚪 двері відчинені' : ''].filter(Boolean).join(' · ');
+    const dmg = [ST.holes.length ? `🕳️ пробоїн ${ST.holes.length}` : '', !ST.eng[0] ? '🔥 лівий двигун' : '', !ST.eng[1] ? '🔥 правий двигун' : '', !ST.lights ? '🌑 світло' : '', ST.doors[0] || ST.doors[1] || ST.exit ? '🚪 двері відчинені' : ''].filter(Boolean).join(' · ');
     const pilot = ST.pilot ? `🧑‍✈️ ${escapeHTML(ST.pilot === 'me' ? 'ти' : ST.pilot)}` : ST.ap > 0 ? `🤖 автопілот ${Math.ceil(ST.ap)} с` : '<span style="color:#FFD27A">слабкий автопілот!</span>';
     h = `✈️ ESPRESSO FLIGHT · до «Гущі» ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')} · обслужено ${ST.served} · ${pilot}<br><span style="font-weight:600;font-size:12px">Настрій ${bar(mood)} · чекають ${want}${angry ? ` · <span style="color:#FF5C7A">злі ${angry}</span>` : ''}${V.held ? ` · у руках ${ITEM[V.held].ic}` : ''}${V.brew ? ` · готую ${Math.round(V.brew.t / V.brew.st.t * 100)}%` : ''}${V.fix ? ` · 🔧 ${Math.round(V.fix.t / V.fix.need * 100)}%` : ''}</span>${dmg ? `<br><span style="font-size:12px;color:#FF8A7A">${dmg}</span>` : ''}`;
   } else h = '✈️ Espresso Flight · <span style="font-weight:600">BOARDING біля камбуза (F) — вилітаємо. Кабіна попереду, вантажний відсік у хвості.</span>';
@@ -578,6 +611,13 @@ if (!SIMSIDE && typeof scheduleStep === 'function') {
 
 /* ---------- Режим у паузі, вкладка, картка в меню ---------- */
 function goFlight() { const f = $('#fade'); closePanel(); if (f) f.style.opacity = 1; sfx('travel'); setTimeout(() => { pl.x = BOARD.x + .5; pl.z = FZ; pl.y = 0; pl.falling = false; pl.jump = null; pl.safe = { x: FX - 4, z: FZ }; V.last = { x: pl.x, z: pl.z }; V.lastW = 'cabin'; camPos.set(pl.x, 20, pl.z + 15); camLook.set(pl.x, .5, pl.z); if (f) f.style.opacity = 0; toast('✈️ Espresso Flight! Хтось — за штурвал (кабіна попереду), решта — на камбуз. Посадка — табличка BOARDING (F).'); }, 260); return true; }
+function goOut() {
+  if (V.out) return; V.out = true; V.last = null; V.joined = false;
+  const fly = ST.on; leaveFlight();
+  if (fly) { burst(pl.x, 1, pl.z, '#FFFFFF', 16, 6, .6, 1.5); sfx('whoosh'); }
+  goHub(fly ? '🪂 Ти вистрибнув із парашутом і м’яко приземлився в «Гущі». Рейс летить далі без тебе.' : '🚪 Ти спустився трапом і вийшов на двір. Повернутись — ✈️ у меню (Esc).');
+  setTimeout(() => { V.out = false; }, 600);
+}
 function leaveFlight() { if (amPilot()) leavePilot(); setHeld(''); V.fix = null; V.brew = null; return true; }
 if (A.mode) A.mode({ id: 'flight', ic: '✈️', n: 'Кавовий рейс', sub: 'кооп на 1–4: пілот, бортпровідники, поломки', go: goFlight, here: () => running && inPlane(pl.x, pl.z), leave: leaveFlight });
 A.tab('flight', '✈️ Рейс', () => {
@@ -589,7 +629,7 @@ A.tab('flight', '✈️ Рейс', () => {
       <div>🧑‍✈️ <b>Пілот</b> — F у кабіні, <b>A/D</b> — крен. Грози на радарі обходиш креном (але крен хитає салон). Встав — автопілот тримає 25 с, потім слабне.</div>
       <div>☕ <b>Камбуз</b> (біля вантажного відсіку): кава 2 с, чай 1,5 с, круасан. Неси пасажиру з такою ж іконкою. Друзі бачать, що в тебе на таці.</div>
       <div>🔧 <b>Поломки</b>: пробоїна (всмоктує людей і каву — латай на місці), двигун горить (тягне вбік — ремонт на крилі), світло (щиток у хвості). F і тримайся поруч.</div>
-      <div>🚪 <b>Двері</b> — F: виходиш на крило. Там зустрічний вітер — зазіваєшся, здує!</div>
+      <div>🚪 <b>Двері</b> — F: бічні ведуть на крила (там вітер — зазіваєшся, здує!), двері з табличкою COCKPIT — до пілота, EXIT біля кабіни — назовні: на землі трапом на двір, у польоті — стрибок із парашутом.</div>
       <div>📦 <b>Вантажний відсік</b>: коробки й офісні крісла (F — підняти / сісти, Q — жбурнути), ящик бомб 💣 (до 3 за рейс).</div>
     </div>
     <p class="muted" style="font-size:12px;margin-top:10px">Рейсів: ${d.flights || 0} · успішних посадок: ${d.landed || 0} · рекорд обслуговування: ${d.best || 0} · найкраща оцінка: ${'⭐'.repeat(d.stars || 0) || '—'}</p>`;
@@ -613,4 +653,4 @@ if (!SIMSIDE && typeof document !== 'undefined') {
   }
 }
 A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(goFlight, 700); });
-if (window.__ADDON_TEST) window.__flight = { ST, AU, V, SEATS, STATIONS, COCKPIT, BOARD, DOORS, ENGINES, engFix, FUSE, BOMBS, setHeld, nearSeat, damage, where };
+if (window.__ADDON_TEST) window.__flight = { ST, AU, V, SEATS, STATIONS, COCKPIT, CK_X, EXIT, goOut, BOARD, DOORS, ENGINES, engFix, FUSE, BOMBS, setHeld, nearSeat, damage, where };

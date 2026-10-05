@@ -21,7 +21,7 @@ function serverSave(data) {
   syncBusy = true;
   api('save', { data }).then(r => {
     if (r.ok) syncFails = 0;
-    else if (r.auth) { setAcct(null); if (running) toast('🔒 ' + escapeHTML(r.e || 'Сесія завершилась') + '. Прогрес лишився в браузері — увійди знову.'); }
+    else if (r.auth) { setAcct(null); if (running) { toast('🔒 ' + escapeHTML(r.e || 'Сесія завершилась') + '. Прогрес лишився в браузері — увійди знову.'); accPopup(true); } }
     else if (++syncFails === 3 && running) toast('⚠️ Не вдається зберегти прогрес на сервері.');
   }).finally(() => { syncBusy = false; });
 }
@@ -38,32 +38,51 @@ function setupAccountUI() {
   if (!accountMode()) return;
   $('#netbox').hidden = false;
   if (typeof fetch === 'function') fetch('/status').then(r => r.json()).then(j => { $('#netcount').textContent = j.players ? `Зараз у грі: ${j.players} (${j.names.slice(0, 5).join(', ')})` : 'Поки ніхто не грає — будь першим.'; }).catch(() => { });
-  const err = t => { $('#acc-err').textContent = t || ''; };
-  const go = path => {
-    const login = $('#acc-login').value.trim(), pass = $('#acc-pass').value;
+  const form = (L, Pw, E) => path => {
+    const login = $(L).value.trim(), pass = $(Pw).value, err = t => { $(E).textContent = t || ''; };
     if (!login || !pass) { err('Введи логін і пароль'); return; }
     err('…');
     api(path, { login, pass }).then(r => {
       if (!r.ok) { err(r.e || 'Помилка'); return; }
-      $('#acc-pass').value = ''; err('');
+      $(Pw).value = ''; err('');
       setAcct({ token: r.token, login: r.login, admin: r.admin });
       afterLogin();
     });
   };
+  const go = form('#acc-login', '#acc-pass', '#acc-err'), goPop = form('#ap-login', '#ap-pass', '#ap-err');
   $('#acc-in').addEventListener('click', () => go('login'));
   $('#acc-reg').addEventListener('click', () => go('register'));
   $('#acc-pass').addEventListener('keydown', e => { if (e.key === 'Enter') go('login'); });
+  // попап «Ти зайшов як гість»
+  $('#ap-in').addEventListener('click', () => goPop('login'));
+  $('#ap-reg').addEventListener('click', () => goPop('register'));
+  $('#ap-pass').addEventListener('keydown', e => { if (e.key === 'Enter') goPop('login'); });
+  $('#ap-login').addEventListener('keydown', e => { if (e.key === 'Enter') $('#ap-pass').focus(); });
+  for (const b of ['#ap-x', '#ap-later']) $(b).addEventListener('click', () => accPopup(false));
+  $('#acc-pop').addEventListener('click', e => { if (e.target.id === 'acc-pop') accPopup(false); });
+  const prof = $('.mm-profile'); if (prof) prof.addEventListener('click', () => { if (!ACCT) accPopup(true); });
   $('#acc-logout').addEventListener('click', () => { api('logout'); setAcct(null); refreshAccountUI(); });
   $('#acc-del').addEventListener('click', () => { $('#acc-delbox').hidden = !$('#acc-delbox').hidden; });
   $('#acc-delgo').addEventListener('click', () => deleteAccount($('#acc-delpass').value, t => { $('#acc-delerr').textContent = t; }));
-  if (ACCT) api('me').then(r => { if (r.ok) { setAcct(Object.assign(ACCT, { login: r.login, admin: r.admin })); afterLogin(); } else { if (r.auth) setAcct(null); refreshAccountUI(r.banned ? r.e : ''); } });
+  if (ACCT) api('me').then(r => { if (r.ok) { setAcct(Object.assign(ACCT, { login: r.login, admin: r.admin })); afterLogin(); } else { if (r.auth) setAcct(null); refreshAccountUI(r.banned ? r.e : ''); if (!ACCT && !r.banned) accPopup(true); } });
+  else accPopup(true);
   refreshAccountUI();
 }
 function afterLogin() {
+  accPopup(false);
   api('load').then(r => {
     if (r.ok) adoptServerSave(r.data);
     refreshAccountUI();
+    if (running) { toast(`✅ Ти в акаунті <b>${escapeHTML(ACCT.login)}</b>.`); save(); if (!NET.ws) netConnect(); }
   });
+}
+/* Попап «Ти зайшов як гість — увійди в акаунт» (лише коли є сервер з акаунтами) */
+function accPopup(show) {
+  const el = $('#acc-pop'); if (!el) return;
+  if (show && (!accountMode() || ACCT)) return;
+  if (el.hidden === !show) return;
+  el.hidden = !show;
+  if (show) { $('#ap-err').textContent = ''; setTimeout(() => { const i = $('#ap-login'); if (i && !el.hidden) i.focus(); }, 50); }
 }
 function refreshAccountUI(msg) {
   if (!accountMode()) { refreshTitleButtons(); return; }

@@ -196,6 +196,7 @@ class Tunnel:
         ips = []
         try: ips.append(socket.gethostbyname(host))
         except OSError: pass
+        self.local_dns = bool(ips)
         if not ips:
             try:
                 import urllib.request
@@ -226,10 +227,19 @@ class Tunnel:
             res = self._probe(host)
             waited = int(time.time() - t0)
             if res == 'ok':
-                self.status = f'ONLINE ({self.kind}) ✅ посилання працює'
-                log(f'Тунель: {url} — перевірено, гра відкривається')
-                return
-            self.status = f'ЗАПУСК ({self.kind}) · посилання ще не відповідає ({waited} с)…'
+                if getattr(self, 'local_dns', True):
+                    self.status = f'ONLINE ({self.kind}) ✅ посилання працює'
+                    log(f'Тунель: {url} — перевірено, гра відкривається')
+                    return
+                self.status = '✅ друзям працює · твій комп ще «пам’ятає» помилку — сам грай через localhost'
+            else:
+                self.status = f'ЗАПУСК ({self.kind}) · НЕ ВІДКРИВАЙ ще посилання — чекаю ({waited} с)…'
+                if waited // 20 != getattr(self, '_lastlog', -1):
+                    self._lastlog = waited // 20
+                    log(f'Тунель: перевірка {host} через {waited} с → {res} (nodns — адреси ще нема в DNS, noconn — немає з’єднання, http NNN — відповідь Cloudflare)')
+            if res == 'ok':
+                time.sleep(10)
+                continue
             if waited > 120:
                 log(f'Тунель: {url} не відповідає 2 хв ({res}) — беру нове посилання')
                 self.status = f'посилання не запрацювало ({res}) — перезапускаю тунель…'

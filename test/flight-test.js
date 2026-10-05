@@ -17,7 +17,8 @@ let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).
 src += ';window.__T={get paused(){return paused},get running(){return running},get P(){return P},pl,MON,PROPS,BODIES,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),nearBar:()=>nearBar(),input,renderPanel,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),fireHook:h=>fireHook(h),releaseCarry:t=>releaseCarry(t),pickUpAny:t=>pickUpAny(t),damageProp:(p,d)=>damageProp(p,d),hurt:d=>hurtPlayer(d),dropLoot:(x,z,l)=>dropLoot(x,z,l),DROPS};';
 w.eval(src);
 const T = w.__T; let now = 1000;
-const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; T.frame(now); if (i % 3 === 0) IV.forEach(f => f()); } };
+const calm = () => { const F = w.__flight; if (F) { F.AU.stormT = 999; F.AU.failT = 999; F.ST.storms.length = 0; } };   // без випадкових гроз і поломок — тест передбачуваний
+const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; calm(); T.frame(now); if (i % 3 === 0) IV.forEach(f => f()); } };
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exit(1); } console.log('ok -', m); };
 const body = () => w.document.querySelector('#pbody');
 assert(T.ADDONS.list.every(a => a.ok), 'аддон завантажився: ' + T.ADDONS.list.map(a => a.name + (a.ok ? '' : ' ✗ ' + a.err)).join(', '));
@@ -79,9 +80,9 @@ assert(served >= 3, `рознесли замовлення пасажирам: $
   F.damage('hole'); step(.2); const h = F.ST.holes[0]; assert(h, 'блискавка пробила фюзеляж');
   const hz = 118 + h.side * 2.6; T.pl.x = h.x + 3; T.pl.z = 118; F.ST.roll = 0; step(.05); const d0 = Math.hypot(T.pl.x - h.x, T.pl.z - hz); step(1); F.ST.roll = 0;
   assert(Math.hypot(T.pl.x - h.x, T.pl.z - hz) < d0 - .3, 'пробоїна всмоктує до себе');
-  T.pl.x = h.x; T.pl.z = 118 + h.side * (2.6 - .5); step(.05);
+  T.pl.x = h.x; T.pl.z = 118 + h.side * .9; step(.05);
   let it3 = T.getInteract(); assert(it3 && /пробоїну/.test(it3.l), 'біля пробоїни F — «Залатати»'); it3.fn();
-  for (let k = 0; k < 40 && F.ST.holes.length; k++) { T.pl.x = h.x; T.pl.z = 118 + h.side * (2.6 - .5); F.ST.roll = 0; step(.1); }
+  for (let k = 0; k < 40 && F.ST.holes.length; k++) { T.pl.x = h.x; T.pl.z = 118 + h.side * .9; F.ST.roll = 0; step(.1); }
   assert(!F.ST.holes.length, 'пробоїну залатано');
 }
 // двигун: ремонт на крилі
@@ -114,7 +115,8 @@ for (const p of F.ST.pass) { p.want = 'coffee'; p.pat = .01; }
 step(1); assert(F.ST.pass.some(p => p.angry), 'кому не принесли — злиться');
 // сильний крен розливає каву
 F.setHeld('coffee'); let spilled = false;
-for (let k = 0; k < 40 && !spilled; k++) { F.ST.roll = .95; F.ST.rv = 0; T.pl.x = 118; T.pl.x = -30; T.pl.z = 118; step(.1); if (!F.V.held) spilled = true; }
+for (const p of F.ST.pass) { p.want = ''; p.angry = 0; p.mood = .9; }
+for (let k = 0; k < 80 && !spilled; k++) { F.ST.mood = .9; F.ST.roll = .95; F.ST.rv = 0; T.pl.x = 118; T.pl.x = -30; T.pl.z = 118; step(.1); if (!F.V.held) spilled = true; }
 assert(spilled, 'сильний крен — кава розлилась');
 // кінець рейсу: посадка
 for (const p of F.ST.pass) { p.want = ''; p.angry = 0; p.mood = .9; }

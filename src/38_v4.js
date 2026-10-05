@@ -60,7 +60,7 @@ function mergeStatics() {
   WAYPOINTS.forEach(w => add(w.mesh)); NOTES.forEach(n => add(n.mesh)); FISH_SPOTS.forEach(f => add(f.bob));
   PADS.forEach(p => add(p.mesh)); OCC.forEach(o => add(o.g)); ANIM.water.forEach(w => add(w.m)); ANIM.foam.forEach(add);
   ANIM.falls.forEach(f => add(f.sheet.parent)); ANIM.beams.forEach(b => add(b.g)); ANIM.spin.forEach(s => add(s.m));
-  DEBRIS.forEach(add); CLOUDS.forEach(add); ISL.forEach(s => add(s.topMesh)); HOME_DYN.forEach(add);
+  DEBRIS.forEach(add); CLOUDS.forEach(add); ADDONS.dyn.forEach(add); ISL.forEach(s => add(s.topMesh)); HOME_DYN.forEach(add);
   const isDyn = o => { for (let p = o; p; p = p.parent) if (dyn.has(p)) return true; return false; };
   scene.updateMatrixWorld(true);
   const buckets = new Map(), victims = [], wp = new THREE.Vector3();

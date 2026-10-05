@@ -234,6 +234,7 @@ addEventListener('keydown', e => {
   if (fishing && ['KeyF', 'Space', 'Enter'].includes(c)) { e.preventDefault(); if (!e.repeat) reelFish(); return; }
   if (c === 'Enter' && NET.on) { e.preventDefault(); openChat(); return; }
   keys[c] = true;
+  if (!e.repeat && addonKey(c)) return;
   if (e.repeat) return;
   if (c === 'Space') { e.preventDefault(); jumpPress(); }
   if (c === 'ShiftLeft' || c === 'ShiftRight') dash();
@@ -380,7 +381,7 @@ function renderPanel() {
   const cur = TABS.find(([id]) => id === panel); $('#ptitle').textContent = cur ? cur[1] : '';
   const on = $('#ptabs .on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const body = $('#pbody');
-  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, admin: renderAdmin, online: renderOnline }[panel];
+  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, admin: renderAdmin, online: renderOnline }[panel] || addonTabRender(panel);
   body.innerHTML = f();
   if (panel === 'map') drawMap();
 }
@@ -659,7 +660,7 @@ function frame(now) {
     MON.slice().forEach(m => { if (!m.calm && m.state !== 'fall' && dist2(m.x, m.z, pl.x, pl.z) > 48) { if (m.bar) m.bar.visible = false; if (m.wantS) m.wantS.visible = false; return; } if (!m.calm && m.state !== 'fall' && m.bar) m.bar.visible = true; updMonster(m, dt); });
     updMinibosses(dt); updWarn(dt);
     updBoss(dt); updProj(dt); updTele(dt); updProps(dt); updNodes(dt); updChests(dt); updDrops(dt);
-    updSpawns(dt); updEvents(dt); updBrew(dt); updCrowd(dt); updGiver(); updInteract(); updDummy(dt); updTut(dt); updExplore(dt); updRemotes(dt); updFun(dt);
+    updSpawns(dt); updEvents(dt); updBrew(dt); updCrowd(dt); updGiver(); updInteract(); updDummy(dt); updTut(dt); updExplore(dt); updRemotes(dt); updFun(dt); addonTick(dt);
   }
   updParticles(live ? dt : 0); updFX(live ? dt : 0); updLights(rdt);
   updWorldAnim(rdt); updCamera(rdt); updOverlays(live ? rdt : 0); updCase(rdt); updArt(rdt); updFps(rdt);

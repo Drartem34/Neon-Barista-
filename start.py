@@ -53,6 +53,7 @@ MAX_PLAYERS = 32
 TICK = 0.1                     # як часто сервер розсилає стан гравців (с)
 ROOT = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(ROOT, 'dist')
+ADDONS_DIR = os.path.join(ROOT, 'addons')      # аддони: кинув файл — і він у грі (див. addons/README.md)
 WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
 # ===================== КОЛЬОРИ =====================
@@ -358,6 +359,17 @@ async def handle_msg(p: Player, m):
         e = m.get('e')
         if e in ('wave', 'dance', 'cheer', 'sit'):
             await broadcast({'t': 'emote', 'id': p.id, 'e': e}, skip=p)
+    elif t == 'ax':
+        # Повідомлення аддонів (режими, міні-ігри): ретранслюємо всім іншим, з лімітом
+        now = time.time()
+        p.fx = [x for x in p.fx if now - x < 1]
+        if len(p.fx) >= 12 or not isinstance(m.get('a'), str) or len(m['a']) > 40:
+            return
+        raw = json.dumps(m.get('d'), ensure_ascii=False)
+        if len(raw) > 4096:
+            return
+        p.fx.append(now)
+        await broadcast({'t': 'ax', 'from': p.id, 'name': p.name, 'a': m['a'], 'd': m.get('d')}, skip=p)
     elif t in ('hit', 'wfx'):
         # Фізичні жарти між гравцями: кава в обличчя, удар шваброю, вантуз, вибух, вентилятор.
         now = time.time()
@@ -624,6 +636,30 @@ async def api(path, req, ip):
     return {'ok': False, 'e': 'not found'}
 
 # ===================== HTTP =====================
+def addon_list():
+    """Увімкнені аддони: addons/*.js або addons/<папка>/addon.js. Те, що починається з '_' або '.', пропускається."""
+    out = []
+    if not os.path.isdir(ADDONS_DIR):
+        return out
+    for name in sorted(os.listdir(ADDONS_DIR)):
+        if name[0] in '_.':
+            continue
+        full = os.path.join(ADDONS_DIR, name)
+        if os.path.isfile(full) and name.endswith('.js'):
+            out.append({'id': name[:-3], 'src': name, 'v': int(os.path.getmtime(full))})
+        elif os.path.isdir(full) and os.path.isfile(os.path.join(full, 'addon.js')):
+            out.append({'id': name, 'src': name + '/addon.js', 'v': int(os.path.getmtime(os.path.join(full, 'addon.js')))})
+    return out
+
+def resolve_addon(path):
+    rel = path.split('?', 1)[0].split('#', 1)[0][len('/addons/'):]
+    full = os.path.normpath(os.path.join(ADDONS_DIR, rel))
+    if not full.startswith(os.path.normpath(ADDONS_DIR) + os.sep) or not os.path.isfile(full):
+        return None
+    if any(part[:1] in '_.' for part in os.path.relpath(full, ADDONS_DIR).split(os.sep)):
+        return None
+    return full
+
 def resolve_static(path):
     path = path.split('?', 1)[0].split('#', 1)[0]
     if path in ('', '/'):
@@ -682,7 +718,10 @@ async def handle_conn(reader, writer):
         if path.startswith('/status'):
             body = json.dumps({'players': len(PLAYERS), 'names': [p.name for p in PLAYERS.values()]}, ensure_ascii=False).encode()
             await respond(writer, 200, body, 'application/json; charset=utf-8'); return
-        full = resolve_static(path)
+        if path.split('?', 1)[0] == '/addons/index.json':
+            body = json.dumps(addon_list(), ensure_ascii=False).encode()
+            await respond(writer, 200, body, 'application/json; charset=utf-8'); return
+        full = resolve_addon(path) if path.startswith('/addons/') else resolve_static(path)
         if not full:
             await respond(writer, 404, 'Не знайдено'.encode(), 'text/plain; charset=utf-8'); return
         with open(full, 'rb') as f:

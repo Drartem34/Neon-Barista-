@@ -11,6 +11,10 @@ const os = require('os');
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'barista-net-'));
 fs.copyFileSync(path.join(root, 'start.py'), path.join(tmpRoot, 'start.py'));
 fs.cpSync(path.join(root, 'dist'), path.join(tmpRoot, 'dist'), { recursive: true });
+fs.mkdirSync(path.join(tmpRoot, 'addons'));
+fs.copyFileSync(path.join(root, 'addons/_examples/disco_island.js'), path.join(tmpRoot, 'addons/disco.js'));
+fs.writeFileSync(path.join(tmpRoot, 'addons/broken.js'), "const A = Addon.info({ name: 'Зламаний' }); throw new Error('бум');");
+fs.writeFileSync(path.join(tmpRoot, 'addons/_off.js'), "window.__OFF_RAN = 1;");
 const srv = spawn('python3', [path.join(tmpRoot, 'start.py'), '--no-ui', '--tunnel', 'none', '--port', String(PORT)], { stdio: 'ignore' });
 const post = async (p, body) => (await fetch(`http://127.0.0.1:${PORT}/api/${p}`, { method: 'POST', body: JSON.stringify(body) })).json();
 function cleanup(code) { try { srv.kill(); } catch (e) { } try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (e) { } process.exit(code); }
@@ -24,7 +28,7 @@ async function client(name) {
   w.console.warn = () => { }; w.fetch = (u, o) => fetch(new URL(u, `http://127.0.0.1:${PORT}/`), o); w.setInterval = () => 0;
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
   let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-  src += ';window.__T={get P(){return P},pl,NET,startGame,frame,sendChat,giftCoffee,nearRemote,setAcct,save,atk:attack,get ACCT(){return ACCT},FUN,useDrink,input,equip,makeItem,addItem,setDrink:d=>{selDrink=d}};';
+  src += ';window.__T={get P(){return P},pl,NET,startGame,frame,sendChat,giftCoffee,nearRemote,setAcct,save,atk:attack,get ACCT(){return ACCT},FUN,useDrink,input,equip,makeItem,addItem,setDrink:d=>{selDrink=d},ADDONS,ISLMAP,BR,TABS,openPanel,closePanel,get worldReady(){return worldReady}};';
   w.eval(src);
   const reg = await (await fetch(`http://127.0.0.1:${PORT}/api/register`, { method: 'POST', body: JSON.stringify({ login: name, pass: 'pass-' + name }) })).json();
   if (!reg.ok) throw new Error('register ' + name + ': ' + reg.e);
@@ -53,6 +57,14 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
   a.P.drinks.latte = 3; const r = a.nearRemote(); assert(r, 'гравець поруч для частування');
   const before = b.P.drinks.latte || 0; a.giftCoffee(r); await tick([a, b], .6);
   assert((b.P.drinks.latte || 0) === before + 1, 'кава-подарунок дійшла');
+  // --- аддони з папки addons/
+  assert(a.worldReady && a.ISLMAP.disco && a.BR.some(r => r.B.id === 'disco' || r.A.id === 'disco'), 'аддон додав острів із мостом');
+  const rec = id => a.ADDONS.list.find(x => x.id === id);
+  assert(rec('disco') && rec('disco').ok && rec('disco').name === 'Диско-острів', 'робочий аддон завантажився');
+  assert(rec('broken') && !rec('broken').ok && !a.w.__OFF_RAN && !rec('_off'), 'зламаний аддон ізольовано, вимкнений (_) пропущено');
+  a.openPanel('ax_disco'); assert(a.w.document.querySelector('#pbody').textContent.includes('Диско-острів'), 'вкладка аддона відкривається');
+  a.w.document.querySelector('[data-disco="invite"]').click(); a.closePanel(); await tick([a, b], .5);
+  assert(b.w.document.querySelector('#toasts').textContent.includes('Диско'), 'аддон передає повідомлення іншим гравцям');
   // --- акаунти: сейв на сервері переживає зміну посилання (новий домен = порожній localStorage)
   a.P.coins = 4242; a.save(); await tick([a, b], .5);
   const ld = await post('load', { token: a.reg.token });

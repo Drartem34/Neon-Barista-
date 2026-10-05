@@ -1,5 +1,7 @@
 /* ---------- Старт ---------- */
+let worldReady = false, pendingStart = null;
 function startGame(fresh) {
+  if (!worldReady) { pendingStart = { fresh: !!fresh }; return; }   // аддони ще вантажаться — стартуємо одразу після
   initAudio(); if (AC && AC.state === 'suspended') AC.resume();
   const sv = fresh ? null : loadSave();
   if (sv && sv.P) {
@@ -15,6 +17,7 @@ function startGame(fresh) {
     BOSS.lvl = sv.boss || 1;
   } else { newPlayer(); try { localStorage.removeItem(SAVE_KEY); } catch (e) { } }
   funOnStart();
+  P.addons = P.addons || {};
   syncQuest(true);   // старі збереження: квест міг «застрягнути», бо острови відкрили раніше
   calcStats(); pl.hp = S.maxHP; pl.st = S.maxSt; pl.charges = S.charges;
   hero = buildPlayer(); refreshLook();
@@ -35,13 +38,22 @@ function startGame(fresh) {
   setInterval(save, 15000);
   addEventListener('beforeunload', save);
   document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+  addonEmit('start');
 }
-buildWorld();
-buildSky(); buildHomeBase();
-mergeStatics();
-initLampLights();
-initFun();
-applyGfx(false);
+function bootWorld() {
+  if (worldReady) return;
+  buildWorld();
+  addonEmit('world');
+  buildSky(); buildHomeBase();
+  mergeStatics();
+  initLampLights();
+  initFun();
+  applyGfx(false);
+  worldReady = true;
+  if (pendingStart) { const f = pendingStart.fresh; pendingStart = null; startGame(f); }
+}
+// Спершу аддони з папки addons/ (лише з сервера), потім світ — щоб аддон міг додати острови й предмети.
+{ const wait = loadAddons(); if (wait) wait.then(bootWorld, bootWorld); else bootWorld(); }
 requestAnimationFrame(frame);
 
 /* ---------- Кнопки титулу: онлайн — тільки після входу в акаунт ---------- */

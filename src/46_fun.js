@@ -245,6 +245,7 @@ function updRide(dt) {
   pl.x = b.x; pl.z = b.z; pl.y = b.kind === 'cart' ? .55 : .25; pl.moving = sp > .5; pl.vx = b.vx; pl.vz = b.vz;
   if (sp > .4) pl.face = lerpAng(pl.face, Math.atan2(b.vx, b.vz), Math.min(1, dt * (slip ? 2 : 6)));
   b.face = pl.face; b.m.rotation.y = b.face + (b.kind === 'chair' ? Math.PI : 0);
+  b.m.position.set(b.x, b.y, b.z);   // модель їде разом із гравцем (у спільному світі updBodies її не рухає)
   if (b.kind === 'chair') b.m.rotation.y += Math.sin(gameTime * 3) * Math.min(.6, sp * .05);
   if (sp > 3 && Math.random() < dt * 10) burst(b.x, .1, b.z, slip ? '#FFA94D' : '#FFF3E6', 1, .6, .3, .3);
   if (b.fall) {   // вилетіли за край

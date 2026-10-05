@@ -433,6 +433,7 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
       <button data-open="craft" title="Напої, крафт, майстерня (C)" aria-label="Крафт">⚗️</button>
       <button id="mute" title="Звук" aria-label="Звук">🔊</button>
       <button data-open="help" title="Як грати" aria-label="Допомога">❔</button>
+      <button id="tomenu" title="Головне меню" aria-label="Головне меню">🏠</button>
     </div>
     <div id="quest"></div>
   </div>
@@ -3679,7 +3680,7 @@ function renderSound() {
   const sl = (k, n) => `<label class="slider"><span>${n}</span><input type="range" min="0" max="100" value="${Math.round(AUD[k] * 100)}" data-aud="${k}"><b>${Math.round(AUD[k] * 100)}</b></label>`;
   const q = [['high', 'Висока'], ['medium', 'Середня'], ['low', 'Низька (слабкий телефон)']].map(([k, n]) => `<button class="btn ${GFX.q === k ? '' : 'alt'}" data-act="gfx" data-arg="${k}">${n}</button>`).join('');
   return `<h3>Графіка</h3><div class="btns">${q}</div><div class="btns"><button class="btn ${GFX.fps ? '' : 'alt'}" data-act="fps">${GFX.fps ? 'Сховати FPS' : 'Показувати FPS'}</button></div><label class="slider"><span>Яскравість</span><input type="range" min="50" max="130" value="${Math.round(GFX.exp * 100)}" data-exp="1"><b>${Math.round(GFX.exp * 100)}</b></label><p class="muted" style="font-size:12px;margin:6px 0 12px">Яскравість змінюється одразу — підкрути, якщо світлі об’єкти засвічені або картинка темна. Низька якість вимикає тіні, зменшує роздільність і кількість частинок. Нерухомий світ уже злито в кілька великих мешів (${mergeStats.before} → ${mergeStats.after} об’єктів).</p><h3>Звук</h3>${sl('music', 'Музика')}${sl('sfx', 'Ефекти')}<div class="btns"><button class="btn ${AUD.muted ? '' : 'alt'}" data-act="mute">${AUD.muted ? 'Увімкнути звук' : 'Вимкнути все'}</button></div>
-  <p class="muted" style="font-size:13px;margin-top:12px;line-height:1.5">Музика адаптивна: у «Гущі» — спокійний lo-fi з вінілом і мелодією, на островах — тихіше, у бою вмикаються барабани й напружений бас, на рейді — тема CEO. У меню музика стає приглушеною. Звуки ворогів просторові: чути, з якого боку вони.</p>` + addonsPanelHTML() + accountPanelHTML();
+  <p class="muted" style="font-size:13px;margin-top:12px;line-height:1.5">Музика адаптивна: у «Гущі» — спокійний lo-fi з вінілом і мелодією, на островах — тихіше, у бою вмикаються барабани й напружений бас, на рейді — тема CEO. У меню музика стає приглушеною. Звуки ворогів просторові: чути, з якого боку вони.</p>` + addonsPanelHTML() + accountPanelHTML() + `<div class="btns" style="margin-top:14px"><button class="btn alt" data-menu="1">🏠 Вийти в головне меню</button></div>`;
 }
 $('#pbody').addEventListener('input', e => {
   if (e.target.dataset && e.target.dataset.exp) { GFX.exp = +e.target.value / 100; renderer.toneMappingExposure = GFX.exp; saveGfx(); const b = e.target.parentElement.querySelector('b'); if (b) b.textContent = e.target.value; return; }
@@ -5295,6 +5296,10 @@ function updHUDFrame() {
 $('#pbody').addEventListener('dblclick', e => { const b = e.target.closest('.it[data-act="sel"]'); if (!b) return; const it = itemByU(b.dataset.arg); if (it) { equip(it); renderPanel(); } });
 $('#drinks').addEventListener('click', e => { const b = e.target.closest('[data-drink]'); if (!b) return; if (selDrink === b.dataset.drink && IS_TOUCH) useDrink(); selDrink = b.dataset.drink; refreshHUD(); });
 $('#weapon').addEventListener('click', () => swapHands());
+/* Головне меню: зберігаємо прогрес і повертаємось на стартовий екран */
+function toMainMenu() { save(); NET.wanted = false; running = false; setTimeout(() => location.reload(), 150); }
+$('#tomenu').addEventListener('click', () => { if (confirm('Вийти в головне меню? Прогрес збережено.')) toMainMenu(); });
+$('#pbody').addEventListener('click', e => { if (e.target.closest('[data-menu]')) toMainMenu(); });
 $('#online').addEventListener('click', () => { panel === 'online' ? closePanel() : openPanel('online'); });
 document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { const n = b.dataset.open; panel === n ? closePanel() : openPanel(n); }));
 function refreshQuest() {
@@ -6403,6 +6408,7 @@ function updRide(dt) {
   pl.x = b.x; pl.z = b.z; pl.y = b.kind === 'cart' ? .55 : .25; pl.moving = sp > .5; pl.vx = b.vx; pl.vz = b.vz;
   if (sp > .4) pl.face = lerpAng(pl.face, Math.atan2(b.vx, b.vz), Math.min(1, dt * (slip ? 2 : 6)));
   b.face = pl.face; b.m.rotation.y = b.face + (b.kind === 'chair' ? Math.PI : 0);
+  b.m.position.set(b.x, b.y, b.z);   // модель їде разом із гравцем (у спільному світі updBodies її не рухає)
   if (b.kind === 'chair') b.m.rotation.y += Math.sin(gameTime * 3) * Math.min(.6, sp * .05);
   if (sp > 3 && Math.random() < dt * 10) burst(b.x, .1, b.z, slip ? '#FFA94D' : '#FFF3E6', 1, .6, .3, .3);
   if (b.fall) {   // вилетіли за край

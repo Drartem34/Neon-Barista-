@@ -322,6 +322,10 @@ function updHUDFrame() {
 $('#pbody').addEventListener('dblclick', e => { const b = e.target.closest('.it[data-act="sel"]'); if (!b) return; const it = itemByU(b.dataset.arg); if (it) { equip(it); renderPanel(); } });
 $('#drinks').addEventListener('click', e => { const b = e.target.closest('[data-drink]'); if (!b) return; if (selDrink === b.dataset.drink && IS_TOUCH) useDrink(); selDrink = b.dataset.drink; refreshHUD(); });
 $('#weapon').addEventListener('click', () => swapHands());
+/* Головне меню: зберігаємо прогрес і повертаємось на стартовий екран */
+function toMainMenu() { save(); NET.wanted = false; running = false; setTimeout(() => location.reload(), 150); }
+$('#tomenu').addEventListener('click', () => { if (confirm('Вийти в головне меню? Прогрес збережено.')) toMainMenu(); });
+$('#pbody').addEventListener('click', e => { if (e.target.closest('[data-menu]')) toMainMenu(); });
 $('#online').addEventListener('click', () => { panel === 'online' ? closePanel() : openPanel('online'); });
 document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { const n = b.dataset.open; panel === n ? closePanel() : openPanel(n); }));
 function refreshQuest() {

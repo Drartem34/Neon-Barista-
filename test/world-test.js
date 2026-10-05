@@ -76,7 +76,9 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   a.pl.x = cart.x; a.pl.z = cart.z; a.pl.y = 0; await tick([a, b], .3);
   a.mount(cart); cart.x = hub.x; cart.z = hub.z + hub.r - 2; a.pl.x = cart.x; a.pl.z = cart.z; cart.vx = 0; cart.vz = 13;
   b.pl.x = hub.x; b.pl.z = hub.z + 4; b.pl.y = 0;
-  await tick([a, b], 2.5);
+  await tick([a, b], .1);
+  assert(a.pl.ride === cart && Math.hypot(cart.m.position.x - a.pl.x, cart.m.position.z - a.pl.z) < .5, 'модель візка їде разом із гравцем на його екрані');
+  await tick([a, b], 2.4);
   const cartB = b.BODIES[ci];
   assert(cartB.fall || cartB.y < -1 || cartB.z > hub.z + hub.r, `візок з Олею полетів у прірву — Тарас бачить (fall=${cartB.fall}, y=${cartB.y && cartB.y.toFixed(1)})`);
   a.pl.falling = false; a.pl.x = 0; a.pl.z = 3; a.pl.y = 0; await tick([a, b], 1);

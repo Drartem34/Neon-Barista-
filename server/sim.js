@@ -172,6 +172,8 @@ function updCarried() {
 /* ---------- Дії гравців ---------- */
 const PROJ_KINDS = new Set(['cup', 'staple', 'banana']);
 function num(v, lo, hi, d = 0) { v = +v; return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
+/* Поки команда «підняти» летить до сервера, оглушення могло щойно скінчитись — даємо запас 0,8 с. */
+function canCarryNet(m) { return canCarry(m) || (m.state !== 'fall' && !m.T.dummy && !m.carried && !m.dead && (m.mass || 1) <= 2.3 && gameTime - (m.stunAt || -9) < .8); }
 function monById(id) { return MON.find(m => m.nid === id); }
 function bossByKey(k) { return k === 'ceo' ? BOSS : MBS[k]; }
 function simIntent(id, m) {
@@ -207,7 +209,7 @@ function simIntent(id, m) {
     } else if (m.k === 'carry') {
       if (carriedBy(id)) return;
       const ok = o => { simOut(id, { t: 'w', k: 'carryOk' }); return o; };
-      if (m.kind === 'mon') { const t = monById(m.id); if (t && canCarry(t) && t.carrier == null && dist2(t.x, t.z, p.x, p.z) < 3.5) { ok(t).carrier = id; t.carried = true; if (!t.calm) t.state = 'chase'; t.vx = t.vz = 0; return; } }
+      if (m.kind === 'mon') { const t = monById(m.id); if (t && canCarryNet(t) && t.carrier == null && dist2(t.x, t.z, p.x, p.z) < 3.5) { ok(t).carrier = id; t.carried = true; if (!t.calm) t.state = 'chase'; t.vx = t.vz = 0; return; } }
       if (m.kind === 'body') { const b = BODIES[m.id | 0]; if (b && !b.fall && !b.held && b.carrier == null && dist2(b.x, b.z, p.x, p.z) < 3.5) { ok(b).carrier = id; b.held = true; return; } }
       if (m.kind === 'prop') { const q = PROPS[m.id | 0]; if (q && q.alive && !q.held && !q.fly && q.carrier == null && dist2(q.x, q.z, p.x, p.z) < 3.5) { ok(q).carrier = id; q.held = true; q.alive = false; q.t = 1e9; return; } }
       simOut(id, { t: 'w', k: 'carryFail' });
@@ -268,6 +270,7 @@ function simTick(dt) {
     loadPl(t); SIM.actor = m.lastBy != null && SIM.players.has(m.lastBy) ? m.lastBy : null;
     try { updMonster(m, dt); } catch (e) { console.error('updMonster', e); }
     if (m.pinT > 0) { m.pinT -= dt; m.stun = Math.max(m.stun, .2); }
+    if (m.stun > 0) m.stunAt = gameTime;
   }
   SIM.actor = null;
   // CEO

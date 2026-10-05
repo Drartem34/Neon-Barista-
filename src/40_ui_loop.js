@@ -223,7 +223,7 @@ addEventListener('keydown', e => {
   if (caseOpen) { e.preventDefault(); if ((c === 'Escape' || c === 'Enter' || c === 'Space') && caseAnim) { if (caseAnim.done) closeCase(); else caseAnim.t = caseAnim.dur; } return; }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(c)) e.preventDefault();
   if (art) { e.preventDefault(); if (['KeyE', 'Space', 'Enter', 'KeyF'].includes(c) && !e.repeat) artTap(); if (c === 'Escape') skipArt(); return; }
-  if (c === 'Escape') { if (panel) closePanel(); else openPanel('help'); return; }
+  if (c === 'Escape') { if (panel) closePanel(); else openPanel('pause'); return; }
   if (c === 'KeyI' || (c === 'KeyE' && !fishing && !e.repeat)) { panel === 'inv' ? closePanel() : openPanel('inv'); return; }
   if (c === 'KeyK') { panel === 'skills' ? closePanel() : openPanel('skills'); return; }
   if (c === 'KeyB') { panel === 'cases' ? closePanel() : openPanel('cases'); return; }
@@ -363,7 +363,7 @@ function refreshLook() {
 
 /* ---------- Панелі ---------- */
 let panel = null, selU = null, newConfirm = false;
-const TABS = [['map', '🗺️ Мапа'], ['journal', '📔 Щоденник'], ['inv', '🎒 Речі'], ['cases', '🎁 Кейси'], ['skills', '🌳 Навички'], ['drinks', '☕ Напої'], ['craft', '🛠️ Крафт'], ['work', '🔧 Майстерня'], ['shop', '🛒 Крамниця'], ['home', '🏝️ Острів'], ['stash', '📦 Сховок'], ['quest', '📜 Квест'], ['sound', '⚙️ Налаштування'], ['help', '❔ Довідка'], ['online', '👥 Онлайн'], ['admin', '🛡️ Адмін']];
+const TABS = [['pause', '⏸️ Пауза'], ['map', '🗺️ Мапа'], ['journal', '📔 Щоденник'], ['inv', '🎒 Речі'], ['cases', '🎁 Кейси'], ['skills', '🌳 Навички'], ['drinks', '☕ Напої'], ['craft', '🛠️ Крафт'], ['work', '🔧 Майстерня'], ['shop', '🛒 Крамниця'], ['home', '🏝️ Острів'], ['stash', '📦 Сховок'], ['quest', '📜 Квест'], ['sound', '⚙️ Налаштування'], ['help', '❔ Довідка'], ['online', '👥 Онлайн'], ['admin', '🛡️ Адмін']];
 function openPanel(name) {
   panel = name; paused = true; input.atk = false; pl.charge = 0; input.jumpHeld = false;
   for (const k in keys) keys[k] = false;
@@ -386,7 +386,7 @@ function renderPanel() {
   const cur = TABS.find(([id]) => id === panel); $('#ptitle').textContent = cur ? cur[1] : '';
   const on = $('#ptabs .on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const body = $('#pbody');
-  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, admin: renderAdmin, online: renderOnline }[panel] || addonTabRender(panel);
+  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, pause: renderPause, admin: renderAdmin, online: renderOnline }[panel] || addonTabRender(panel);
   body.innerHTML = f();
   if (panel === 'map') drawMap();
 }
@@ -538,6 +538,31 @@ function renderQuestPanel() {
   return `<h3>Маріанна, старша бариста</h3><p><i>${line}</i></p><div class="detail"><h4>${q.n}${q.repeat ? ' (повторюваний)' : ''}</h4><p style="margin:6px 0">${q.d}</p><div class="muted" style="font-size:13px">Нагорода: ${rws}</div></div><div class="btns" style="margin-top:10px">${act}</div>${near ? '' : '<p class="muted" style="font-size:12px;margin-top:8px">Підійди до Маріанни біля бару, щоб узяти або здати квест.</p>'}
   <h3 style="margin-top:16px">Твоя зміна</h3><div class="chips"><span class="chip">Заспокоєно: ${P.calmed}</span><span class="chip">Рейдів пройдено: ${P.bossWins}</span><span class="chip">Відвідувачів у «Гущі»: ${CROWD.length}</span></div>`;
 }
+/* ---------- Пауза (Esc): режими й міні-ігри ---------- */
+const MODES = [];   // аддони додають режими через Addon.mode({ id, ic, n, sub, go, here })
+function curMode() { return MODES.find(m => { try { return m.here && m.here(); } catch (e) { return false; } }) || null; }
+function renderPause() {
+  const cur = curMode();
+  const card = (id, ic, n, sub, on, locked) => `<button class="mode${on ? ' on' : ''}" data-mode="${id}" ${locked ? 'disabled' : ''}><span class="mic">${ic}</span><b>${n}</b><span class="msub">${sub}</span>${on ? '<i>ти тут</i>' : locked ? '<i>🔒 скоро</i>' : ''}</button>`;
+  return `<h3>⏸️ Пауза</h3><div class="btns"><button class="btn" data-pause="go">▶ Продовжити</button></div>
+    <h3 style="margin-top:14px">🎮 Режими й міні-ігри</h3>
+    <div class="modes">${card('world', '🌍', 'Відкритий світ', 'острови, квести, рейди, «Гуща»', !cur)}${MODES.map(m => card(m.id, m.ic || '🎮', m.n, m.sub || '', cur === m)).join('')}${card('pvp', '🥊', 'PVP', 'Каво-махалово', false, true)}${card('event', '🎪', 'Івент', 'Рейд на Боса', false, true)}</div>
+    <p class="muted" style="font-size:12px;margin-top:8px">Інвентар, монети й прогрес — спільні для всіх режимів.</p>
+    <div class="btns" style="margin-top:12px"><button class="btn alt" data-pause="help">❔ Довідка</button><button class="btn alt" data-pause="sound">⚙️ Налаштування</button><button class="btn alt" data-menu="1">🏠 Головне меню</button></div>`;
+}
+function goHub(msg) {
+  closePanel(); const f = $('#fade'); if (f) f.style.opacity = 1; sfx('travel');
+  setTimeout(() => { pl.x = 0; pl.z = 3; pl.y = 0; pl.vy = 0; pl.falling = false; pl.jump = null; pl.safe = { x: 0, z: 3 }; camPos.set(0, 20, 18); camLook.set(0, .5, 3); if (f) f.style.opacity = 0; if (msg) toast(msg); }, 260);
+}
+$('#pbody').addEventListener('click', e => {
+  const p = e.target.closest('[data-pause]'); if (p) { const a = p.dataset.pause; if (a === 'go') closePanel(); else openPanel(a); return; }
+  const b = e.target.closest('[data-mode]'); if (!b || b.disabled) return;
+  const id = b.dataset.mode, cur = curMode();
+  if (id === 'world') { if (!cur) { closePanel(); return; } goHub('🌍 Відкритий світ. З поверненням у «Гущу».'); return; }
+  const m = MODES.find(x => x.id === id); if (!m) return;
+  if (cur === m) { closePanel(); return; }
+  closePanel(); m.go();
+});
 function renderHelp() {
   return `<h3>Як грати</h3>
   <p><b>Мета.</b> Ти не воюєш — ти обслуговуєш. Монстри — це вигорілі люди. Удари предметами збивають їм стрес (але не нижче чверті) і відкидають. Остаточно заспокоює тільки кава: кинь її або подай впритул.</p>

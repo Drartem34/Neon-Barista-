@@ -212,7 +212,7 @@ function worldSnapshot(s) {
     if ((wants || null) !== m.wants && !(flags & 1)) { if (m.wantS) scene.remove(m.wantS); m.wants = wants || null; m.wantS = m.wants && DRINK[m.wants] ? wantSprite(m.wants) : null; if (m.wantS) scene.add(m.wantS); }
     if (flags & 1) { if (!m.calm) proxyCalmVisual(m); }
     else m.state = flags & 2 ? 'fall' : flags & 4 ? (m.state === 'windup' ? 'windup' : (m.t = .6, 'windup')) : 'chase';
-    m.stun = flags & 8 ? .3 : 0; m.thrown = flags & 16 ? 1 : 0; m.slow = flags & 32 ? 1 : 0; m.chillV = !!(flags & 64); m.pinV = !!(flags & 128);
+    m.stun = flags & 8 ? .5 : 0;   // > .3 — щоб оглушеного можна було підняти (canCarry) m.thrown = flags & 16 ? 1 : 0; m.slow = flags & 32 ? 1 : 0; m.chillV = !!(flags & 64); m.pinV = !!(flags & 128);
     m.carried = carrier !== -1;
   }
   for (const [id, m] of WORLD.proxies) if (!seen.has(id)) { if (pl.carry === m) { pl.carry = null; pl.carryK = null; } removeMonster(m); WORLD.proxies.delete(id); }

@@ -6,10 +6,13 @@
    - З бочок — кавовий порох: на столі збирається бомба (G — кинути). 3–4 вибухи — і їхній пліт іде на дно.
    - Важкі баки на плоту можна схопити (F) і жбурнути (Q/ЛКМ) на сусідній пліт — кеглі!
    - Пороги: пліт б'ється об каміння, усіх відкидає. Змило за борт — пливи назад (пробіл — підстрибнути).
+     Вода крижана — у ній тане здоров'я.
+   - Хаос: землетрус, річка розходиться на два рукави (а потім плоти стикаються), гроза, лут-потоп.
+   - Пліт зомбі гойдається: то відпливає, то підпливає. Відбив хвилю — порожній пліт відпливає, новий припливає.
    Інвентар той самий, що й у відкритому світі; нагороди — туди ж.
    У спільному світі (сервер світу) сплав один на всіх: хвилі, пліт і лут рахує сервер.
    Картинку для картки в меню поклади поруч: addons/rafting/rafting-bg.jpg */
-const A = Addon.info({ name: 'Еспресо-Сплав', version: '1.0', desc: 'Режим «Рафтинг-Запара»: 5 хвилин на плоту, хвилі зомбі з сусіднього плота, лут у річці, бомби й баки-снаряди.' });
+const A = Addon.info({ name: 'Еспресо-Сплав', version: '1.1', desc: 'Режим «Рафтинг-Запара»: 5 хвилин на плоту, хвилі зомбі з сусіднього плота, лут у річці, бомби, баки й коробки-снаряди, хаос-події й своя музика.' });
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);   // хто рахує сплав: сервер світу або сам гравець
@@ -20,11 +23,29 @@ const RX = -112, RZ = 84, ISL_R = 26, WATER_W = 15, RIVER_L = 26, FLOW = 3.2;
 const OUR = { x0: RX - 9, x1: RX - 1.5, z0: RZ - 5.5, z1: RZ + 5.5 };   // наш пліт
 const EN = { x0: RX + 1.5, x1: RX + 8.5, z0: RZ - 5, z1: RZ + 5 };      // пліт зомбі
 const SPAWN = { x: RX - 5.2, z: RZ + 1.6 };
-const BAR = { x: RX - 5.2, z: RZ - 4.2 }, BELL = { x: RX - 2.6, z: RZ + 4.4 }, TABLE = { x: RX - 7.6, z: RZ + 4.2 };
+const BAR = { x: RX - 5.2, z: RZ - 4.2 }, BELL = { x: RX - 2.6, z: RZ + 4.5 }, TABLE = { x: RX - 7.9, z: RZ + 4.4 };
 const MACH = [[RX - 8.2, RZ - 1.6], [RX - 2.3, RZ - 1.6]];
-const BINS = [['bin', RX - 3.2, RZ + 1.2], ['bin', RX - 7.2, RZ + 1.2], ['keg', RX - 5.2, RZ + 2.9]];
+const BINS = [['bin', RX - 3.3, RZ + 1.4], ['bin', RX - 7, RZ + .8], ['keg', RX - 4.6, RZ + 3.1]];
+const BOXES = [[RX - 8.3, RZ + 1.9], [RX - 2.3, RZ + .1], [RX - 5.6, RZ - 1.4], [RX - 6.2, RZ + 2.5]];   // коробки, які можна піднімати й жбурляти
 const inRect = (r, x, z, m = 0) => x > r.x0 + m && x < r.x1 - m && z > r.z0 + m && z < r.z1 - m;
 const inRiver = (x, z) => dist2(x, z, RX, RZ) < ISL_R + 2;
+/* Пліт зомбі гойдається на воді: то відпливає, то підпливає. Під час «розходження річки» —
+   відпливає далеко, а потім плоти стикаються. Зсув — функція часу сплаву, тож однаковий у всіх. */
+const ease = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
+function enOff(t = ST.t) {
+  if (!ST.on) return 0;
+  let o = 1.1 * Math.sin(t * .33);
+  if (ST.sp != null) {
+    const u = t - ST.sp;
+    if (u >= 0 && u < 3) o += 4.6 * ease(u / 3);
+    else if (u >= 3 && u < 14) o += 4.6;
+    else if (u >= 14 && u < 16) o = lerp(o + 4.6, -2.7, ease((u - 14) / 2));
+    else if (u >= 16 && u < 19) o = lerp(-2.7, o, ease((u - 16) / 3));
+  }
+  return Math.max(-2.7, o);
+}
+const enR = (o = enOff()) => ({ x0: EN.x0 + o, x1: EN.x1 + o, z0: EN.z0, z1: EN.z1 });
+const enLand = () => ST.enemy && !(ST.arr > 0) && !(ST.lv > 0);
 
 /* ---------- Нові ресурси ---------- */
 Object.assign(ING, {
@@ -39,7 +60,7 @@ let DRY = false;   // кинутий бак летить над водою
 const _terrainAt = terrainAt;
 terrainAt = function (x, z) {
   if (dist2(x, z, RX, RZ) < ISL_R) {
-    if (DRY || inRect(OUR, x, z) || (ST.enemy && inRect(EN, x, z))) return 'land';
+    if (DRY || inRect(OUR, x, z) || (enLand() && inRect(enR(), x, z))) return 'land';
     return 'deep';
   }
   return _terrainAt.apply(this, arguments);
@@ -57,16 +78,20 @@ const _nearBar = nearBar;
 nearBar = function () { if (dist2(pl.x, pl.z, BAR.x, BAR.z) < 3.3 && !kitchenOk()) return false; return _nearBar.apply(this, arguments); };
 const RAFT_PROPS = [];
 const kitchenOk = () => RAFT_PROPS.some(p => p.alive);
+const RAFT_BOXES = [];
+/* зомбі в польоті (абордаж) не піднімеш */
+const _canCarry = canCarry;
+canCarry = function (m) { return !m.rj && _canCarry.apply(this, arguments); };
 if (!BARS.some(b => b.x === BAR.x && b.z === BAR.z)) BARS.push({ x: BAR.x, z: BAR.z });
 
 /* ---------- Стан сплаву ---------- */
-const ST = { on: false, t: 0, dur: 300, wave: 0, next: 0, hp: 4, max: 4, enemy: true, arr: 0, sunk: 0, crates: [], seq: 0, res: null };
-const AU = { jumpT: 3, crateT: 2, rapT: 50, idle: 0, stT: 0, pend: 0, rapGo: -1 };   // лише в того, хто рахує
+const ST = { on: false, t: 0, dur: 300, wave: 0, next: 0, hp: 4, max: 4, enemy: true, arr: 0, lv: 0, sunk: 0, crates: [], seq: 0, res: null, sp: null };
+const AU = { jumpT: 3, crateT: 2, rapT: 50, idle: 0, stT: 0, pend: 0, rapGo: -1, chaosT: 30, last: '', quake: 0, storm: [], prevOff: 0, spHit: false };   // лише в того, хто рахує
 const myId = () => (NET.on && typeof WORLD !== 'undefined' && WORLD.on ? NET.id : 'me');
-function snap() { return { on: ST.on ? 1 : 0, t: Math.round(ST.t * 10) / 10, dur: ST.dur, w: ST.wave, nx: Math.round(ST.next), hp: ST.hp, mx: ST.max, en: ST.enemy ? 1 : 0, arr: Math.round(ST.arr * 10) / 10, sk: ST.sunk, cr: ST.crates.map(c => [c.id, c.x, c.z0, c.t0, c.k]) }; }
+function snap() { return { on: ST.on ? 1 : 0, t: Math.round(ST.t * 10) / 10, dur: ST.dur, w: ST.wave, nx: Math.round(ST.next), hp: ST.hp, mx: ST.max, en: ST.enemy ? 1 : 0, arr: Math.round(ST.arr * 10) / 10, lv: Math.round(ST.lv * 10) / 10, sp: ST.sp, sk: ST.sunk, cr: ST.crates.map(c => [c.id, c.x, c.z0, c.t0, c.k]) }; }
 function applySnap(d) {
   const was = ST.on;
-  Object.assign(ST, { on: !!d.on, t: +d.t || 0, dur: +d.dur || 300, wave: d.w | 0, next: +d.nx || 0, hp: d.hp | 0, max: d.mx | 0 || 4, enemy: !!d.en, arr: +d.arr || 0, sunk: d.sk | 0 });
+  Object.assign(ST, { on: !!d.on, t: +d.t || 0, dur: +d.dur || 300, wave: d.w | 0, next: +d.nx || 0, hp: d.hp | 0, max: d.mx | 0 || 4, enemy: !!d.en, arr: +d.arr || 0, lv: +d.lv || 0, sp: d.sp == null ? null : +d.sp, sunk: d.sk | 0 });
   if (Array.isArray(d.cr)) ST.crates = d.cr.slice(0, 40).map(a => ({ id: a[0], x: +a[1], z0: +a[2], t0: +a[3], k: a[4] === 'barrel' ? 'barrel' : 'box' }));
   if (ST.on && !was) joinedRun();
 }
@@ -93,8 +118,8 @@ function onReq(d, from) {
 }
 function startRun(from) {
   for (const m of riverMon()) removeMonster(m);
-  Object.assign(ST, { on: true, t: 0, wave: 0, next: 7, hp: 4, max: 4, enemy: true, arr: 0, sunk: 0, crates: [], res: null });
-  Object.assign(AU, { jumpT: 4, crateT: 1, rapT: rand(40, 55), idle: 0, stT: 0, pend: 0, rapGo: -1 });
+  Object.assign(ST, { on: true, t: 0, wave: 0, next: 7, hp: 4, max: 4, enemy: true, arr: 0, lv: 0, sunk: 0, crates: [], res: null, sp: null });
+  Object.assign(AU, { jumpT: 4, crateT: 1, rapT: rand(40, 55), idle: 0, stT: 0, pend: 0, rapGo: -1, chaosT: rand(28, 38), last: '', quake: 0, storm: [], prevOff: 0, spHit: false });
   for (const p of RAFT_PROPS) if (!p.alive) { p.alive = true; p.hp = p.max; if (p.mesh) p.mesh.visible = true; }
   emit({ k: 'msg', big: 1, txt: `🛶 Сплав почався! ${from && from.name ? escapeHTML(from.name) + ' відчалив. ' : ''}Перша хвиля — за 7 секунд.` });
   pushState(); if (!SIMSIDE) joinedRun();
@@ -104,7 +129,7 @@ function endRun(win) {
   ST.on = false;
   const res = { k: 'end', win: win ? 1 : 0, w: ST.wave, sk: ST.sunk, t: Math.round(ST.t) };
   for (const m of hostile()) sinkMon(m);
-  ST.crates = []; ST.enemy = true; ST.arr = 2.5; ST.hp = ST.max = 4;
+  ST.crates = []; ST.enemy = true; ST.arr = 2.5; ST.lv = 0; ST.sp = null; ST.hp = ST.max = 4; AU.storm = []; AU.quake = 0;
   emit(res); pushState();
 }
 function spawnWave() {
@@ -120,7 +145,8 @@ function spawnZombies(cnt) {
   for (let i = 0; i < cnt; i++) {
     const r = Math.random(), type = w >= 4 && r < .2 ? 'hound' : w >= 2 && r < .45 ? 'manager' : 'office';
     let x = 0, z = 0;
-    for (let k = 0; k < 20; k++) { x = rand(EN.x0 + 1, EN.x1 - 1); z = rand(EN.z0 + 1, EN.z1 - 1); if (!MON.some(o => dist2(o.x, o.z, x, z) < .9)) break; }
+    const er = enR();
+    for (let k = 0; k < 20; k++) { x = rand(er.x0 + 1, er.x1 - 1); z = rand(er.z0 + 1, er.z1 - 1); if (!MON.some(o => dist2(o.x, o.z, x, z) < .9)) break; }
     const m = spawnMonster(type, ISLMAP.river, x, z); if (!m) continue;
     m.rv = 1; m.state = 'chase';
     m.max = Math.round(m.max * (1 + .18 * (w - 1))); m.stress = m.max; m.dmg *= 1 + .1 * (w - 1);
@@ -136,7 +162,8 @@ function sinkMon(m) {
 }
 function sinkEnemy() {
   ST.enemy = false; ST.sunk++;
-  for (const m of riverMon()) if (inRect(EN, m.x, m.z, -.3) && !m.rj) sinkMon(m);
+  const er = enR();
+  for (const m of riverMon()) if (inRect(er, m.x, m.z, -.3) && !m.rj) sinkMon(m);
   if (ST.next > 8) ST.next = 8;
   emit({ k: 'sink' });
   emit({ k: 'msg', big: 1, txt: '💥 Пліт зомбі пішов на дно! Наступна хвиля — за 8 секунд.' });
@@ -155,7 +182,7 @@ function bombAt(x, z, from) {
     }
     for (const p of PROPS) if (p.alive && dist2(p.x, p.z, x, z) < R * .7) damageProp(p, 12, 'boom');
   } finally { if (SIMSIDE) SIM.actor = prev; }
-  if (ST.on && ST.enemy && ST.arr <= 0 && inRect(EN, x, z, -.6)) {
+  if (ST.on && enLand() && inRect(enR(), x, z, -.6)) {
     ST.hp--; emit({ k: 'hit', hp: ST.hp });
     if (ST.hp <= 0) sinkEnemy(); else pushState();
   }
@@ -170,7 +197,7 @@ function grabCrate(id, from) {
   pushState();
 }
 const crateZX = c => ({ x: c.x, z: c.z0 + FLOW * (ST.t - c.t0) });
-if (window.__ADDON_TEST) window.__raft = { ST, crateZX };   // для автотестів
+if (window.__ADDON_TEST) window.__raft = { ST, crateZX, enOff: () => enOff(), chaos: e => startChaos(e), AU };   // для автотестів
 
 function authTick(dt) {
   if (!ST.on) { if (ST.arr > 0) ST.arr = Math.max(0, ST.arr - dt); return; }
@@ -184,12 +211,23 @@ function authTick(dt) {
   // хвилі
   ST.next -= dt;
   if (ST.next <= 0) { spawnWave(); ST.next = Math.max(30, 45 - ST.wave * 2); }
-  else if (ST.wave > 0 && ST.enemy && ST.arr <= 0 && ST.next > 7 && !hostile().length) { ST.next = 6; emit({ k: 'msg', txt: '✅ Хвилю відбито! Наступна — за 6 секунд.' }); pushState(); }
+  else if (ST.wave > 0 && enLand() && !hostile().length) {
+    // хвилю відбито: порожній пліт відпливає, новий припливе з наступною хвилею
+    const er = enR(); for (const m of riverMon()) if (m.calm && inRect(er, m.x, m.z, -.3)) removeMonster(m);
+    ST.lv = 3; ST.next = Math.min(ST.next, 7);
+    emit({ k: 'msg', txt: '✅ Хвилю відбито! Порожній пліт відпливає — новий уже на підході.' }); pushState();
+  }
+  if (ST.lv > 0) { ST.lv -= dt; if (ST.lv <= 0) { ST.lv = 0; ST.enemy = false; pushState(); } }
+  // пліт гойдається: зомбі на ньому їдуть разом із ним
+  { const o = enOff(), d = o - AU.prevOff, er = enR(AU.prevOff);
+    if (Math.abs(d) > 1e-5) for (const m of riverMon()) if (!m.rj && m.state !== 'fall' && !m.carried && inRect(er, m.x, m.z, -.4)) m.x += d;
+    AU.prevOff = o; }
   // стрибки на абордаж
   AU.jumpT -= dt;
   if (AU.jumpT <= 0) {
-    AU.jumpT = rand(2.2, 4) / (1 + ST.wave * .12) / Math.sqrt(ps.length);
-    const c = hostile().filter(m => inRect(EN, m.x, m.z) && !m.rj && !(m.stun > 0) && m.state === 'chase' && m.x < EN.x0 + 2.6).sort((a, b) => a.x - b.x)[0];
+    AU.jumpT = AU.burst > 0 ? (AU.burst--, .3) : rand(2.2, 4) / (1 + ST.wave * .12) / Math.sqrt(ps.length);
+    const er = enR(), gap = er.x0 - OUR.x1;
+    const c = gap < 4.6 && enLand() ? hostile().filter(m => inRect(er, m.x, m.z) && !m.rj && !(m.stun > 0) && m.state === 'chase' && m.x < er.x0 + 2.6).sort((a, b) => a.x - b.x)[0] : null;
     if (c) {
       const tz = clamp(c.z + rand(-2, 2), OUR.z0 + 1, OUR.z1 - 1), tx = rand(OUR.x1 - 3.2, OUR.x1 - .8);
       c.rj = { sx: c.x, sz: c.z, tx, tz, t: 0 }; c.stun = .95; c.face = angTo(c.x, c.z, tx, tz);
@@ -233,7 +271,42 @@ function authTick(dt) {
     AU.rapGo -= dt;
     if (AU.rapGo <= 0) for (const m of hostile()) if (!m.rj) { const a = Math.random() * 6.28; m.vx += Math.sin(a) * 9; m.vz += Math.cos(a) * 9; m.stun = Math.max(m.stun, .8); }
   }
+  // хаос-події
+  AU.chaosT -= dt;
+  if (AU.chaosT <= 0 && ST.t < ST.dur - 15) { AU.chaosT = rand(32, 46); startChaos(); }
+  if (AU.quake > 0) {
+    AU.quake -= dt; AU.qT = (AU.qT || 0) - dt;
+    if (AU.qT <= 0) { AU.qT = .5; for (const m of hostile()) if (!m.rj && Math.random() < .35) { const a = Math.random() * 6.28; m.vx += Math.sin(a) * 6; m.vz += Math.cos(a) * 6; m.stun = Math.max(m.stun, .6); } }
+  }
+  if (ST.sp != null) {
+    const u = ST.t - ST.sp;
+    if (u >= 15.6 && !AU.spHit) { AU.spHit = true; emit({ k: 'chaos', e: 'clash' }); for (const m of hostile()) m.stun = Math.max(m.stun, .8); AU.jumpT = 1; AU.burst = 4; }
+    if (u > 19.5) { ST.sp = null; AU.spHit = false; pushState(); }
+  }
+  for (let i = AU.storm.length - 1; i >= 0; i--) { const q = AU.storm[i]; q.t -= dt; if (q.t <= 0) { AU.storm.splice(i, 1); strike(q.en ? enR().x0 + q.x : q.x, q.z); } }
   AU.stT -= dt; if (AU.stT <= 0) { AU.stT = 1; pushState(); }
+}
+const r1c = v => Math.round(v * 10) / 10;
+function startChaos(force) {
+  const e = force || pick(['quake', 'split', 'storm', 'flood'].filter(k => k !== AU.last && !(k === 'split' && (!enLand() || ST.sp != null))));
+  AU.last = e;
+  if (e === 'quake') { AU.quake = 4.5; emit({ k: 'chaos', e, d: 4.5 }); }
+  else if (e === 'split') { ST.sp = r1c(ST.t); AU.spHit = false; pushState(); emit({ k: 'chaos', e }); }
+  else if (e === 'storm') {
+    const er = enR();
+    for (let i = 0; i < 9; i++) {
+      const en = enLand() && Math.random() < .55, r = en ? er : OUR;
+      AU.storm.push({ en, x: r1c(en ? rand(.8, r.x1 - r.x0 - .8) : rand(r.x0 + .8, r.x1 - .8)), z: r1c(rand(r.z0 + .8, r.z1 - .8)), t: r1c(1.4 + i * .65) });
+    }
+    emit({ k: 'chaos', e, s: AU.storm.map(q => [q.en ? 1 : 0, q.x, q.z, q.t]) });
+  } else {
+    for (let i = 0; i < 9; i++) ST.crates.push({ id: ++ST.seq, x: r1c(pick([RX + rand(-.6, .6), RX - rand(10, 13), RX + rand(10, 13), RX + rand(-13, 13)])), z0: r1c(RZ - RIVER_L + 1 - i * 2.2), t0: r1c(ST.t), k: Math.random() < .5 ? 'barrel' : 'box' });
+    pushState(); emit({ k: 'chaos', e });
+  }
+}
+function strike(x, z) {
+  for (const m of MON.slice()) if (!m.calm && m.state !== 'fall' && dist2(m.x, m.z, x, z) < 1.9) { applyHit(m, 30, 0, 0); m.stun = Math.max(m.stun, 1.6); m.rj = null; }
+  for (const p of PROPS) if (p.alive && dist2(p.x, p.z, x, z) < 1.3) damageProp(p, 15, 'boom');
 }
 A.on('tick', dt => { if (AUTH()) authTick(dt); else if (ST.on) { ST.t += dt; ST.next = Math.max(0, ST.next - dt); if (ST.arr > 0) ST.arr = Math.max(0, ST.arr - dt); } if (!SIMSIDE) clientTick(dt); });
 
@@ -243,8 +316,11 @@ A.on('world', () => {
   addStatic(TABLE.x, TABLE.z, .8); addStatic(BELL.x, BELL.z, .45);
   for (const [x, z] of MACH) { const p = addProp('espmachine', x, z); RAFT_PROPS.push(p); if (!SIMSIDE) espMesh(p); }
   for (const [k, x, z] of BINS) addBody(k, x, z);
-  if (!SIMSIDE) buildDecks();
+  for (const [x, z] of BOXES) RAFT_BOXES.push(addProp('crate', x, z));
+  if (!SIMSIDE) { buildDecks(); buildZones(); }
 });
+/* коробки на плоту відновлюються швидко: кидай скільки влізе */
+A.on('tick', () => { for (const p of RAFT_BOXES) if (!p.alive && !p.held && !p.fly && p.t > 8) p.t = 8; });
 function espMesh(p) {
   const g = p.mesh;
   put(g, mesh(new THREE.BoxGeometry(.8, .75, .6), '#C9CDD9'), 0, .38, 0);
@@ -254,7 +330,7 @@ function espMesh(p) {
 }
 
 /* ======================= ДАЛІ — ЛИШЕ В ГРАВЦЯ ======================= */
-const V = { water: null, tex: null, shore: [], en: null, crates: new Map(), rocks: [], hud: null, wetT: 0, grabT: 0, craft: null, bombs: [], card: null, auto: false, joined: false, hitT: 0, rap: null };
+const V = { water: null, tex: null, shore: [], en: null, crates: new Map(), rocks: [], hud: null, wetT: 0, grabT: 0, craft: null, bombs: [], card: null, auto: false, joined: false, hitT: 0, rap: null, gone: 'sink', zones: [], quake: 0, qT: 0, storm: [], spit: null, prevOff: null, coldT: 0 };
 
 /* ---------- Річка ---------- */
 function buildRiver() {
@@ -331,6 +407,64 @@ function buildDecks() {
   put(en, mesh(new THREE.BoxGeometry(1.4, .12, .02), '#FF8A7A', false), -1.5, 1.75, 3.65);
   put(en, mesh(flat(new THREE.CylinderGeometry(.06, .06, 1.6, 6)), '#4E4A6E'), -1.5, .8, 3.6);
   en.position.set((EN.x0 + EN.x1) / 2, 0, (EN.z0 + EN.z1) / 2); en.userData.home = en.position.clone();
+  // мілина, що виринає, коли річка розходиться на два рукави
+  const spit = new THREE.Group(); scene.add(A.dynamic(spit)); V.spit = spit;
+  put(spit, mesh(new THREE.BoxGeometry(2.2, .8, RIVER_L * 1.6), '#E8C98F', false, true), 0, 0, 0);
+  for (let i = 0; i < 9; i++) put(spit, mesh(rough(new THREE.DodecahedronGeometry(rand(.4, .8), 0), .3), '#9389C9'), rand(-.6, .6), .4, rand(-18, 18));
+  for (let i = 0; i < 4; i++) { put(spit, mesh(flat(new THREE.CylinderGeometry(.08, .12, 1.2, 5)), '#A3795C'), rand(-.4, .4), .9, rand(-16, 16)); }
+  spit.position.set(RX, -2.6, RZ); spit.visible = false;
+}
+/* ---------- Зони на плоту: де кава, де бомби, де старт ---------- */
+function labelTex(txt, col) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 72;
+  const x = c.getContext && c.getContext('2d');
+  if (x && x.fillText) {
+    x.fillStyle = 'rgba(46,35,70,.85)'; x.beginPath(); if (x.roundRect) x.roundRect(4, 6, 248, 60, 26); else x.rect(4, 6, 248, 60); x.fill();
+    x.strokeStyle = col; x.lineWidth = 5; x.stroke();
+    x.fillStyle = '#FFFFFF'; x.font = 'bold 30px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, 128, 37);
+  }
+  return new THREE.CanvasTexture(c);
+}
+function buildZones() {
+  const mk = (id, x, z, w, d, col, txt, y, alt) => {
+    const g = new THREE.Group(); g.position.set(x, .03, z); scene.add(A.dynamic(g));
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .3, depthWrite: false }));
+    floor.rotation.x = -Math.PI / 2; g.add(floor);
+    const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d)), new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: .9 }));
+    edge.rotation.x = -Math.PI / 2; edge.position.y = .01; g.add(edge);
+    const tex = labelTex(txt, col), tex2 = alt ? labelTex(alt[0], alt[1]) : null;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false })); sp.scale.set(2.3, .65, 1); sp.position.y = y; sp.renderOrder = 3; g.add(sp);
+    V.zones.push({ id, floor, edge, sp, y, col, tex, tex2, alt, ph: Math.random() * 6 });
+  };
+  mk('bar', BAR.x, BAR.z + 1.55, 5.4, 2.2, '#7FE08A', '☕ КАВА ТУТ', 3.7, ['☕ РОЗБИТО…', '#FF8A7A']);
+  mk('bomb', TABLE.x + .25, TABLE.z - .15, 2.3, 1.7, '#FF8A7A', '💣 БОМБИ', 2.3);
+  mk('bell', BELL.x, BELL.z - .25, 1.7, 1.5, '#FFD27A', '🔔 СТАРТ', 2.6);
+}
+function updZones(t) {
+  for (const z of V.zones) {
+    const broken = z.id === 'bar' && !kitchenOk();
+    z.floor.material.color.set(broken ? '#FF8A7A' : z.col); z.edge.material.color.set(broken ? '#FF8A7A' : z.col);
+    z.floor.material.opacity = .22 + Math.sin(t * 3 + z.ph) * .08;
+    if (z.tex2) z.sp.material.map = broken ? z.tex2 : z.tex;
+    z.sp.position.y = z.y + Math.sin(t * 2 + z.ph) * .08;
+    z.sp.visible = z.id !== 'bell' || !ST.on;
+  }
+}
+/* ---------- Гроза: блискавки б'ють у червоні кола ---------- */
+function updStorm(dt) {
+  for (let i = V.storm.length - 1; i >= 0; i--) {
+    const q = V.storm[i]; q.t -= dt;
+    const x = q.en ? enR().x0 + q.x : q.x;
+    q.ring.position.set(x, .06, q.z); q.ring.material.color.set(q.t < .5 ? '#FF5C7A' : '#FFE066'); q.ring.scale.setScalar(1 + Math.sin(gameTime * 14) * .05);
+    if (q.t > 0) continue;
+    scene.remove(q.ring); V.storm.splice(i, 1);
+    const bolt = new THREE.Mesh(new THREE.BoxGeometry(.18, 16, .18).translate(0, 8, 0), new THREE.MeshBasicMaterial({ color: '#FFFFE0', transparent: true, opacity: .95 }));
+    bolt.position.set(x, 0, q.z); bolt.rotation.z = rand(-.08, .08); scene.add(bolt); setTimeout(() => scene.remove(bolt), 160);
+    burst(x, .5, q.z, '#FFF6A0', 18, 6, .6, 4); ringFX(x, q.z, 1.8, '#FFF6A0', .4); sfx('boom', x, q.z);
+    const d = dist2(pl.x, pl.z, x, q.z);
+    if (running && !pl.dead && d < 1.7 && pl.y < 1.2) { hurtPlayer(14); knockMe(angTo(x, q.z, pl.x, pl.z), 10, '⚡ Блискавка!'); }
+    else if (d < 12) shake = Math.max(shake, .3);
+  }
 }
 
 /* ---------- Ящики, бочки, скелі ---------- */
@@ -363,7 +497,7 @@ function onEvent(e) {
   const here = running && inRiver(pl.x, pl.z);
   if (e.k === 'msg') { if (here) { if (e.big) banner(e.txt); else toast(e.txt); } }
   else if (e.k === 'hit') { if (here) { ftext((EN.x0 + EN.x1) / 2, 2.5, RZ, `Пліт тріщить! ${'🟫'.repeat(Math.max(0, e.hp))}`, 'crit'); } V.hitT = .5; }
-  else if (e.k === 'sink') { if (V.en) { burst((EN.x0 + EN.x1) / 2, .5, RZ, '#8A82A8', 30, 6, 1.2, 5); if (here) { sfx('boom', RX + 5, RZ); shake = Math.max(shake, .5); } } }
+  else if (e.k === 'sink') { V.gone = 'sink'; if (V.en) { burst((EN.x0 + EN.x1) / 2, .5, RZ, '#8A82A8', 30, 6, 1.2, 5); if (here) { sfx('boom', RX + 5, RZ); shake = Math.max(shake, .5); } } }
   else if (e.k === 'got') {
     const v = V.crates.get(e.id); ST.crates = ST.crates.filter(c => c.id !== e.id);
     if (v) { const who = e.to === myId() ? pl : NET.players[e.to]; v.fly = { t: 0, sx: v.m.position.x, sz: v.m.position.z, who }; }
@@ -375,7 +509,22 @@ function onEvent(e) {
     }
   }
   else if (e.k === 'rap') { V.rap = { t: +e.in || 2.5, a: +e.a || 0 }; if (here) { banner('⚠️ ПОРОГИ! Тримайся за пліт!'); sfx('warn'); } spawnRocks(); }
+  else if (e.k === 'chaos') onChaos(e, here);
   else if (e.k === 'end') finishRun(e);
+}
+function onChaos(e, here) {
+  if (e.e === 'quake') { V.quake = Math.min(6, +e.d || 4.5); if (here) { banner('🌋 ЗЕМЛЕТРУС! Скелі сиплються в річку!'); sfx('boom', pl.x, pl.z); } }
+  else if (e.e === 'split') { if (here) { banner('↔️ Річка розходиться на два рукави! Зомбі не дострибнуть — кидай каву й бомби.'); sfx('whoosh'); } }
+  else if (e.e === 'clash') { if (here) { banner('💥 СТИКУВАННЯ! Плоти врізались — тримайся!'); sfx('boom', pl.x, pl.z); shake = Math.max(shake, .9); if (pl.y < .5 && !isWet(pl.terr)) knockMe(Math.random() * 6.28, 11, 'Бам! Плоти зіткнулись!'); } V.hitT = .8; }
+  else if (e.e === 'storm') {
+    if (here) { banner('⛈️ ГРОЗА над річкою! Тікай з червоних кіл!'); sfx('warn'); }
+    for (const q of (e.s || []).slice(0, 12)) {
+      const ring = new THREE.Mesh(new THREE.RingGeometry(1.25, 1.6, 20), new THREE.MeshBasicMaterial({ color: '#FFE066', transparent: true, opacity: .8, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2; scene.add(ring);
+      V.storm.push({ en: !!q[0], x: +q[1], z: +q[2], t: +q[3], ring });
+    }
+  }
+  else if (e.e === 'flood') { if (here) { banner('📦 ЛУТ-ПОТІП! Річка несе купу ящиків — вантуз у руки!'); sfx('legend'); } }
 }
 function spawnRocks() {
   for (let i = 0; i < 4; i++) {
@@ -404,16 +553,21 @@ function clientTick(dt) {
   if (V.tex) V.tex.offset.y -= dt * (ST.on ? FLOW : .7) / 13;
   const flow = (ST.on ? FLOW : .6) * dt;
   for (const o of V.shore) { o.position.z += flow; if (o.position.z > RIVER_L) o.position.z -= RIVER_L * 2; }
-  for (let i = V.rocks.length - 1; i >= 0; i--) { const r = V.rocks[i]; r.position.z += FLOW * 3 * dt; r.rotation.y += dt; if (r.position.z > RZ + RIVER_L) { scene.remove(r); V.rocks.splice(i, 1); } }
+  for (let i = V.rocks.length - 1; i >= 0; i--) { const r = V.rocks[i]; if (r.userData.drop) { r.userData.vy -= 25 * dt; r.position.y += r.userData.vy * dt; if (r.position.y < -.3) { burst(r.position.x, 0, r.position.z, '#BDEFFF', 10, 3, .6, 3); r.userData.drop = false; } continue; } r.position.z += FLOW * 3 * dt; r.rotation.y += dt; if (r.position.z > RZ + RIVER_L) { scene.remove(r); V.rocks.splice(i, 1); } }
   // пліт зомбі: припливає, трясеться від влучань, тоне
   if (V.en) {
     const h = V.en.userData.home;
-    if (!ST.enemy) { V.en.position.y = Math.max(-3, V.en.position.y - dt * 1.5); V.en.rotation.z = Math.min(.35, V.en.rotation.z + dt * .2); V.en.visible = V.en.position.y > -2.9; }
-    else {
-      V.en.visible = true; V.en.rotation.z = 0;
+    if (ST.lv > 0) V.gone = 'leave';
+    if (!ST.enemy && V.gone === 'sink') { V.en.position.y = Math.max(-3, V.en.position.y - dt * 1.5); V.en.rotation.z = Math.min(.35, V.en.rotation.z + dt * .2); V.en.visible = V.en.position.y > -2.9; }
+    else if (!ST.enemy || ST.lv > 0) {   // порожній пліт відпливає за течією
+      V.en.position.z = Math.min(h.z + 34, Math.max(V.en.position.z, h.z) + dt * 10); V.en.rotation.y = Math.sin(t) * .05;
+      V.en.visible = V.en.position.z < h.z + 33;
+    } else {
+      V.en.visible = true; V.en.rotation.z = 0; V.en.rotation.y = Math.sin(t * .5) * .03;
       V.en.position.y = Math.sin(t * 1.3) * .05;
       V.en.position.z = h.z - (ST.arr > 0 ? ST.arr / 3 * 28 : 0);
-      V.hitT = Math.max(0, V.hitT - dt); V.en.position.x = h.x + (V.hitT > 0 ? Math.sin(t * 60) * .12 : 0);
+      V.hitT = Math.max(0, V.hitT - dt); V.en.position.x = h.x + enOff() + (V.hitT > 0 ? Math.sin(t * 60) * .12 : 0);
+      if (ST.arr <= 0) V.gone = 'sink';
     }
   }
   syncCrates();
@@ -424,14 +578,32 @@ function clientTick(dt) {
     if (k >= 1) { scene.remove(v.m); V.crates.delete(id); }
   }
   updBombs(dt);
+  updZones(t);
+  updStorm(dt);
+  if (V.spit) { const on = ST.sp != null && ST.t - ST.sp < 15.2; V.spit.position.y = lerp(V.spit.position.y, on ? -.25 : -2.6, Math.min(1, dt * 1.5)); V.spit.position.x = (OUR.x1 + enR().x0) / 2; V.spit.visible = V.spit.position.y > -2.5; }
   if (!running || pl.dead) { hud(false); return; }
   const here = inRiver(pl.x, pl.z);
-  hud(here);
+  hud(here && !panel);
   if (!here) { V.wetT = 0; return; }
   if (ST.on) V.joined = true;
+  // стою на плоту зомбі — їду разом із ним
+  { const o = enOff(); if (V.prevOff != null && enLand() && pl.y > -.4 && inRect(enR(V.prevOff), pl.x, pl.z, -.3)) pl.x += o - V.prevOff; V.prevOff = o; }
+  // землетрус
+  if (V.quake > 0) {
+    V.quake -= dt; shake = Math.max(shake, .45); V.qT -= dt;
+    if (V.qT <= 0) {
+      V.qT = .6;
+      if (!isWet(pl.terr) && pl.y < .5 && Math.random() < .5) knockMe(Math.random() * 6.28, 6, Math.random() < .3 ? 'Земля тікає з-під ніг!' : null);
+      const m = mesh(rough(new THREE.DodecahedronGeometry(rand(.4, .9), 0), .3), '#8F9BD0'); m.position.set(RX + pick([-1, 1]) * rand(12, 15), 6, RZ + rand(-18, 18)); m.userData.vy = 0; scene.add(m); V.rocks.push(m); m.userData.drop = true;
+    }
+  }
   // змило за борт: течія несе, через кілька секунд — рятують на пліт
   if (isWet(pl.terr) && !pl.jump && pl.y < .2) {
     V.wetT += dt; pl.z += (ST.on ? FLOW * .7 : .8) * dt;
+    // вода крижана: тане здоров'я
+    pl.hp -= 3.5 * dt; V.coldT -= dt;
+    if (V.coldT <= 0) { V.coldT = 1.4; ftext(pl.x, 1.6, pl.z, pick(['🥶 Крижана вода!', '🥶 Бррр!', '🥶 Холодно!']), 'calm'); refreshHUD(); }
+    if (pl.hp <= 0) { pl.hp = 0; die(); return; }
     if (V.wetT > 7 || pl.z > RZ + RIVER_L - 3 || Math.abs(pl.x - RX) > WATER_W - 1) {
       V.wetT = 0; place(SPAWN.x, SPAWN.z); hurtPlayer(10); toast('🛟 Тебе змило за борт! Кенти витягли на пліт (−здоров’я).');
     }
@@ -519,8 +691,11 @@ A.key('KeyG', () => { if (!running) return false; throwBomb(); });
 const _getInteract = getInteract;
 getInteract = function () {
   if (!SIMSIDE && running && !pl.dead && !pl.ride && !pl.carry && inRiver(pl.x, pl.z)) {
-    if (dist2(pl.x, pl.z, BELL.x, BELL.z) < 2) return ST.on ? { l: `🔔 Сплав іде: хвиля ${ST.wave}`, fn: () => openPanel(TAB) } : { l: '🔔 Відчалити! (5 хвилин)', fn: () => { req('start'); sfx('ding'); } };
-    if (dist2(pl.x, pl.z, TABLE.x, TABLE.z) < 2.1) return { l: `💣 Зібрати бомбу (2 🧨 + 1 🩹, є ${P.ing.powder || 0} 🧨)`, fn: () => startCraft() };
+    // якщо поруч є що підняти й воно ближче за дзвін / стіл — спершу підняти
+    const ct = carryTarget(), cd = ct ? dist2(pl.x, pl.z, ct[1].x, ct[1].z) : 99;
+    const near = (o, r) => { const d = dist2(pl.x, pl.z, o.x, o.z); return d < r && d < cd; };
+    if (near(BELL, 2)) return ST.on ? { l: `🔔 Сплав іде: хвиля ${ST.wave}`, fn: () => openPanel(TAB) } : { l: '🔔 Відчалити! (5 хвилин)', fn: () => { req('start'); sfx('ding'); } };
+    if (near(TABLE, 2.1)) return { l: `💣 Зібрати бомбу (2 🧨 + 1 🩹, є ${P.ing.powder || 0} 🧨)`, fn: () => startCraft() };
     if (dist2(pl.x, pl.z, BAR.x, BAR.z) < 3.3 && !kitchenOk()) return { l: '☕ Кавомашини розбиті — скоро полагодяться', fn: () => toast('Зомбі розтрощили кавомашини! Вони полагодяться за ~25 с. Поки — бий, кидай баки й бомби.') };
   }
   return _getInteract.apply(this, arguments);
@@ -568,7 +743,10 @@ const TAB = A.tab('rafting', '🛶 Сплав', () => {
       <div>🪠 <b>Вантуз-гарпун</b> — притягує ящики (інгредієнти) й бочки (порох 🧨), а зомбі з чужого плота — прямо в річку.</div>
       <div>💣 <b>Бомба</b> — ${needChips(BOMB_NEED)} на столі (2 с). <b>G</b> — кинути туди, де курсор. Обережно: б'є й своїх!</div>
       <div>🗑️ <b>Баки й кег</b> — F підняти, Q / ЛКМ жбурнути на сусідній пліт: збиває зомбі як кеглі.</div>
-      <div>🪨 <b>Пороги</b> — пліт б'ється об каміння, усіх відкидає. Змило — пливи до плота й підстрибни (пробіл).</div>
+      <div>📦 <b>Коробки</b> — теж F і Q: розбиваються об зомбі, а на плоту швидко з'являються знову.</div>
+      <div>🪨 <b>Пороги</b> — пліт б'ється об каміння, усіх відкидає. Змило — пливи до плота й підстрибни (пробіл). Вода крижана — тане здоров'я 🥶.</div>
+      <div>🌀 <b>Хаос</b> — землетрус, річка розходиться на два рукави (а потім плоти стикаються!), гроза з блискавками, лут-потоп.</div>
+      <div>🎮 Перейти в інший режим — <b>Esc</b> → «Режими й міні-ігри».</div>
     </div>
     <p class="muted" style="font-size:12px;margin-top:10px">Твій рекорд: ${d.best || 0} хвиль · сплавів: ${d.runs || 0} · пройдено: ${d.wins || 0} · потоплено плотів: ${d.sunk || 0}.
       Нагорода: монети й досвід за хвилі й потоплені плоти, за 6+ хвиль — кейс. Інвентар — той самий, що у відкритому світі.</p>`;
@@ -580,6 +758,62 @@ const TAB = A.tab('rafting', '🛶 Сплав', () => {
   else if (a === 'start') { req('start'); closePanel(); }
   else if (a === 'craft') { startCraft(); closePanel(); }
 });
+
+/* ---------- Режим у меню паузи (Esc) ---------- */
+if (A.mode) A.mode({ id: 'rafting', ic: '🛶', n: 'Еспресо-Сплав', sub: '5 хв на плоту проти хвиль зомбі', go: () => goRaft(), here: () => running && inRiver(pl.x, pl.z) });
+
+/* ---------- Музика сплаву: драйвовий серф-рок, що розганяється разом із боєм ----------
+   0 — тиха річка (стил-драм), 1 — сплав почався, 2 — зомбі поруч, 3 — м'ясорубка (хаос, багато зомбі, останні 30 с). */
+const RPROG = [[40, [64, 67, 71, 74]], [36, [64, 67, 72, 76]], [43, [62, 67, 71, 74]], [38, [62, 66, 69, 74]]];   // Em9 · Cmaj7 · G · D
+const RMEL = [64, 67, 69, 71, 74, 76, 79, 81];
+const RMIX = [
+  { keys: .8, bass: .7, drums: .4, tension: 0, lead: 0, crackle: 0 },
+  { keys: .7, bass: .9, drums: .85, tension: .2, lead: 0, crackle: 0 },
+  { keys: .55, bass: 1, drums: 1, tension: .65, lead: .3, crackle: 0 },
+  { keys: .5, bass: 1, drums: 1, tension: .85, lead: .6, crackle: 0 },
+];
+let rLvl = -1;
+function raftLevel() {
+  if (!ST.on) return 0;
+  const h = MON.filter(m => !m.calm && m.state !== 'fall' && inRiver(m.x, m.z)).length;
+  if (V.quake > 0 || V.storm.length || ST.dur - ST.t < 30 || h >= 7 || (ST.sp != null && ST.t - ST.sp > 13 && ST.t - ST.sp < 18)) return 3;
+  return h > 0 ? 2 : 1;
+}
+if (!SIMSIDE && typeof scheduleStep === 'function') {
+  const _scheduleStep = scheduleStep;
+  scheduleStep = function (i, t) {
+    if (!running || pl.dead || !inRiver(pl.x, pl.z) || typeof LAYER === 'undefined' || !LAYER.drums) { if (rLvl >= 0) { rLvl = -1; barMode = ''; } return _scheduleStep.apply(this, arguments); }
+    raftStep(i, t);
+  };
+}
+function raftStep(i, t) {
+  const s = i % 16, bar = Math.floor(i / 16), h = STEP / 2;
+  if (s === 0) { const l = raftLevel(); if (l !== rLvl) { rLvl = l; const m = RMIX[l]; for (const k in m) if (LAYER[k]) LAYER[k].gain.setTargetAtTime(m[k], t, .5); } }
+  const L = Math.max(0, rLvl), [root, ch] = RPROG[bar % 4];
+  if (L === 0) {   // тиха річка
+    if (s === 0) ch.forEach((n, k) => epiano(t + k * .02, n, 3, .045, LAYER.keys));
+    if ([0, 3, 6, 10, 12].includes(s) && Math.random() < .6) steel(t, pick(RMEL), .05);
+    if (s === 0 || s === 8) bassNote(t, root, STEP * 6, .4);
+    if (s === 0) kick(t, .5);
+    if (s % 4 === 2) hat(t, .04);
+    return;
+  }
+  // акорди-стаби
+  if (s === 0 || s === 10) ch.forEach((n, k) => epiano(t + k * .008, n, .5, .045, LAYER.keys));
+  // бас «галопом»
+  if (s % 2 === 0) bassNote(t, root + (s % 8 === 6 ? 12 : s % 8 === 4 ? 7 : 0), STEP * 1.5, L >= 2 ? .5 : .42);
+  // барабани в подвійному темпі
+  if (s % 4 === 0) kick(t, .9);
+  if (L >= 2 && (s === 6 || s === 14)) kick(t + h, .7);
+  if (s === 4 || s === 12) snare(t, .4);
+  if (L >= 2 && s % 4 === 2) snare(t + h, .12);
+  hat(t, s % 2 ? .04 : .07, L >= 3 && s === 14); hat(t + h, .03);
+  // мелодія й напруга
+  if (L === 1 && [2, 7, 11].includes(s) && Math.random() < .7) marimba(t, pick(RMEL), .05);
+  if (L >= 2 && s % 2 === 0) pulse(t, root + 24 + (s % 8 === 6 ? 7 : 0), STEP * 1.4, .06);
+  if (L >= 3) { const arp = [ch[0], ch[1], ch[2], ch[3], ch[2] + 12, ch[1] + 12, ch[3], ch[0] + 12]; leadNote(t, arp[s % 8] + 12, STEP * .9, .045); }
+  if (L >= 3 && s === 15 && bar % 2 === 1) { snare(t, .25); snare(t + h, .3); }
+}
 
 /* ---------- Картка в головному меню ---------- */
 A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(goRaft, 700); });

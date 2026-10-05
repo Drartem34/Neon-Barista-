@@ -21,7 +21,7 @@ async function client(name) {
   const dom = new JSDOM(html.replace(/<script[\s\S]*<\/script>/g, ''), { url: `http://127.0.0.1:${PORT}/`, runScripts: 'outside-only', pretendToBeVisual: true });
   const w = dom.window;
   w.THREE = Object.assign({}, THREE, { WebGLRenderer: FakeR }); w.matchMedia = () => ({ matches: false }); w.requestAnimationFrame = () => 0;
-  w.console.warn = () => { }; w.fetch = (u, o) => fetch(new URL(u, `http://127.0.0.1:${PORT}/`), o); w.setInterval = () => 0;
+  w.console.warn = () => { }; w.__ADDON_TEST = true; w.fetch = (u, o) => fetch(new URL(u, `http://127.0.0.1:${PORT}/`), o); w.setInterval = () => 0;
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
   let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
   src += ';window.__T={get P(){return P},pl,NET,WORLD,MON,BODIES,PROPS,ISLMAP,input,startGame,frame,setAcct,attack,carryTarget,pickUpAny,releaseCarry,mount,dismount,useDrink,setDrink:d=>{selDrink=d},get worldReady(){return worldReady},get S(){return S},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c}))};';
@@ -53,6 +53,23 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   for (let i = 0; i < 12; i++) { for (const T of [a, b]) { T.pl.hp = 9999; T.pl.x = RX - 4; } await tick([a, b], .5); }
   const zs = T => [...T.WORLD.proxies.values()].filter(m => m.x > RX - 10 && m.x < RX + 10 && Math.abs(m.z - RZ) < 7 && !m.calm);
   assert(zs(a).length >= 3 && Math.abs(zs(a).length - zs(b).length) <= 1, `обидва бачать хвилю зомбі (${zs(a).length} / ${zs(b).length})`);
+  // плоти гойдаються однаково в обох (час сплаву з сервера)
+  { const oa = a.w.__raft.enOff(), ob = b.w.__raft.enOff(); assert(Math.abs(oa - ob) < .35, `пліт зомбі в обох у тому самому місці (${oa.toFixed(2)} / ${ob.toFixed(2)})`); }
+  // зомбі піднімається з першої спроби (F), навіть з затримкою мережі
+  {
+    let got = false;
+    for (let k = 0; k < 40 && !got; k++) {
+      const z = zs(a).filter(m => m.x < RX - 1.5).sort((p, q) => Math.hypot(p.x - a.pl.x, p.z - a.pl.z) - Math.hypot(q.x - a.pl.x, q.z - a.pl.z))[0];
+      a.pl.hp = 9999; b.pl.hp = 9999;
+      if (!z) { await tick([a, b], .5); continue; }
+      a.pl.x = z.x - 1; a.pl.z = z.z; a.input.aimOk = true; a.input.ax = z.x; a.input.az = z.z; a.pl.atkCd = 0; a.pl.pending = null; a.pl.st = 100; a.attack();
+      await tick([a, b], .25);
+      const t = a.carryTarget(); if (process.env.DBG) console.log('  k', k, z.stress, z.max, z.stun, t && t[0]);
+      if (t && t[0] === 'mon') { a.keydown('KeyF'); await tick([a, b], .8); got = !!a.pl.carry; if (!got) console.log('  не підняв з першого разу'); break; }
+    }
+    assert(got, 'оглушеного зомбі піднімаєш з першого разу (F)');
+    if (a.pl.carry) { a.keydown('KeyF'); await tick([a, b], .5); }
+  }
   // бомби Тараса топлять пліт для обох
   let sunk = false;
   for (let k = 0; k < 7 && !sunk; k++) {

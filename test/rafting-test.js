@@ -32,6 +32,25 @@ T.openPanel('ax_rafting'); body().querySelector('[data-rf="go"]').click(); step(
 assert(Math.hypot(T.pl.x - (RX - 5.2), T.pl.z - (RZ + 1.6)) < .5, 'кнопка «На пліт» переносить на пліт');
 assert(T.nearBar() === false || true, 'бар на плоту');
 T.pl.x = RX - 5.2; T.pl.z = RZ - 2.6; step(.1); assert(T.nearBar(), 'на плоту можна варити каву (бар)');
+// усе на плоту піднімається з F: баки, кег, коробки
+{
+  const things = [...T.BODIES.filter(b => Math.abs(b.hx - RX) < 12 && Math.abs(b.hz - RZ) < 12), ...T.PROPS.filter(p => p.type === 'crate' && Math.abs(p.ox - RX) < 12)];
+  let okN = 0;
+  for (const o of things) {
+    T.pl.x = o.x - .8; T.pl.z = o.z; T.pl.y = 0; step(.1);
+    T.keydown('KeyF'); step(.1);
+    if (T.pl.carry === o) okN++; else console.log('  не піднявся:', o.kind || o.type, (o.x - RX).toFixed(1), (o.z - RZ).toFixed(1), 'а взяв', T.pl.carry && (T.pl.carry.kind || T.pl.carry.type), T.pl.carry && (T.pl.carry.x - RX).toFixed(1));
+    if (T.pl.carry) { const c = T.pl.carry; T.keydown('KeyF'); step(.3); if (c.hx != null) { c.x = c.hx; c.z = c.hz; } else if (c.ox != null) { c.x = c.ox; c.z = c.oz; c.mesh.position.set(c.ox, 0, c.oz); } }
+  }
+  assert(things.length === 7 && okN === things.length, `F піднімає все на плоту: баки, кег і коробки (${okN}/${things.length})`);
+}
+// Esc → пауза з режимами
+T.keydown('Escape'); step(.05);
+assert(T.panel === 'pause' && body().querySelector('[data-mode="rafting"]') && body().querySelector('[data-mode="world"]'), 'Esc відкриває паузу з вибором режиму (світ, сплав)');
+body().querySelector('[data-mode="world"]').click(); step(.5);
+assert(Math.hypot(T.pl.x, T.pl.z - 3) < 1, '«Відкритий світ» переносить у «Гущу»');
+T.keydown('Escape'); step(.05); body().querySelector('[data-mode="rafting"]').click(); step(.5);
+assert(Math.hypot(T.pl.x - (RX - 5.2), T.pl.z - (RZ + 1.6)) < .5, 'вибір «Еспресо-Сплав» у паузі переносить на пліт');
 // дзвін → старт
 T.pl.x = RX - 2.6; T.pl.z = RZ + 3; step(.1);
 let it = T.getInteract(); assert(it && /Відчалити/.test(it.l), 'біля дзвона F — «Відчалити»: ' + (it && it.l));
@@ -58,10 +77,22 @@ for (let i = 0; i < 60 && !grabbed; i++) {
   else step(.25);
 }
 assert(grabbed, 'вантуз витягнув лут з річки: ' + ingBefore + ' → ' + JSON.stringify(T.P.ing));
+// пліт зомбі гойдається: то відпливає, то підпливає
+{ const R = w.__raft, os = []; for (let i = 0; i < 10; i++) { T.pl.hp = 9999; T.pl.iframes = 1e9; step(1); os.push(R.enOff()); } const lo = Math.min(...os), hi = Math.max(...os); assert(hi - lo > .6, `пліт зомбі гойдається (зсув від ${lo.toFixed(1)} до ${hi.toFixed(1)} м)`); }
+// хаос: річка розходиться — потім стикування
+{
+  const R = w.__raft; R.chaos('split'); step(5);
+  assert(R.enOff() > 3, 'річка розійшлась: пліт зомбі відплив далеко (' + R.enOff().toFixed(1) + ' м)');
+  step(11.5); assert(R.enOff() < -1, 'стикування: плоти зіткнулись (' + R.enOff().toFixed(1) + ')');
+  step(4);
+  R.chaos('quake'); step(1); R.chaos('storm'); step(8); R.chaos('flood'); step(.5);
+  assert(R.ST.crates.length >= 8, 'лут-потоп: річка несе купу ящиків (' + R.ST.crates.length + ')');
+  T.pl.iframes = 0;
+}
 // бомба: збираємо на столі
-T.P.ing.powder = 6; T.P.ing.tape = 3; T.pl.x = RX - 7.6; T.pl.z = RZ + 2.9; T.pl.y = 0; step(.1);
+w.__raft.AU.chaosT = 999; w.__raft.AU.rapT = 999; T.P.ing.powder = 6; T.P.ing.tape = 3; T.pl.x = RX - 7.9; T.pl.z = RZ + 3.4; T.pl.y = 0; step(.1);
 it = T.getInteract(); assert(it && /бомбу/.test(it.l), 'біля столу F — «Зібрати бомбу»');
-for (let k = 0; k < 3; k++) { T.getInteract().fn(); step(2.5); }
+for (let k = 0; k < 3; k++) { T.pl.iframes = 1e9; T.pl.hp = 9999; T.pl.x = RX - 7.9; T.pl.z = RZ + 3.4; T.pl.y = 0; step(.05); T.getInteract().fn(); for (let j = 0; j < 5; j++) { T.pl.x = RX - 7.9; T.pl.z = RZ + 3.4; step(.5); } }
 assert(T.P.ing.cbomb === 3 && T.P.ing.powder === 0, 'зібрано 3 бомби');
 // кидаємо бомби у пліт зомбі (G) — пліт тоне
 T.pl.x = RX - 2; T.pl.z = RZ; T.pl.face = Math.PI / 2; T.input.aimOk = true; T.input.ax = RX + 5; T.input.az = RZ;
@@ -75,6 +106,17 @@ for (let k = 0; k < 6 && !sunk; k++) {
 assert(sunk, 'після кількох бомб пліт зомбі пішов на дно (там тепер вода)');
 step(1);
 assert(zs().filter(m => m.x > RX + 1.5).length === 0, 'зомбі з потопленого плота поплили у відпустку');
+// відбили хвилю → порожній пліт відпливає, новий припливає
+{
+  const R = w.__raft; let left = false, came = false;
+  for (let i = 0; i < 120 && !(left && came); i++) {
+    for (const m of T.MON.slice()) if (m.isl.id === 'river' && !m.calm && m.state !== 'fall') { m.state = 'fall'; m.vy = -1; }
+    T.pl.hp = 9999; T.pl.iframes = 1e9; T.pl.x = RX - 5.2; T.pl.z = RZ + 1.6; T.pl.y = 0; step(.5);
+    if (R.ST.lv > 0) left = true;
+    if (left && R.ST.arr > 0) came = true;
+  }
+  assert(left && came, 'хвилю відбито — порожній пліт відплив, новий припливає');
+}
 // бак летить над водою
 const bin = T.BODIES.find(b => b.kind === 'bin' && Math.abs(b.hx - (RX - 3.2)) < .1);
 T.pl.x = bin.x - .5; T.pl.z = bin.z; T.pl.y = 0; step(.05);
@@ -85,6 +127,7 @@ assert(maxX > RX + 2 && maxY > .5, `кинутий бак летить над в
 // змило за борт → рятують
 T.pl.x = RX - .2; T.pl.z = RZ; T.pl.y = -.9; T.pl.iframes = 0; const hp0 = T.pl.hp = 500; step(8.5);
 assert(T.pl.x < RX - 1.5 && T.pl.hp < hp0, 'кого змило за борт — витягують на пліт');
+{ T.pl.x = RX - .2; T.pl.z = RZ - 8; T.pl.y = -.9; T.pl.iframes = 1e9; const h0 = T.pl.hp = 300; step(2); assert(T.pl.hp < h0 - 4, `крижана вода: здоров'я тане (${h0} → ${Math.round(T.pl.hp)})`); T.pl.x = RX - 5.2; T.pl.z = RZ + 1.6; T.pl.y = 0; step(.2); }
 // кінець сплаву
 const coins0 = T.P.coins; step(1);
 for (let i = 0; i < 70; i++) { T.pl.hp = 9999; T.pl.iframes = 1e9; T.pl.x = RX - 5.2; T.pl.z = RZ + 1.6; T.pl.y = 0; step(5);  if (!/ЕСПРЕСО-СПЛАВ/.test(hud().textContent)) break; }

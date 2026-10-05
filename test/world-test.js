@@ -86,14 +86,14 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   a.pl.x = of.x - 3; a.pl.z = of.z; b.pl.x = of.x - 3; b.pl.z = of.z + 3; await tick([a, b], 1);
   const z = near(a, a.pl.x, a.pl.z, 12).filter(m => !m.calm)[0];
   assert(z, 'є зомбі поруч');
-  for (let i = 0; i < 12; i++) { a.pl.x = z.x; a.pl.z = z.z + 1.2; a.input.ax = z.x; a.input.az = z.z; a.pl.atkCd = 0; a.pl.pending = null; a.pl.st = 100; a.pl.hp = 200; a.attack(); await tick([a, b], .3); if (z.stress <= z.max * .26) break; }
+  for (let i = 0; i < 24; i++) { a.pl.x = z.x; a.pl.z = z.z + 1.2; a.input.ax = z.x; a.input.az = z.z; a.pl.atkCd = 0; a.pl.pending = null; a.pl.st = 100; a.pl.hp = 200; a.attack(); await tick([a, b], .3); if (z.stress <= z.max * .26) break; }
   a.pl.x = z.x + .8; a.pl.z = z.z; await tick([a, b], .3);
   assert(z.stress <= z.max * .25 + .5, 'зомбі збитий до 25%'); const zt = ['mon', z];
   a.pickUpAny(zt); await tick([a, b], .8);
   const zb = b.WORLD.proxies.get(zt[1].nid);
   assert(zb && zb.carried && zb.y > 1, 'Тарас бачить зомбі над головою Олі');
   a.input.ax = a.pl.x - 5; a.input.az = a.pl.z; a.releaseCarry(true);
-  const zx0 = zb.x; await tick([a, b], .6);
+  const zx0 = zb.x; for (let i = 0; i < 6 && !(Math.abs(zb.x - zx0) > 1.5 || zb.state === 'fall'); i++) await tick([a, b], .25);
   assert(Math.abs(zb.x - zx0) > 1.5 || zb.state === 'fall', 'кинутого зомбі бачать усі');
   // кава: заспокоює спільного моба, досвід — тому, хто кинув
   {

@@ -399,6 +399,15 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
 .arow .btn{flex:none}
 .aerr{font-size:13px;color:#C2335A;min-height:1em;margin-top:4px}
 #netcount{font-size:12px;color:var(--muted);margin-top:6px}
+#pbody .modes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+#pbody .mode{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;font:inherit;color:var(--ink);background:var(--soft);border:2px solid transparent;border-radius:16px;padding:12px;cursor:pointer;position:relative;transition:transform .15s,border-color .15s}
+#pbody .mode:hover:not(:disabled){transform:translateY(-2px);border-color:#a259ff}
+#pbody .mode.on{border-color:#7FE08A;background:#EFFBF1}
+#pbody .mode:disabled{opacity:.55;cursor:not-allowed}
+#pbody .mode .mic{font-size:28px;line-height:1}
+#pbody .mode b{font-size:15px}
+#pbody .mode .msub{font-size:12px;color:var(--muted);line-height:1.35}
+#pbody .mode i{position:absolute;right:10px;top:10px;font-style:normal;font-size:11px;font-weight:700;color:var(--muted)}
 #acc-pop{position:fixed;inset:0;z-index:130;background:rgba(26,20,46,.6);display:grid;place-items:center;padding:16px;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);animation:accpop .25s ease}
 #acc-pop[hidden]{display:none}
 #acc-pop .apbox{width:min(400px,100%);background:var(--paper);color:var(--ink);border-radius:22px;padding:22px 20px 18px;box-shadow:0 30px 80px rgba(20,10,40,.5);text-align:center;position:relative}

@@ -31,7 +31,7 @@ w.AudioContext = FakeAC;
 let mapCalls = 0;
 w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : (...a) => { mapCalls++; }, set: (o, k, v) => { o[k] = v; return true; } });
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-src += `;window.__T={get P(){return P},pl,MON,BOSS,CHESTS,PROPS,TELE,DROPS,startGame,frame,openPanel,closePanel,useDrink,dash,startBrew,openChest,acceptQuest,turnInQuest,equip,makeItem,addItem,input,setDrink:d=>{selDrink=d},AC:()=>AC,respawn,useDrink,startBrew,HOME,sleepHammock,openPanel,setDrink2:d=>{selDrink=d},get paused(){return paused},get panel(){return panel},attack,atkDown,atkUp,jumpPress,jumpRelease,startArt,artTap,get art(){return art},MBS,activeBosses,addHeal,healOf,worldHeal,P_:()=>P,mergeStats:()=>mergeStats,autoEquip,bulkCommon,renderHome,SKY,applyGfx,GFX,get hitStopT(){return hitStopT},terrainAt,groundH,ISLMAP,LANDMARKS,WAYPOINTS,NOTES,DIG,startDig,FISH_SPOTS,startFishing,reelFish,get fishing(){return fishing},PETW,get petF(){return petF},tamePet,travelTo,spawnMonster,monsterAttack,isNight,PADS,interact,steal,get stormT(){return stormT},renderMap,renderJournal,BASE,eqItem,spawnProj,PROJ,initAudio,openCase,addCase,get caseAnim(){return caseAnim},closeCase,getDummy,tutEvent,sfx,SFXD,QUESTS,syncQuest,questEvent,BODIES,FANS,SYRUP,FUN,HOOKS,funInteract,mount,dismount,switchFan,onSyrup,pickUp,throwCarried,canCarry,chillMonster,breakProp,funMelee,DRINK,applyHit,get curZone(){return curZone}};`;
+src += `;window.__T={get P(){return P},pl,MON,BOSS,CHESTS,PROPS,TELE,DROPS,startGame,frame,openPanel,closePanel,useDrink,dash,startBrew,openChest,acceptQuest,turnInQuest,equip,makeItem,addItem,input,setDrink:d=>{selDrink=d},AC:()=>AC,respawn,useDrink,startBrew,HOME,sleepHammock,openPanel,setDrink2:d=>{selDrink=d},get paused(){return paused},get panel(){return panel},attack,atkDown,atkUp,jumpPress,jumpRelease,startArt,artTap,get art(){return art},MBS,activeBosses,addHeal,healOf,worldHeal,P_:()=>P,mergeStats:()=>mergeStats,autoEquip,bulkCommon,renderHome,SKY,applyGfx,GFX,get hitStopT(){return hitStopT},terrainAt,groundH,ISLMAP,LANDMARKS,WAYPOINTS,NOTES,DIG,startDig,FISH_SPOTS,startFishing,reelFish,get fishing(){return fishing},PETW,get petF(){return petF},tamePet,travelTo,spawnMonster,monsterAttack,isNight,PADS,interact,steal,get stormT(){return stormT},renderMap,renderJournal,BASE,eqItem,spawnProj,PROJ,initAudio,openCase,addCase,get caseAnim(){return caseAnim},closeCase,getDummy,tutEvent,sfx,SFXD,QUESTS,syncQuest,questEvent,BODIES,FANS,SYRUP,FUN,HOOKS,funInteract,mount,dismount,switchFan,onSyrup,pickUp,throwCarried,canCarry,chillMonster,breakProp,funMelee,DRINK,applyHit,carryTarget,pickUpAny,releaseCarry,get curZone(){return curZone}};`;
 w.eval(src);
 const T = w.__T; let now = 1000;
 const swing = sec => { for (let i = 0; i < sec * 10; i++) { T.pl.atkCd = 0; T.attack(); step(.1); } };
@@ -294,6 +294,18 @@ T.pl.x = -8.6; T.pl.z = 4.6; step(2); assert(Math.hypot(T.pl.x + 20.5, T.pl.z - 
   const d0 = Math.hypot(tgt.x - T.pl.x, tgt.z - T.pl.z);
   T.pl.atkCd = 0; T.pl.pending = null; T.attack(); step(.15); const hooked = T.HOOKS.length > 0; step(.45);
   assert(hooked && Math.hypot(tgt.x - T.pl.x, tgt.z - T.pl.z) < d0 - .3 || T.HOOKS.length > 0 || Math.hypot(tgt.x - T.pl.x, tgt.z - T.pl.z) < d0 - .3, 'вантуз-гарпун стріляє й притягує');
+  // підняти й кинути будь-що: принтер летить і вибухає, потім відновлюється на місці
+  {
+    const pr = T.PROPS.find(p => p.type === 'printer' && p.alive);
+    for (const o of T.MON) if (Math.hypot(o.x - pr.x, o.z - pr.z) < 4) o.x += 40;
+    T.pl.x = pr.x + .9; T.pl.z = pr.z; T.pl.y = 0; T.pl.falling = false; T.pl.ride = null; if (T.pl.carry) T.releaseCarry(false);
+    const t = T.carryTarget(); assert(t && (t[0] === 'prop' || t[0] === 'body'), 'біля принтера можна щось підняти (' + (t && t[0]) + ')');
+    if (t[0] === 'prop') {
+      T.pickUpAny(t); step(.2); assert(T.pl.carry === pr && pr.mesh.position.y > 1, 'принтер над головою');
+      T.pl.face = 0; T.input.aimOk = false; T.releaseCarry(true); step(1.8);
+      assert(!pr.fly && !pr.alive && pr.x === pr.ox && pr.z === pr.oz, 'кинутий принтер розбився й відновиться на своєму місці');
+    }
+  }
   // ямайський спідбуст
   T.P.drinks.jamaica = 1; T.setDrink('jamaica'); T.useDrink(); assert(T.FUN.jam > 0, 'ямайський спідбуст діє');
 }

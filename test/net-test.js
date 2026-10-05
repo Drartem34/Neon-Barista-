@@ -30,7 +30,7 @@ async function client(name) {
   w.console.warn = () => { }; w.fetch = (u, o) => fetch(new URL(u, `http://127.0.0.1:${PORT}/`), o); w.setInterval = () => 0;
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
   let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-  src += ';window.__T={get P(){return P},pl,NET,startGame,frame,sendChat,giftCoffee,nearRemote,setAcct,save,atk:attack,get ACCT(){return ACCT},FUN,useDrink,input,equip,makeItem,addItem,setDrink:d=>{selDrink=d},ADDONS,ISLMAP,BR,TABS,openPanel,closePanel,get worldReady(){return worldReady},STATICS,BASE,MON,PROPS,spawnMonster,pickUp,eqItem,attack,breakProp,applyPendingGifts,renderPanel,ADM:()=>ADM};';
+  src += ';window.__T={get P(){return P},pl,NET,startGame,frame,sendChat,giftCoffee,nearRemote,setAcct,save,atk:attack,get ACCT(){return ACCT},FUN,S_maxHP:()=>S.maxHP,useDrink,input,equip,makeItem,addItem,setDrink:d=>{selDrink=d},ADDONS,ISLMAP,BR,TABS,openPanel,closePanel,get worldReady(){return worldReady},STATICS,BASE,MON,PROPS,spawnMonster,pickUp,eqItem,attack,breakProp,applyPendingGifts,renderPanel,ADM:()=>ADM,BODIES,mount,dismount,carryTarget,pickUpAny,releaseCarry};';
   w.eval(src);
   const reg = await (await fetch(`http://127.0.0.1:${PORT}/api/register`, { method: 'POST', body: JSON.stringify({ login: name, pass: 'pass-' + name }) })).json();
   if (!reg.ok) throw new Error('register ' + name + ': ' + reg.e);
@@ -133,10 +133,46 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
   a.pl.x = 2; a.pl.z = 2.5; b.pl.x = 4.5; b.pl.z = 2.5; b.pl.kx = b.pl.kz = 0; await tick([a, b], .5);
   a.P.drinks.latte = 3; a.setDrink('latte'); a.input.aimOk = true; a.input.ax = 4.5; a.input.az = 2.5; a.useDrink(); await tick([a, b], .6);
   assert(b.FUN.scald > 0, 'гаряча кава в тімейта — він «ошпарений»');
-  b.pl.x = 2.9; await tick([a, b], .4);
+  b.FUN.scald = 0; b.pl.x = 2.9; b.pl.z = 2.5; await tick([a, b], .4);
   const mop = a.makeItem('mop', 2); a.addItem(mop, true); a.equip(mop, 'hand1'); a.pl.atkCd = 0; a.atk(); await tick([a, b], .15);
   const kick = Math.hypot(b.pl.kx || 0, b.pl.kz || 0); const bx = b.pl.x; await tick([a, b], .4);
   assert(kick > 3 || Math.abs(b.pl.x - bx) > .5 || b.pl.x > 3.4, 'удар шваброю відкидає тімейта');
+  assert(b.pl.hp < b.S_maxHP() || b.pl.hp < 100, 'удар по другу знімає здоров’я (' + Math.round(b.pl.hp) + ')');
+  // --- таран візком і збиття друга з візка
+  {
+    b.pl.hp = 100; b.pl.x = 2; b.pl.z = 5; b.pl.kx = b.pl.kz = 0; b.pl.ride = null;
+    const cart = b.BODIES.find(o => o.kind === 'cart'); cart.fall = false; cart.held = false; cart.x = 2; cart.z = 5.2;
+    b.mount(cart); await tick([a, b], .5);
+    assert(Object.values(a.NET.players)[0].act === 'chair', 'друг сидить у візку');
+    a.pl.x = 2; a.pl.z = 3.6; a.pl.face = 0; a.input.aimOk = true; a.input.ax = 2; a.input.az = 5.5;
+    a.pl.atkCd = 0; a.pl.pending = null; a.atk(); await tick([a, b], .5);
+    assert(!b.pl.ride, 'ударом збив друга з візка');
+    b.pl.x = 4; b.pl.z = 1; b.pl.kx = b.pl.kz = 0; const hp0 = b.pl.hp; await tick([a, b], .4);
+    const ac = a.BODIES.find(o => o.kind === 'cart'); ac.fall = false; ac.held = false; ac.x = .3; ac.z = 1; a.pl.x = .3; a.pl.z = 1; a.mount(ac);
+    ac.vx = 12; ac.vz = 0; await tick([a, b], .6);
+    assert(b.pl.hp < hp0 && Math.hypot(b.pl.kx || 0, b.pl.kz || 0) + Math.abs(b.pl.x - 4) > .3, 'таран візком по другу');
+    a.dismount(); a.input.aimOk = false; await tick([a, b], .2);
+  }
+  // --- друг бачить, що я несу
+  {
+    const bin = a.BODIES.find(o => o.kind === 'bin'); bin.fall = false; bin.x = a.pl.x + .8; bin.z = a.pl.z; bin.vx = bin.vz = 0;
+    const t = a.carryTarget(); assert(t && t[0] === 'body', 'бак можна підняти'); a.pickUpAny(t); await tick([a, b], .5);
+    const ra = Object.values(b.NET.players)[0];
+    assert(/^b:/.test(ra.cr) && ra.crMesh && ra.act === 'carry', 'друг бачить, що я несу (' + ra.cr + ')');
+    a.releaseCarry(true); await tick([a, b], .5);
+    assert(!Object.values(b.NET.players)[0].crMesh || !Object.values(b.NET.players)[0].crMesh.parent, 'після кидка в руках порожньо');
+  }
+  // --- підняти й жбурнути друга
+  {
+    b.pl.hp = 100; b.pl.x = a.pl.x + 1; b.pl.z = a.pl.z; b.pl.kx = b.pl.kz = 0; await tick([a, b], .5);
+    for (const o of a.BODIES) if (Math.hypot(o.x - a.pl.x, o.z - a.pl.z) < 3) { o.x += 6; }
+    const t = a.carryTarget(); assert(t && t[0] === 'player', 'друга можна підняти');
+    a.pickUpAny(t); await tick([a, b], .5);
+    assert(b.FUN.held && b.pl.y > 1, 'друга підняли над головою');
+    a.pl.face = Math.PI / 2; a.releaseCarry(true); await tick([a, b], .3);
+    assert(!b.FUN.held && Math.hypot(b.pl.kx || 0, b.pl.kz || 0) > 2, 'друга жбурнули');
+    await tick([a, b], 1);
+  }
   // --- вихід гравця
   a.NET.wanted = false; a.NET.ws.close(); await tick([b], 1);
   assert(Object.keys(b.NET.players).length === 0, 'вихід гравця обробляється');

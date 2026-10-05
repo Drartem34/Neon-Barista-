@@ -72,7 +72,7 @@ function applyState(id, s, snap) {
   }
   if (s.e && s.e !== r.lastE) { r.lastE = s.e; }
   if ((s.act || '') === 'atk' && r.act !== 'atk') r.atkPh = .3;
-  r.act = s.act || ''; r.tg = s.tg || ''; r.hp = s.hp == null ? 100 : s.hp;
+  r.act = s.act || ''; r.tg = s.tg || ''; r.hp = s.hp == null ? 100 : s.hp; r.cr = s.cr || '';
   const st = actLabel(r.act, r.tg);
   const html = `<b>${escapeHTML(r.name)}</b> · ${r.lvl}${st ? `<small>${st}</small>` : ''}<i class="nhp"><i style="width:${r.hp}%"></i></i>`;
   funRemoteState(r);
@@ -88,7 +88,8 @@ function updRemotes(dt) {
     h.root.position.set(r.x, r.y, r.z); h.root.rotation.y = r.face;
     const sw = r.m ? Math.sin(r.ph) * .6 : 0;
     h.l1.rotation.x = sw; h.l2.rotation.x = -sw; h.aL.rotation.x = -sw * .7; h.aR.rotation.x = -.35 - sw * .3;
-    if (r.act === 'atk' && r.atkPh > 0) { const k = Math.sin(r.atkPh / .3 * Math.PI); h.aR.rotation.x = -2.3 * k; h.aR.rotation.z = .4 * k; }
+    if (r.act === 'carry') { h.aR.rotation.x = h.aL.rotation.x = -2.9; }
+    else if (r.act === 'atk' && r.atkPh > 0) { const k = Math.sin(r.atkPh / .3 * Math.PI); h.aR.rotation.x = -2.3 * k; h.aR.rotation.z = .4 * k; }
     else if (r.act === 'brew' || r.act === 'drink') h.aR.rotation.x = -1.2;
     else if (r.act === 'fish') h.aR.rotation.x = -1.6 + Math.sin(gameTime * 3) * .1;
     else if (r.act === 'dig') h.aR.rotation.x = -1.2 - Math.sin(gameTime * 18) * .8;
@@ -116,12 +117,14 @@ function updRemotes(dt) {
     NET.sendT = .1;
     const it = eqItem('hand1');
     const act = myAct();
-    netSend({ t: 's', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), f: +pl.face.toFixed(2), m: pl.moving ? 1 : 0, w: isWet(pl.terr) && pl.y < -.3 ? 1 : 0, g: pl.gliding ? 1 : 0, a: P.cos, i: it && !it.broken ? it.b : '', zn: curZone ? curZone.id : '', l: P.lvl, act, tg: act === 'atk' && lastHitM && gameTime - lastHitT < 2 ? (lastHitM.T.n || '').slice(0, 23) : '', hp: Math.round(clamp(pl.hp / S.maxHP, 0, 1) * 100) });
+    netSend({ t: 's', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), f: +pl.face.toFixed(2), m: pl.moving ? 1 : 0, w: isWet(pl.terr) && pl.y < -.3 ? 1 : 0, g: pl.gliding ? 1 : 0, a: P.cos, i: it && !it.broken ? it.b : '', zn: curZone ? curZone.id : '', l: P.lvl, act, tg: act === 'atk' && lastHitM && gameTime - lastHitT < 2 ? (lastHitM.T.n || '').slice(0, 23) : '', hp: Math.round(clamp(pl.hp / S.maxHP, 0, 1) * 100), cr: carryCode() });
   }
 }
 /* Що зараз робить гравець — бачать інші (над головою, у вкладці «Онлайн», в адмінці й моніторі сервера). */
 function myAct() {
   if (pl.dead) return 'dead';
+  if (FUN.held) return 'held';
+  if (pl.carry) return 'carry';
   if (typeof chairRide === 'function' && chairRide()) return 'chair';
   if (fishing) return 'fish';
   if (pl.dig) return 'dig';
@@ -134,7 +137,7 @@ function myAct() {
   if (pl.emote === 'sit' && pl.emoteT > 0) return 'sit';
   return '';
 }
-const ACT_TXT = { atk: '⚔️ атакує', brew: '☕ варить каву', fish: '🎣 рибалить', dig: '⛏️ копає', swim: '🏊 пливе', glide: '🪂 планує', boss: '💼 б’ється з босом', menu: '📋 у меню', sit: '🪑 відпочиває', dead: '💀 вигорів', chair: '🛒 катається' };
+const ACT_TXT = { carry: '🏋️ щось несе', held: '😵 його несуть', atk: '⚔️ атакує', brew: '☕ варить каву', fish: '🎣 рибалить', dig: '⛏️ копає', swim: '🏊 пливе', glide: '🪂 планує', boss: '💼 б’ється з босом', menu: '📋 у меню', sit: '🪑 відпочиває', dead: '💀 вигорів', chair: '🛒 катається' };
 function actLabel(act, tg) { const t = ACT_TXT[act] || ''; return t && act === 'atk' && tg ? `${t}: ${escapeHTML(tg)}` : t; }
 function renderOnline() {
   if (!NET.on) return '<h3>👥 Онлайн</h3><p class="muted">Немає зв’язку з сервером.</p>';

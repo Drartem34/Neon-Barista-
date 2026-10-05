@@ -142,7 +142,7 @@ $('#pbody').addEventListener('click', e => {
 
 /* ---------- Адмін-панель ---------- */
 const ADM = { users: null, q: '', err: '' };
-const ACT_UA = { atk: '⚔️ атакує', brew: '☕ варить', fish: '🎣 рибалить', dig: '⛏️ копає', swim: '🏊 пливе', glide: '🪂 планує', boss: '💼 б’ється з босом', menu: '📋 у меню', sit: '🪑 відпочиває', dead: '💀 вигорів', drink: '🥤 частує', chair: '🛒 катається', '': '🚶 гуляє' };
+const ACT_UA = { carry: '🏋️ щось несе', held: '😵 його несуть', atk: '⚔️ атакує', brew: '☕ варить', fish: '🎣 рибалить', dig: '⛏️ копає', swim: '🏊 пливе', glide: '🪂 планує', boss: '💼 б’ється з босом', menu: '📋 у меню', sit: '🪑 відпочиває', dead: '💀 вигорів', drink: '🥤 частує', chair: '🛒 катається', '': '🚶 гуляє' };
 function renderAdmin() {
   if (!ACCT || !ACCT.admin) return '<p class="muted">Тільки для адміністраторів.</p>';
   if (!ADM.users) { loadAdmin(); return '<h3>🛡️ Адмін-панель</h3><p class="muted">Завантаження…</p>'; }

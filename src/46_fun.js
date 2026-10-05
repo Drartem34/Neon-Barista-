@@ -159,13 +159,26 @@ function knockMe(a, f, src) {
   if (src) ftext(pl.x, 2.4, pl.z, src, 'bad');
 }
 
+/* Мене вдарив тімейт: шкода (не смертельна), сильне відкидання, червоний спалах. */
+function friendHit(a, f, d, who) {
+  if (pl.dead) return;
+  if (FUN.held) FUN.held = null;
+  if (pl.ride && f > 9) { const b = pl.ride; dismount(false); b.vx += Math.sin(a) * f * .6; b.vz += Math.cos(a) * f * .6; ftext(pl.x, 2.6, pl.z, 'Збили з візка!', 'big'); }
+  if (d > 0 && pl.iframes <= 0) { const real = Math.max(1, Math.round(d * (1 - S.defR))); pl.hp = Math.max(1, pl.hp - real); ftext(pl.x, 2.9, pl.z, '−' + real, 'bad'); refreshHUD(); }
+  knockMe(a, Math.max(9, f), `Бац від ${who}!`);
+  $('#vignette').className = 'hit'; setTimeout(() => { if ($('#vignette').className === 'hit') $('#vignette').className = ''; }, 220);
+  sfx('hurt'); shake = .3; burst(pl.x, 1.4, pl.z, '#FFF3E6', 8, 3, .4, 2);
+}
+
 /* ---------- Сітка: що прилетіло від інших гравців ---------- */
 function funNetMsg(m) {
   if (m.t === 'hit') {
     const who = m.name || 'хтось';
     if (m.k === 'coffee') getScalded(who);
     else if (m.k === 'matcha') getMatcha(who);
-    else if (m.k === 'shove') { knockMe(m.a || 0, Math.min(30, m.f || 10), `Бац від ${who}!`); sfx('hit'); shake = .25; }
+    else if (m.k === 'shove') { friendHit(m.a || 0, Math.min(30, m.f || 10), Math.min(20, m.d || 0), who); }
+    else if (m.k === 'grab') grabbedBy(m.from, who);
+    else if (m.k === 'throw' || m.k === 'drop') { if (FUN.held && FUN.held.id === m.from) { FUN.held = null; pl.vy = m.k === 'throw' ? 5 : 0; if (m.k === 'throw') { knockMe(m.a || 0, Math.min(30, m.f || 20), `${who} жбурнув тебе!`); sfx('throw'); } } }
     else if (m.k === 'pull') { knockMe(angTo(pl.x, pl.z, m.x, m.z), Math.min(30, m.f || 16), `${who} тягне вантузом!`); sfx('throw'); }
     else if (m.k === 'blast') { knockMe(angTo(m.x, m.z, pl.x, pl.z), 16, 'Вибух!'); }
     return true;
@@ -180,14 +193,21 @@ function funNetMsg(m) {
 function remotesNear(x, z, r) { return NET.on ? Object.values(NET.players).filter(p => dist2(p.x, p.z, x, z) < r) : []; }
 
 /* ---------- Ближній бій: тімейти, візки, баки ---------- */
+function hitRemote(r, a, f, dmg, label) {
+  if (gameTime - (r.lastHitT || -9) < .15) return false;
+  r.lastHitT = gameTime;
+  netSend({ t: 'hit', to: r.id, k: 'shove', a, f, d: dmg });
+  r.x += Math.sin(a) * .5; r.z += Math.cos(a) * .5;          // миттєвий відгук, поки не прийшла нова позиція
+  ftext(r.x, 2.4, r.z, label + ' −' + Math.round(dmg), 'crit'); burst(r.x, 1.2, r.z, '#FFF3E6', 8, 3, .4, 2); sfx('hit', r.x, r.z);
+  return true;
+}
 function funMelee(range, arc, h, kbM) {
   let any = false;
-  const f = Math.min(26, (h.kb || 2) * 1.3 * kbM + 4);
-  for (const r of remotesNear(pl.x, pl.z, range + 1)) {
-    if (!inArc(pl.x, pl.z, pl.face, r.x, r.z, range + .4, arc)) continue;
-    const a = angTo(pl.x, pl.z, r.x, r.z);
-    netSend({ t: 'hit', to: r.id, k: 'shove', a, f });
-    ftext(r.x, 2.4, r.z, 'Бац!', 'crit'); burst(r.x, 1.2, r.z, '#FFF3E6', 6, 3, .4, 2); any = true;
+  const f = Math.min(26, (h.kb || 2) * 1.3 * kbM + 6);
+  const dmg = Math.min(18, (h.dmg || 2) * S.dmgM * .6 + 2);
+  for (const r of remotesNear(pl.x, pl.z, range + 1.5)) {
+    if (r.act === 'dead' || Math.abs(r.y - pl.y) > 2 || !inArc(pl.x, pl.z, pl.face, r.x, r.z, range + .9, Math.max(arc, 100))) continue;
+    any = hitRemote(r, angTo(pl.x, pl.z, r.x, r.z), f, dmg, 'Бац!') || any;
   }
   for (const b of BODIES) {
     if (b.fall || b === pl.ride || !inArc(pl.x, pl.z, pl.face, b.x, b.z, range + b.r, arc)) continue;
@@ -266,8 +286,13 @@ function moveBody(b, dt) {
       ftext(m.x, 2.4, m.z, b.strike.length >= 3 ? 'СТРАЙК! 🎳' : b.ride ? 'Кеглі!' : 'ГОЛ!', b.strike.length >= 3 ? 'big' : 'crit');
       if (b.strike.length === 3) { addXP(30, m.x, m.z); dropLoot(m.x, m.z, [{ k: 'coins', d: 15 }]); }
     }
+    for (const r of remotesNear(b.x, b.z, b.r + .7)) {
+      if (now - (b.hitT.get(r.id) || -9) < .8) continue; b.hitT.set(r.id, now);
+      hitRemote(r, Math.atan2(b.vx, b.vz), Math.min(28, sp * 2), Math.min(16, sp * 1.2), b.ride ? 'Таран!' : 'Бам!');
+      b.vx *= .7; b.vz *= .7;
+    }
     for (const o of BODIES) {
-      if (o === b || o.fall) continue;
+      if (o === b || o.fall || o.held) continue;
       const d = dist2(b.x, b.z, o.x, o.z); if (d > b.r + o.r || d < 1e-4) continue;
       const a = angTo(b.x, b.z, o.x, o.z); o.vx += Math.sin(a) * sp * .8; o.vz += Math.cos(a) * sp * .8; b.vx *= .6; b.vz *= .6; o.spin = 6;
     }
@@ -280,7 +305,7 @@ function updBodies(dt) {
       b.vy -= 25 * dt; b.y += b.vy * dt; b.x += b.vx * dt; b.z += b.vz * dt; b.m.rotation.x += dt * 4;
       b.respT -= dt;
       if (b.respT <= 0 && dist2(pl.x, pl.z, b.hx, b.hz) > 2) { b.fall = false; b.x = b.hx; b.z = b.hz; b.y = 0; b.vx = b.vz = b.vy = 0; b.m.rotation.set(0, 0, 0); burst(b.x, .5, b.z, '#FFFFFF', 10, 2, .5, 2); }
-    } else if (b !== pl.ride) {
+    } else if (b !== pl.ride && !b.held) {
       moveBody(b, dt);
       if (b.spin > 0) { b.m.rotation.y += b.spin * dt; b.spin = Math.max(0, b.spin - dt * 8); }
     }
@@ -368,26 +393,94 @@ function updHooks(dt) {
   }
 }
 
-/* ---------- Моб-баскетбол ---------- */
-function canCarry(m) { return !m.calm && m.state !== 'fall' && !m.T.dummy && !m.carried && m.stress <= m.max * .25 + .5 && (m.mass || 1) <= 2.3; }
-function pickUp(m) {
-  pl.carry = m; m.carried = true; m.state = 'chase'; m.vx = m.vz = 0;
-  if (m.bar) m.bar.visible = false;
-  bubble(m, pick(['Поклади мене!', 'Це не за посадовою інструкцією!', 'Агов!']), true, 2);
-  toast('🏀 Тримаєш моба! ЛКМ — жбурнути.'); sfx('jump');
+/* ---------- Підняти й жбурнути: мобів, баки, візки, ящики, принтери… і друга ----------
+   pl.carry — що тримаємо, pl.carryK — 'mon' | 'body' | 'prop' | 'player'. */
+function canCarry(m) { return m.state !== 'fall' && !m.T.dummy && !m.carried && !m.dead && (m.mass || 1) <= 2.3 && (m.calm || m.stun > .3 || m.stress <= m.max * .25 + .5); }
+function carryTarget() {
+  let best = null, bd = 1.9;
+  const consider = (k, o, x, z, ok) => { if (!ok) return; const d = dist2(pl.x, pl.z, x, z); if (d < bd) { bd = d; best = [k, o]; } };
+  for (const m of MON) consider('mon', m, m.x, m.z, canCarry(m));
+  for (const b of BODIES) consider('body', b, b.x, b.z, !b.fall && !b.held && b !== pl.ride);
+  for (const p of PROPS) consider('prop', p, p.x, p.z, p.alive && !p.held && !p.fly);
+  if (NET.on) for (const r of Object.values(NET.players)) consider('player', r, r.x, r.z, r.act !== 'dead' && r.act !== 'held' && Math.abs(r.y - pl.y) < 1.5);
+  return best;
 }
-function throwCarried() {
-  const m = pl.carry; pl.carry = null; if (!m) return;
-  aimFace();
-  m.carried = false; m.y = 0; m.x = pl.x + Math.sin(pl.face) * .9; m.z = pl.z + Math.cos(pl.face) * .9;
-  m.vx = Math.sin(pl.face) * 17; m.vz = Math.cos(pl.face) * 17; m.stun = 1.6; m.thrown = 1.2;
-  ftext(m.x, 2.4, m.z, 'Кидок!', 'crit'); sfx('throw'); pl.swingT = .25; pl.swingKind = 2;
+const CARRY_N = { mon: 'моба 🏀', body: 'це', prop: 'це', player: 'друга 😈' };
+function carryLabel(t) {
+  const [k, o] = t;
+  if (k === 'mon') return o.calm ? 'Підняти заспокоєного' : 'Підняти моба 🏀';
+  if (k === 'body') return 'Підняти ' + ({ cart: 'візок', chair: 'крісло', bin: 'бак', keg: 'кег' }[o.kind] || 'це');
+  if (k === 'prop') return 'Підняти: ' + ((PROP_T[o.type] && PROP_T[o.type].n) || 'предмет');
+  return `Підняти ${o.name} 😈`;
+}
+function pickUpAny(t) {
+  const [k, o] = t;
+  if (k === 'mon') return pickUp(o);
+  pl.carry = o; pl.carryK = k; pl.carryT = 0;
+  if (k === 'body') { o.held = true; o.vx = o.vz = 0; }
+  if (k === 'prop') { o.held = true; o.alive = false; o.t = 1e9; o.mesh.visible = true; }
+  if (k === 'player') { netSend({ t: 'hit', to: o.id, k: 'grab' }); bubble(pl, 'Ходи сюди 😈', false, 1.6); }
+  toast(`Тримаєш ${CARRY_N[k]}! ЛКМ або Q — жбурнути, F — поставити.`); sfx('jump');
+}
+function pickUp(m) {
+  pl.carry = m; pl.carryK = 'mon'; pl.carryT = 0; m.carried = true; if (!m.calm) m.state = 'chase'; m.vx = m.vz = 0;
+  if (m.bar) m.bar.visible = false;
+  bubble(m, pick(m.calm ? ['Ой, а куди ми?', 'Я ж уже спокійний!'] : ['Поклади мене!', 'Це не за посадовою інструкцією!', 'Агов!']), !m.calm, 2);
+  toast('🏀 Тримаєш моба! ЛКМ або Q — жбурнути, F — поставити.'); sfx('jump');
+}
+function frontOf(d) { return [pl.x + Math.sin(pl.face) * d, pl.z + Math.cos(pl.face) * d]; }
+function releaseCarry(throwIt) {
+  const o = pl.carry, k = pl.carryK || 'mon'; pl.carry = null; pl.carryK = null; if (!o) return;
+  if (throwIt) aimFace();
+  const [fx, fz] = frontOf(.9), dx = Math.sin(pl.face), dz = Math.cos(pl.face), V = throwIt ? 17 : 0;
+  if (k === 'mon') {
+    o.carried = false; o.y = 0; o.x = fx; o.z = fz; o.vx = dx * V; o.vz = dz * V;
+    if (throwIt) { o.stun = o.calm ? 0 : 1.6; o.thrown = 1.2; o.netHit = 0; }
+    if (o.parts) o.parts.root.rotation.z = 0;
+  } else if (k === 'body') {
+    o.held = false; o.y = 0; o.x = fx; o.z = fz; o.vx = dx * V; o.vz = dz * V; if (throwIt) { o.spin = 12; o.thrownT = 1.2; }
+  } else if (k === 'prop') {
+    o.held = false; o.x = fx; o.z = fz;
+    if (throwIt) o.fly = { vx: dx * 16, vz: dz * 16, y: pl.y + 1.6, vy: 3, t: 0 };
+    else { o.alive = true; o.t = 0; o.mesh.position.set(fx, 0, fz); o.mesh.rotation.x = o.mesh.rotation.z = 0; }
+  } else if (k === 'player') {
+    netSend({ t: 'hit', to: o.id, k: throwIt ? 'throw' : 'drop', a: pl.face, f: throwIt ? 22 : 0 });
+  }
+  if (throwIt) { ftext(fx, 2.4, fz, 'Кидок!', 'crit'); sfx('throw'); pl.swingT = .25; pl.swingKind = 2; }
+}
+function throwCarried() { releaseCarry(true); }
+function propLand(p, hitSomething) {
+  p.fly = null; p.alive = true; p.t = 0; p.mesh.rotation.set(0, p.mesh.rotation.y, 0);
+  breakProp(p);                               // приземлився — розбився (принтер і кавоварка вибухають!)
+  p.x = p.ox; p.z = p.oz; p.mesh.position.set(p.ox, 0, p.oz);   // відновиться на своєму місці
 }
 function updCarry(dt) {
-  const m = pl.carry;
-  if (m) {
-    if (m.dead || m.calm || pl.dead || pl.falling || pl.ride) { m.carried = false; m.y = 0; pl.carry = null; }
-    else { m.x = pl.x; m.z = pl.z; m.y = pl.y + 1.9; m.face = pl.face + Math.PI / 2; m.stun = 1; m.parts.root.rotation.z = Math.sin(gameTime * 9) * .2; hero.aR.rotation.x = hero.aL.rotation.x = -2.9; }
+  const o = pl.carry;
+  if (o) {
+    const k = pl.carryK || 'mon';
+    pl.carryT = (pl.carryT || 0) + dt;
+    const lost = pl.dead || pl.falling || pl.ride || (k === 'mon' && (o.dead || o.state === 'fall')) || (k === 'player' && (!NET.players[o.id] || dist2(o.x, o.z, pl.x, pl.z) > 4 || pl.carryT > 7));
+    if (lost) releaseCarry(false);
+    else {
+      const y = pl.y + 1.9, wob = Math.sin(gameTime * 9) * .2;
+      if (k === 'mon') { o.x = pl.x; o.z = pl.z; o.y = y; o.face = pl.face + Math.PI / 2; if (!o.calm) o.stun = 1; o.parts.root.rotation.z = wob; }
+      if (k === 'body') { o.x = pl.x; o.z = pl.z; o.y = y - .3; o.m.rotation.z = wob; }
+      if (k === 'prop') { o.x = pl.x; o.z = pl.z; o.mesh.position.set(pl.x, y - .3, pl.z); o.mesh.rotation.z = wob; }
+      hero.aR.rotation.x = hero.aL.rotation.x = -2.9;
+    }
+  }
+  // летючі ящики, принтери, кавоварки
+  for (const p of PROPS) {
+    const f = p.fly; if (!f) continue;
+    f.t += dt; f.vy -= 22 * dt; f.y += f.vy * dt;
+    p.x += f.vx * dt; p.z += f.vz * dt;
+    p.mesh.position.set(p.x, Math.max(0, f.y - .4), p.z); p.mesh.rotation.x += dt * 9;
+    let hit = false;
+    for (const m of MON) if (!m.calm && m.state !== 'fall' && !m.carried && dist2(m.x, m.z, p.x, p.z) < 1.1) { const a = Math.atan2(f.vx, f.vz); applyHit(m, 12, Math.sin(a) * 12, Math.cos(a) * 12); m.stun = Math.max(m.stun, 1.4); ftext(m.x, 2.4, m.z, 'Ящиком в лоб!', 'crit'); hit = true; break; }
+    for (const r of remotesNear(p.x, p.z, 1.1)) { netSend({ t: 'hit', to: r.id, k: 'shove', a: Math.atan2(f.vx, f.vz), f: 16, d: 6 }); ftext(r.x, 2.4, r.z, 'Ящиком по кенту!', 'crit'); hit = true; }
+    if (!hit) for (const q of STATICS) if ((q.h == null || q.h > .5) && dist2(q.x, q.z, p.x, p.z) < q.r + .4) { hit = true; break; }
+    if (!onGround(p.x, p.z, -.5)) { if (f.y < -6) { p.fly = null; p.alive = false; p.mesh.visible = false; p.t = 45; p.x = p.ox; p.z = p.oz; p.mesh.position.set(p.ox, 0, p.oz); p.mesh.rotation.set(0, 0, 0); } continue; }  // полетів у прірву
+    if (hit || (f.y <= .4 && f.vy < 0) || f.t > 1.6) propLand(p, hit);
   }
   for (const t of MON) {
     if (!(t.thrown > 0)) continue;
@@ -399,8 +492,44 @@ function updCarry(dt) {
       const a = angTo(t.x, t.z, o.x, o.z); applyHit(o, 10, Math.sin(a) * sp * 1.1, Math.cos(a) * sp * 1.1); o.stun = Math.max(o.stun, 1.3);
       t.vx *= .5; t.vz *= .5; ftext(o.x, 2.4, o.z, 'ДАНК! 🏀', 'big'); shake = Math.max(shake, .25); sfx('crit', o.x, o.z);
     }
-    for (const r of remotesNear(t.x, t.z, 1)) { if (!t.netHit) { t.netHit = 1; netSend({ t: 'hit', to: r.id, k: 'shove', a: Math.atan2(t.vx, t.vz), f: 15 }); ftext(r.x, 2.4, r.z, 'Мобом по кенту!', 'crit'); } }
+    for (const r of remotesNear(t.x, t.z, 1.1)) { if (!t.netHit) { t.netHit = 1; netSend({ t: 'hit', to: r.id, k: 'shove', a: Math.atan2(t.vx, t.vz), f: 15, d: 6 }); ftext(r.x, 2.4, r.z, 'Мобом по кенту!', 'crit'); } }
   }
+}
+/* Що я несу — для інших гравців (поле cr у стані) */
+function carryCode() {
+  const o = pl.carry; if (!o) return '';
+  const k = pl.carryK || 'mon';
+  if (k === 'mon') return 'm:' + o.type + (o.calm ? ':c' : '');
+  if (k === 'body') return 'b:' + o.kind;
+  if (k === 'prop') return 'p:' + o.type;
+  return '';
+}
+function monsterParts(type) {
+  return type === 'crab' ? buildCrab() : type === 'hr' ? buildHR() : type === 'monkey' ? buildMonkey() : type === 'mummy' ? buildMummy() : type === 'hound' ? buildHound() : type === 'manager' ? buildManager() : buildOffice('#AFC4B6', '#8291B8');
+}
+
+/* ---------- Мене тримає друг ---------- */
+function grabbedBy(id, name) {
+  if (pl.dead || pl.ride) { return; }
+  if (pl.carry) releaseCarry(false);
+  FUN.held = { id, t: 7, mash: 0, sp: false };
+  pl.dashT = 0; pl.pending = null; pl.jump = null;
+  bubble(pl, pick(['ЕЙ! Пусти!', 'Ти що робиш?!', 'АААА']), true, 2);
+  toast(`😈 <b>${escapeHTML(name || 'Друг')}</b> підняв тебе! Тисни Пробіл швидко, щоб вирватися.`);
+}
+function updHeld(dt) {
+  const h = FUN.held, r = NET.players[h.id];
+  h.t -= dt;
+  const sp = !!input.jumpHeld;
+  if (sp && !h.sp) h.mash++; h.sp = sp;
+  if (!r || h.t <= 0 || h.mash >= 7 || pl.dead) {
+    FUN.held = null; pl.vy = 4;
+    if (h.mash >= 7) { knockMe(Math.random() * 6.28, 8, 'Вирвався!'); }
+    return;
+  }
+  pl.x = r.x; pl.z = r.z; pl.y = r.y + 1.9; pl.vy = 0; pl.moving = false; pl.grounded = false; pl.kx = pl.kz = 0;
+  pl.face = r.face + Math.PI / 2;
+  hero.body.rotation.z = Math.sin(gameTime * 10) * .25;
 }
 
 /* ---------- Матча на ворогах: сидить, втикає, дропає снеки ---------- */
@@ -426,7 +555,14 @@ function updChill(dt) {
 function updCupsVsRemotes() {
   if (!NET.on) return;
   for (let i = PROJ.length - 1; i >= 0; i--) {
-    const p = PROJ[i]; if (p.from !== 'player' || p.kind !== 'cup') continue;
+    const p = PROJ[i]; if (p.from !== 'player') continue;
+    if (p.kind === 'staple' || p.kind === 'banana') {      // скоби й банани теж влучають у друзів
+      const r = remotesNear(p.x, p.z, p.r + .5).find(r => r.act !== 'dead'); if (!r) continue;
+      hitRemote(r, Math.atan2(p.vx, p.vz), 7, Math.min(12, (p.dmg || 3) * .6 + 1), 'Скобою!');
+      if (!p.pierce) { scene.remove(p.m); PROJ.splice(i, 1); }
+      continue;
+    }
+    if (p.kind !== 'cup') continue;
     const r = remotesNear(p.x, p.z, p.r + .45)[0]; if (!r) continue;
     const k = DRINK[p.drink] && DRINK[p.drink].chill ? 'matcha' : 'coffee';
     netSend({ t: 'hit', to: r.id, k });
@@ -439,11 +575,11 @@ function updCupsVsRemotes() {
 /* ---------- Взаємодія (F) ---------- */
 function funInteract() {
   if (pl.ride) return { l: 'Злізти', fn: () => dismount(true) };
-  if (pl.carry) return { l: 'Поставити моба', fn: () => { const m = pl.carry; pl.carry = null; m.carried = false; m.y = 0; m.x = pl.x + Math.sin(pl.face); m.z = pl.z + Math.cos(pl.face); } };
+  if (pl.carry) return { l: 'Поставити', fn: () => releaseCarry(false) };
   for (const b of BODIES) if (b.ride && !b.fall && dist2(pl.x, pl.z, b.x, b.z) < 1.6 && Math.abs(pl.y) < .5) return { l: b.kind === 'cart' ? 'Сісти у візок' : 'Сісти в крісло', fn: () => mount(b) };
   for (const f of FANS) if (dist2(pl.x, pl.z, f.x, f.z) < 2) return { l: f.on > 0 ? 'Вентилятор працює…' : 'Увімкнути вентилятор (хе-хе)', fn: () => { if (f.on <= 0) switchFan(f, true); } };
-  const m = MON.find(m => dist2(pl.x, pl.z, m.x, m.z) < 1.8 && canCarry(m));
-  if (m) return { l: 'Підняти моба 🏀', fn: () => pickUp(m) };
+  const t = carryTarget();
+  if (t) return { l: carryLabel(t), fn: () => pickUpAny(t) };
   return null;
 }
 
@@ -458,6 +594,7 @@ function updFun(dt) {
   if (FUN.matcha > 0) { FUN.matcha -= dt; if (FUN.matcha <= 0) setFunOverlay(); }
   if (FUN.jam > 0) { FUN.jam -= dt; if (FUN.jam <= 0) setFunOverlay(); }
   if (!pl.ride && onSyrup(pl.x, pl.z) && pl.grounded && gameTime - FUN.slipWarn > 5) { FUN.slipWarn = gameTime; ftext(pl.x, 2.2, pl.z, 'Сироп! Ковзко!', 'calm'); }
+  if (!FUN.held && hero && hero.body.rotation.z) hero.body.rotation.z = 0;
   updBodies(dt); updFans(dt); updHooks(dt); updCarry(dt); updChill(dt); updCupsVsRemotes();
   for (const p of PROPS) if (p.gauge && p.alive) p.gauge.rotation.z = Math.sin(gameTime * 6 + p.x) * .6;
 }
@@ -466,4 +603,17 @@ function funRemoteState(r) {
   const want = r.act === 'chair';
   if (want && !r.cart) { r.cart = bodyMesh('cart'); r.cart.position.y = -.55; r.h.root.add(r.cart); }
   if (r.cart) r.cart.visible = want;
+  // що друг несе над головою
+  const cr = r.cr || '';
+  if (cr !== (r.crShown || '')) {
+    if (r.crMesh) { r.h.root.remove(r.crMesh); r.crMesh = null; }
+    r.crShown = cr;
+    const [k, id, calm] = cr.split(':');
+    let m = null;
+    if (k === 'm') { const parts = monsterParts(id); m = parts.root; if (calm && parts.torso) parts.torso.material = mat('#BFE8D5'); m.rotation.y = Math.PI / 2; }
+    else if (k === 'b') m = bodyMesh(id);
+    else if (k === 'p') { m = propMesh(id); if (!m.children.length) m.add(mesh(new THREE.BoxGeometry(.8, .8, .6), '#C9CDD9')); }
+    if (m) { m.position.y = k === 'm' ? 1.9 : 1.6; r.h.root.add(m); r.crMesh = m; }
+  }
+  if (r.crMesh) r.crMesh.rotation.z = Math.sin(gameTime * 9) * .2;
 }

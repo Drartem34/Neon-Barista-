@@ -338,7 +338,7 @@ async def handle_msg(p: Player, m):
                 s[k] = round(float(v), 2)
         for k in ('m', 'w', 'g', 'e'):
             if k in m: s[k] = m[k] if isinstance(m[k], (int, bool)) or (isinstance(m[k], str) and len(m[k]) < 12) else 0
-        for k in ('a', 'i', 'zn', 'act', 'tg'):
+        for k in ('a', 'i', 'zn', 'act', 'tg', 'cr'):
             v = m.get(k)
             if isinstance(v, str) and len(v) < 24: s[k] = v
         if isinstance(m.get('hp'), (int, float)): s['hp'] = max(0, min(100, int(m['hp'])))
@@ -379,13 +379,13 @@ async def handle_msg(p: Player, m):
         p.fx.append(now)
         k = m.get('k')
         out = {'t': t, 'from': p.id, 'name': p.name, 'k': k}
-        for key in ('x', 'z', 'a', 'f', 'i'):
+        for key in ('x', 'z', 'a', 'f', 'i', 'd'):
             v = m.get(key)
             if isinstance(v, (int, float)) and abs(v) < 1e4:
                 out[key] = round(float(v), 2)
         if t == 'hit':
             to = PLAYERS.get(m.get('to'))
-            if to and to is not p and k in ('coffee', 'matcha', 'shove', 'pull', 'blast'):
+            if to and to is not p and k in ('coffee', 'matcha', 'shove', 'pull', 'blast', 'grab', 'throw', 'drop'):
                 await send(to, out)
         elif k in ('fan', 'boom'):
             await broadcast(out, skip=p)
@@ -781,7 +781,7 @@ async def respond(writer, code, body, ctype, length=None):
         writer.close()
 
 # ===================== МОНІТОР У ТЕРМІНАЛІ =====================
-ACT_NAMES = {'atk': 'атакує', 'brew': 'варить каву', 'fish': 'рибалить', 'dig': 'копає', 'swim': 'пливе', 'glide': 'планує',
+ACT_NAMES = {'carry': 'щось несе', 'held': 'його несуть', 'atk': 'атакує', 'brew': 'варить каву', 'fish': 'рибалить', 'dig': 'копає', 'swim': 'пливе', 'glide': 'планує',
              'boss': 'б’ється з босом', 'menu': 'у меню', 'sit': 'відпочиває', 'dead': 'вигорів', 'drink': 'частує кавою', 'chair': 'катається'}
 
 class Monitor:

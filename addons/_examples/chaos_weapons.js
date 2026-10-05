@@ -85,9 +85,11 @@ function updPump(dt) {
 /* ---------- 4. Моб-баскетбол 2.0: кинутий моб — снаряд ----------
    Q (або ЛКМ), поки тримаєш моба, — кидок. Кинутий моб ламає ящики, підриває кавоварки,
    збиває баки й візки; влучив у кавоварку — СЛЕМ-ДАНК і монети. */
+const KEY_PASS = /!== false/.test(String(addonKey));   // нові версії гри пропускають клавішу, якщо обробник повернув false
 A.key('KeyQ', () => {
-  if (!pl.carry || paused) return false;            // без моба Q — звичайний напій
-  throwCarried(); pl.atkCd = .4;
+  if (pl.carry && !paused) { throwCarried(); pl.atkCd = .4; return; }
+  if (KEY_PASS) return false;                       // без моба Q — звичайний напій (гра зробить сама)
+  if (!paused && !pl.dead && !panel) useDrink();    // старіша версія гри: кидаємо напій самі
 });
 function updThrown(dt) {
   for (const t of MON) {

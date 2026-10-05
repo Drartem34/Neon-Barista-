@@ -399,6 +399,16 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
 .arow .btn{flex:none}
 .aerr{font-size:13px;color:#C2335A;min-height:1em;margin-top:4px}
 #netcount{font-size:12px;color:var(--muted);margin-top:6px}
+#acc-pop{position:fixed;inset:0;z-index:130;background:rgba(26,20,46,.6);display:grid;place-items:center;padding:16px;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);animation:accpop .25s ease}
+#acc-pop[hidden]{display:none}
+#acc-pop .apbox{width:min(400px,100%);background:var(--paper);color:var(--ink);border-radius:22px;padding:22px 20px 18px;box-shadow:0 30px 80px rgba(20,10,40,.5);text-align:center;position:relative}
+#acc-pop h3{font-family:'Comfortaa',sans-serif;margin:4px 0 6px;font-size:21px}
+#acc-pop p{font-size:13.5px;color:var(--muted);margin:0 0 14px;line-height:1.45}
+#acc-pop .ainp{margin-bottom:8px}
+#acc-pop .btns{justify-content:center;margin-top:4px}
+#acc-pop .apx{position:absolute;right:10px;top:10px;border:0;background:var(--soft);color:var(--ink);width:32px;height:32px;border-radius:10px;font-size:16px;cursor:pointer}
+#acc-pop .aplater{display:block;margin:10px auto 0;border:0;background:none;color:var(--muted);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer}
+@keyframes accpop{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion: reduce){.toast{animation:none}#zone,#event{transition:none}}
 </style>
 </head>
@@ -549,6 +559,20 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
       <kbd>B · K · C</kbd><span>кейси · навички · напої й крафт</span>
     </div>
     <p class="fine">Остаточно заспокоїти монстра може лише кава: удари знімають стрес максимум до чверті. Онлайн прогрес зберігається в акаунті на сервері, офлайн — у браузері. Кооператив, соціальний хаб і рейди на 10–15 гравців потребують сервера, тому тут їх замінює одиночна версія: бос-рейд «CEO-психопат» і хаб «Кавова Гуща», куди сходяться заспокоєні NPC.</p>
+  </div>
+</div>
+
+<div id="acc-pop" hidden role="dialog" aria-modal="true" aria-labelledby="ap-title">
+  <div class="apbox">
+    <button class="apx" id="ap-x" aria-label="Закрити">✕</button>
+    <div style="font-size:40px;line-height:1">☕</div>
+    <h3 id="ap-title">Ти зайшов як гість</h3>
+    <p>Увійди в акаунт, щоб прогрес зберігався на сервері, і тебе бачили друзі онлайн. Нема акаунта — придумай логін і пароль та натисни «Зареєструватися».</p>
+    <input id="ap-login" class="ainp" maxlength="20" placeholder="Логін" autocomplete="username">
+    <input id="ap-pass" class="ainp" type="password" maxlength="64" placeholder="Пароль" autocomplete="current-password">
+    <div id="ap-err" class="aerr"></div>
+    <div class="btns"><button class="btn" id="ap-in">Увійти</button><button class="btn alt" id="ap-reg">Зареєструватися</button></div>
+    <button class="aplater" id="ap-later">Пізніше</button>
   </div>
 </div>
 
@@ -5673,7 +5697,7 @@ function serverSave(data) {
   syncBusy = true;
   api('save', { data }).then(r => {
     if (r.ok) syncFails = 0;
-    else if (r.auth) { setAcct(null); if (running) toast('🔒 ' + escapeHTML(r.e || 'Сесія завершилась') + '. Прогрес лишився в браузері — увійди знову.'); }
+    else if (r.auth) { setAcct(null); if (running) { toast('🔒 ' + escapeHTML(r.e || 'Сесія завершилась') + '. Прогрес лишився в браузері — увійди знову.'); accPopup(true); } }
     else if (++syncFails === 3 && running) toast('⚠️ Не вдається зберегти прогрес на сервері.');
   }).finally(() => { syncBusy = false; });
 }
@@ -5690,32 +5714,51 @@ function setupAccountUI() {
   if (!accountMode()) return;
   $('#netbox').hidden = false;
   if (typeof fetch === 'function') fetch('/status').then(r => r.json()).then(j => { $('#netcount').textContent = j.players ? `Зараз у грі: ${j.players} (${j.names.slice(0, 5).join(', ')})` : 'Поки ніхто не грає — будь першим.'; }).catch(() => { });
-  const err = t => { $('#acc-err').textContent = t || ''; };
-  const go = path => {
-    const login = $('#acc-login').value.trim(), pass = $('#acc-pass').value;
+  const form = (L, Pw, E) => path => {
+    const login = $(L).value.trim(), pass = $(Pw).value, err = t => { $(E).textContent = t || ''; };
     if (!login || !pass) { err('Введи логін і пароль'); return; }
     err('…');
     api(path, { login, pass }).then(r => {
       if (!r.ok) { err(r.e || 'Помилка'); return; }
-      $('#acc-pass').value = ''; err('');
+      $(Pw).value = ''; err('');
       setAcct({ token: r.token, login: r.login, admin: r.admin });
       afterLogin();
     });
   };
+  const go = form('#acc-login', '#acc-pass', '#acc-err'), goPop = form('#ap-login', '#ap-pass', '#ap-err');
   $('#acc-in').addEventListener('click', () => go('login'));
   $('#acc-reg').addEventListener('click', () => go('register'));
   $('#acc-pass').addEventListener('keydown', e => { if (e.key === 'Enter') go('login'); });
+  // попап «Ти зайшов як гість»
+  $('#ap-in').addEventListener('click', () => goPop('login'));
+  $('#ap-reg').addEventListener('click', () => goPop('register'));
+  $('#ap-pass').addEventListener('keydown', e => { if (e.key === 'Enter') goPop('login'); });
+  $('#ap-login').addEventListener('keydown', e => { if (e.key === 'Enter') $('#ap-pass').focus(); });
+  for (const b of ['#ap-x', '#ap-later']) $(b).addEventListener('click', () => accPopup(false));
+  $('#acc-pop').addEventListener('click', e => { if (e.target.id === 'acc-pop') accPopup(false); });
+  const prof = $('.mm-profile'); if (prof) prof.addEventListener('click', () => { if (!ACCT) accPopup(true); });
   $('#acc-logout').addEventListener('click', () => { api('logout'); setAcct(null); refreshAccountUI(); });
   $('#acc-del').addEventListener('click', () => { $('#acc-delbox').hidden = !$('#acc-delbox').hidden; });
   $('#acc-delgo').addEventListener('click', () => deleteAccount($('#acc-delpass').value, t => { $('#acc-delerr').textContent = t; }));
-  if (ACCT) api('me').then(r => { if (r.ok) { setAcct(Object.assign(ACCT, { login: r.login, admin: r.admin })); afterLogin(); } else { if (r.auth) setAcct(null); refreshAccountUI(r.banned ? r.e : ''); } });
+  if (ACCT) api('me').then(r => { if (r.ok) { setAcct(Object.assign(ACCT, { login: r.login, admin: r.admin })); afterLogin(); } else { if (r.auth) setAcct(null); refreshAccountUI(r.banned ? r.e : ''); if (!ACCT && !r.banned) accPopup(true); } });
+  else accPopup(true);
   refreshAccountUI();
 }
 function afterLogin() {
+  accPopup(false);
   api('load').then(r => {
     if (r.ok) adoptServerSave(r.data);
     refreshAccountUI();
+    if (running) { toast(`✅ Ти в акаунті <b>${escapeHTML(ACCT.login)}</b>.`); save(); if (!NET.ws) netConnect(); }
   });
+}
+/* Попап «Ти зайшов як гість — увійди в акаунт» (лише коли є сервер з акаунтами) */
+function accPopup(show) {
+  const el = $('#acc-pop'); if (!el) return;
+  if (show && (!accountMode() || ACCT)) return;
+  if (el.hidden === !show) return;
+  el.hidden = !show;
+  if (show) { $('#ap-err').textContent = ''; setTimeout(() => { const i = $('#ap-login'); if (i && !el.hidden) i.focus(); }, 50); }
 }
 function refreshAccountUI(msg) {
   if (!accountMode()) { refreshTitleButtons(); return; }

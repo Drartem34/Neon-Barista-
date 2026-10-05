@@ -74,6 +74,7 @@ remotesNear = (x, z, r) => alivePlayers().filter(p => p.id !== SIM.target && p.i
 netSend = o => {
   if (o.t === 'hit' && o.to != null) simOut(o.to, { t: 'hit', from: -1, name: o.name || 'Світ', k: o.k, a: o.a, f: o.f, d: o.d, x: o.x, z: o.z });
   else if (o.t === 'wfx') simOut('*', { t: 'wfx', from: -1, name: '', k: o.k, x: o.x, z: o.z, i: o.i });
+  else if (o.t === 'ax') simOut('*', { t: 'ax', from: -1, name: 'Світ', a: o.a, d: o.d });   // аддони на сервері говорять з усіма
 };
 
 /* ---------- Моби: ідентифікатори й зарахування ---------- */
@@ -334,6 +335,7 @@ window.__SIM_IN = msg => {
     }
   }
   else if (msg.t === 'in') simIntent(msg.id, msg.m);
+  else if (msg.t === 'ax') { try { addonNet(msg); } catch (e) { console.error('addonNet', e); } }   // повідомлення аддонів від гравців
 };
 
 /* ---------- Запуск ---------- */

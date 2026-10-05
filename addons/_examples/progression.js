@@ -3,7 +3,7 @@
    море 4, Вежа CEO 5, джунглі й пустеля 6. Сильніші моби мають більше стресу й б'ють сильніше,
    зате дають більше досвіду й монет. Над кожним мобом видно його рівень.
    Працює і в спільному світі (сервер світу теж завантажує аддони). */
-const A = Addon.info({ name: 'Прогресія світу', version: '1.0', desc: 'Що далі від «Гущі», то вищий рівень мобів: більше стресу й шкоди, але й більше досвіду й монет.' });
+const A = Addon.info({ name: 'Прогресія світу', version: '1.1', desc: 'Що далі від «Гущі», то вищий рівень мобів: більше стресу й шкоди, але й більше досвіду й монет.' });
 
 const MAXLVL = 10;
 function zoneLevel(x, z) { return Math.max(1, Math.min(MAXLVL, 1 + Math.floor(Math.max(0, Math.hypot(x, z) - 12) / 11))); }
@@ -13,7 +13,7 @@ const LVL_COL = ['#8FD9C0', '#8FD9C0', '#B8E68F', '#FFD27A', '#FFB38A', '#FF8A7A
 const _spawnMonster = spawnMonster;
 spawnMonster = function (...a) {
   const m = _spawnMonster.apply(this, a);
-  if (!m || m.T.dummy || m.zlvl) return m;
+  if (!m || m.T.dummy || m.zlvl || (m.isl && m.isl.noZone)) return m;   // режими з власною складністю (сплав)
   const lvl = zoneLevel(m.x, m.z);
   m.zlvl = lvl;
   if (lvl > 1) {
@@ -70,7 +70,7 @@ A.on('tick', () => {
   }
   if (curZone && curZone !== lastZone) {
     lastZone = curZone;
-    if (curZone.spawn) {
+    if (curZone.spawn && !curZone.noZone) {
       const lvl = zoneLevel(curZone.x, curZone.z);
       if (lvl >= 3) toast(`⚠️ <b>${curZone.n}</b>: моби рівня ~${lvl}. ${lvl >= 6 ? 'Небезпечно! Бери найкращу зброю й багато кави.' : 'Більше досвіду й монет.'}`);
     }

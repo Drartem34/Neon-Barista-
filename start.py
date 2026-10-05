@@ -451,7 +451,10 @@ async def handle_msg(p: Player, m):
         if len(raw) > 16000:   # голосовий чат передає SDP ~3-8 КБ
             return
         p.fx.append(now)
-        await broadcast({'t': 'ax', 'from': p.id, 'name': p.name, 'a': m['a'], 'd': m.get('d')}, skip=p)
+        out = {'t': 'ax', 'from': p.id, 'name': p.name, 'a': m['a'], 'd': m.get('d')}
+        await broadcast(out, skip=p)
+        if WORLD.ready:
+            WORLD.send(out)   # аддони на сервері світу (наприклад, «Еспресо-Сплав») теж слухають
     elif t in ('hit', 'wfx'):
         # Фізичні жарти між гравцями: кава в обличчя, удар шваброю, вантуз, вибух, вентилятор.
         now = time.time()

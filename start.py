@@ -122,7 +122,7 @@ class Tunnel:
     def command(self, kind):
         p = str(self.port)
         if kind == 'cloudflared':
-            return ['cloudflared', 'tunnel', '--no-autoupdate', '--url', f'http://localhost:{p}']
+            return ['cloudflared', 'tunnel', '--no-autoupdate', '--protocol', 'http2', '--url', f'http://localhost:{p}']
         if kind == 'ngrok':
             return ['ngrok', 'http', p, '--log', 'stdout', '--log-format', 'logfmt']
         if kind == 'serveo':
@@ -190,28 +190,55 @@ class Tunnel:
         except Exception:
             return None
 
-    def _wait_dns(self, url, proc):
-        """Нове посилання trycloudflare з'являється в DNS не одразу. Посилання показуємо одразу,
-        а в статусі пишемо, чи воно вже працює для друзів і для цього комп'ютера."""
-        host = re.sub(r'^https?://', '', url).split('/')[0]
-        for i in range(60):
-            if proc is not self.proc:
-                return
+    def _probe(self, host):
+        """Заходимо на гру через тунель так само, як друзі: DNS (свій або 1.1.1.1) → HTTPS → /status."""
+        import ssl
+        ips = []
+        try: ips.append(socket.gethostbyname(host))
+        except OSError: pass
+        if not ips:
             try:
-                socket.gethostbyname(host); local = True
-            except OSError:
-                local = False
-            public = self._resolves_public(host)
-            if local:
-                self.status = f'ONLINE ({self.kind})'
-                log(f'Тунель: {url} — працює')
+                import urllib.request
+                req = urllib.request.Request(f'https://1.1.1.1/dns-query?name={host}&type=A', headers={'accept': 'application/dns-json'})
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    ips += [a['data'] for a in json.loads(r.read().decode()).get('Answer', []) if a.get('type') == 1]
+            except Exception:
+                pass
+        for ip in ips[:2]:
+            try:
+                raw = socket.create_connection((ip, 443), timeout=6)
+                conn = ssl.create_default_context().wrap_socket(raw, server_hostname=host)
+                conn.sendall(f'GET /status HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n'.encode())
+                head = conn.recv(64).decode('latin-1', 'replace')
+                conn.close()
+                if ' 200 ' in head:
+                    return 'ok'
+                return 'http ' + head.split('\r\n')[0][9:12]
+            except Exception as e:
+                last = type(e).__name__
+        return 'nodns' if not ips else 'noconn'
+
+    def _wait_dns(self, url, proc):
+        """Перевіряємо, що посилання справді відкриває гру. Якщо за 2 хвилини ні — беремо нове посилання."""
+        host = re.sub(r'^https?://', '', url).split('/')[0]
+        t0 = time.time()
+        while proc is self.proc:
+            res = self._probe(host)
+            waited = int(time.time() - t0)
+            if res == 'ok':
+                self.status = f'ONLINE ({self.kind}) ✅ посилання працює'
+                log(f'Тунель: {url} — перевірено, гра відкривається')
                 return
-            if public:
-                self.status = 'ONLINE · друзям працює; тобі — через localhost'
-            else:
-                self.status = 'ONLINE · посилання вмикається (~1 хв)'
-            time.sleep(3)
-        log(f'Тунель: {url} — твій DNS так і не побачив посилання')
+            self.status = f'ЗАПУСК ({self.kind}) · посилання ще не відповідає ({waited} с)…'
+            if waited > 120:
+                log(f'Тунель: {url} не відповідає 2 хв ({res}) — беру нове посилання')
+                self.status = f'посилання не запрацювало ({res}) — перезапускаю тунель…'
+                p = self.proc
+                if p and p.poll() is None:
+                    try: p.terminate()
+                    except Exception: pass
+                return
+            time.sleep(4)
 
     def stop(self):
         p, self.proc = self.proc, None      # спершу забуваємо процес — тоді _read не перезапускатиме тунель

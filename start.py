@@ -448,7 +448,7 @@ async def handle_msg(p: Player, m):
         if len(p.fx) >= 12 or not isinstance(m.get('a'), str) or len(m['a']) > 40:
             return
         raw = json.dumps(m.get('d'), ensure_ascii=False)
-        if len(raw) > 4096:
+        if len(raw) > 16000:   # голосовий чат передає SDP ~3-8 КБ
             return
         p.fx.append(now)
         await broadcast({'t': 'ax', 'from': p.id, 'name': p.name, 'a': m['a'], 'd': m.get('d')}, skip=p)

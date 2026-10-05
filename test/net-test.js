@@ -13,6 +13,7 @@ fs.copyFileSync(path.join(root, 'start.py'), path.join(tmpRoot, 'start.py'));
 fs.cpSync(path.join(root, 'dist'), path.join(tmpRoot, 'dist'), { recursive: true });
 fs.mkdirSync(path.join(tmpRoot, 'addons'));
 fs.copyFileSync(path.join(root, 'addons/_examples/disco_island.js'), path.join(tmpRoot, 'addons/disco.js'));
+fs.copyFileSync(path.join(root, 'addons/_examples/chaos_weapons.js'), path.join(tmpRoot, 'addons/chaos.js'));
 fs.writeFileSync(path.join(tmpRoot, 'addons/broken.js'), "const A = Addon.info({ name: 'Зламаний' }); throw new Error('бум');");
 fs.writeFileSync(path.join(tmpRoot, 'addons/_off.js'), "window.__OFF_RAN = 1;");
 const srv = spawn('python3', [path.join(tmpRoot, 'start.py'), '--no-ui', '--tunnel', 'none', '--port', String(PORT)], { stdio: 'ignore' });
@@ -28,7 +29,7 @@ async function client(name) {
   w.console.warn = () => { }; w.fetch = (u, o) => fetch(new URL(u, `http://127.0.0.1:${PORT}/`), o); w.setInterval = () => 0;
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
   let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-  src += ';window.__T={get P(){return P},pl,NET,startGame,frame,sendChat,giftCoffee,nearRemote,setAcct,save,atk:attack,get ACCT(){return ACCT},FUN,useDrink,input,equip,makeItem,addItem,setDrink:d=>{selDrink=d},ADDONS,ISLMAP,BR,TABS,openPanel,closePanel,get worldReady(){return worldReady}};';
+  src += ';window.__T={get P(){return P},pl,NET,startGame,frame,sendChat,giftCoffee,nearRemote,setAcct,save,atk:attack,get ACCT(){return ACCT},FUN,useDrink,input,equip,makeItem,addItem,setDrink:d=>{selDrink=d},ADDONS,ISLMAP,BR,TABS,openPanel,closePanel,get worldReady(){return worldReady},STATICS,BASE,MON,PROPS,spawnMonster,pickUp,eqItem,attack,breakProp};';
   w.eval(src);
   const reg = await (await fetch(`http://127.0.0.1:${PORT}/api/register`, { method: 'POST', body: JSON.stringify({ login: name, pass: 'pass-' + name }) })).json();
   if (!reg.ok) throw new Error('register ' + name + ': ' + reg.e);
@@ -65,6 +66,31 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
   a.openPanel('ax_disco'); assert(a.w.document.querySelector('#pbody').textContent.includes('Диско-острів'), 'вкладка аддона відкривається');
   a.w.document.querySelector('[data-disco="invite"]').click(); a.closePanel(); await tick([a, b], .5);
   assert(b.w.document.querySelector('#toasts').textContent.includes('Диско'), 'аддон передає повідомлення іншим гравцям');
+  // --- аддон «Хаос-зброя»
+  assert(rec('chaos') && rec('chaos').ok && a.BASE.nailgun && a.BASE.espump, 'аддон «Хаос-зброя» завантажився');
+  assert(a.P.inv.some(i => i.b === 'nailgun') && a.P.inv.some(i => i.b === 'espump'), 'степлер і помпу видано');
+  {
+    const of = a.ISLMAP.office, ax = a.pl.x, az = a.pl.z;
+    a.pl.x = of.x; a.pl.z = of.z + 3; a.pl.y = 0; a.pl.face = Math.PI; a.input.aimOk = false;
+    for (const o of a.MON) if (!o.calm && Math.hypot(o.x - of.x, o.z - of.z) < 14) { o.x = of.x + 9; o.z = of.z + 7; }
+    a.spawnMonster('office', of, of.x, of.z); const m = a.MON[a.MON.length - 1]; m.stun = 9;
+    const ng = a.P.inv.find(i => i.b === 'nailgun'); a.equip(ng, 'hand1');
+    for (let k = 0; k < 6 && !(m.pinT > 0); k++) { a.pl.atkCd = 0; a.pl.pending = null; a.atk(); await tick([a], .25); }
+    assert(m.pinT > 0 && m.pinMesh, 'скоба прибила офісника до підлоги');
+    m.pinT = 0; await tick([a], .1);
+    const em = a.PROPS.find(p => p.type === 'espmachine' && Math.hypot(p.x - of.x, p.z - of.z) < 13);
+    // кидаємо з чистої лінії: 3 м від кавоварки, де немає столів на шляху
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [.7, .7], [-.7, .7], [.7, -.7], [-.7, -.7]];
+    const clear = ([dx, dz]) => a.STATICS.every(o => { for (let t = .8; t <= 3.2; t += .3) if (Math.hypot(em.x + dx * t - o.x, em.z + dz * t - o.z) < o.r + .7) return false; return true; });
+    const [dx, dz] = dirs.find(clear) || dirs[0];
+    m.stress = m.max * .25; m.stun = 0; a.pl.x = em.x + dx * 3.2; a.pl.z = em.z + dz * 3.2; m.x = a.pl.x; m.z = a.pl.z; a.pickUp(m); await tick([a], .1);
+    a.pl.face = Math.atan2(em.x - a.pl.x, em.z - a.pl.z); a.input.aimOk = true; a.input.ax = em.x; a.input.az = em.z;
+    a.w.dispatchEvent(new a.w.KeyboardEvent('keydown', { code: 'KeyQ' })); a.w.dispatchEvent(new a.w.KeyboardEvent('keyup', { code: 'KeyQ' }));
+    assert(!m.carried && m.thrown > 0, 'Q кидає піднятого моба');
+    for (let k = 0; k < 20 && em.alive; k++) await tick([a], .05);
+    assert(!em.alive, 'кинутий моб підірвав кавоварку');
+    a.input.aimOk = false; a.pl.x = ax; a.pl.z = az; await tick([a, b], .3);
+  }
   // --- акаунти: сейв на сервері переживає зміну посилання (новий домен = порожній localStorage)
   a.P.coins = 4242; a.save(); await tick([a, b], .5);
   const ld = await post('load', { token: a.reg.token });

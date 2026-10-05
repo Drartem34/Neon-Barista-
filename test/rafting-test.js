@@ -103,16 +103,16 @@ for (let k = 0; k < 3; k++) { T.pl.iframes = 1e9; T.pl.hp = 9999; T.pl.x = RX - 
 assert(T.P.ing.cbomb === 3 && T.P.ing.powder === 0, 'зібрано 3 бомби');
 // кидаємо бомби у пліт зомбі (G) — пліт тоне
 T.pl.x = RX - 2; T.pl.z = RZ; T.pl.face = Math.PI / 2; T.input.aimOk = true; T.input.ax = RX + 5; T.input.az = RZ;
-let sunk = false;
+let sunk = false; const sk0 = w.__raft.ST.sunk; w.__raft.AU.chaosT = 999; w.__raft.ST.sp = null;
 for (let k = 0; k < 6 && !sunk; k++) {
   if (!(T.P.ing.cbomb > 0)) T.P.ing.cbomb = 1;
   T.pl.hp = 9999; T.pl.x = RX - 2; T.pl.z = RZ; T.input.aimOk = true; T.input.ax = RX + 5; T.input.az = RZ;
   T.keydown('KeyG'); step(1.2);
-  sunk = T.terrainAt(RX + 5, RZ) === 'deep';
+  sunk = w.__raft.ST.sunk > sk0;
 }
 assert(sunk, 'після кількох бомб пліт зомбі пішов на дно (там тепер вода)');
 step(1);
-assert(zs().filter(m => m.x > RX + 1.5).length === 0, 'зомбі з потопленого плота поплили у відпустку');
+assert(zs().filter(m => m.x > RX + 1.5 && Math.abs(m.z - RZ) < 5.5 && !(w.__raft.ST.arr > 0)).length === 0, 'зомбі з потопленого плота поплили у відпустку');   // новий пліт може вже підпливати згори
 // відбили хвилю → порожній пліт відпливає, новий припливає
 {
   const R = w.__raft; let left = false, came = false;

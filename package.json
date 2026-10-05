@@ -6,8 +6,8 @@
     "build": "bash build.sh",
     "test": "bash build.sh && node test/smoke-test.js",
     "start": "bash build.sh && python3 start.py",
-    "test:net": "bash build.sh && node test/net-test.js && node test/world-test.js && node test/rafting-world-test.js",
-    "test:addons": "node test/addons-test.js && node test/rafting-test.js"
+    "test:net": "bash build.sh && node test/net-test.js && node test/world-test.js && node test/rafting-world-test.js && node test/bowling-world-test.js",
+    "test:addons": "node test/addons-test.js && node test/rafting-test.js && node test/bowling-test.js"
   },
   "dependencies": {
     "three": "0.128.0",

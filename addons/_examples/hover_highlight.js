@@ -1,22 +1,18 @@
 /* Аддон «Підсвітка цілі й прицілювання мишкою».
-   - Наведи мишку на ворога: під ним засвітиться кільце, поруч з'явиться підказка
+   - Наведи мишку на ворога: його обведе кольоровим контуром, поруч з'явиться підказка
      (хто це, рівень, стрес, улюблений напій). Працює для мобів, CEO та міні-босів.
    - Навколо курсора напівпрозоре коло — його добре видно; над ворогом воно червоніє.
    - Персонаж завжди дивиться на курсор і б'є / стріляє / кидає каву туди
      (якщо курсор над ворогом — точно в нього).
    На телефоні (без мишки) вимкнено. */
-const A = Addon.info({ name: 'Підсвітка цілі', version: '1.1', desc: 'Кільце й підказка під ворогом під курсором, коло навколо курсора, персонаж дивиться й б’є туди, де мишка.' });
+const A = Addon.info({ name: 'Підсвітка цілі', version: '1.2', desc: 'Контур і підказка для ворога під курсором, коло навколо курсора, персонаж дивиться й б’є туди, де мишка.' });
 
 const HL = { mx: -1, my: -1, target: null, ring: null, tip: null, cur: null, t: 0 };
 const _aimRay = new THREE.Raycaster(), _aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), _aimHit = new THREE.Vector3(), _aimNdc = new THREE.Vector2();
 
 A.on('start', () => {
   if (IS_TOUCH || window.__SIM) return;
-  // кільце під ціллю
-  const ring = new THREE.Mesh(new THREE.RingGeometry(.62, .82, 32), new THREE.MeshBasicMaterial({ color: '#FF8A7A', transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false }));
-  ring.rotation.x = -Math.PI / 2; ring.renderOrder = 4; ring.visible = false; scene.add(ring); HL.ring = ring;
-  const inner = new THREE.Mesh(new THREE.CircleGeometry(.62, 32), new THREE.MeshBasicMaterial({ color: '#FF8A7A', transparent: true, opacity: .22, depthWrite: false }));
-  ring.add(inner); inner.position.z = .001;
+  HL.ring = true;   // готово (обводка створюється на льоту)
   // підказка
   const tip = document.createElement('div');
   tip.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;background:rgba(46,35,70,.88);color:#fff;padding:6px 10px;border-radius:10px;font-size:12px;line-height:1.35;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.25);display:none;border:2px solid #FF8A7A';
@@ -28,6 +24,28 @@ A.on('start', () => {
   cv.addEventListener('pointermove', e => { if (e.pointerType !== 'touch') { HL.mx = e.clientX; HL.my = e.clientY; } });
   cv.addEventListener('pointerleave', () => { HL.mx = HL.my = -1; });
 });
+
+/* ---------- Обводка по контуру моделі ----------
+   Кожна частина моделі отримує трохи збільшену копію, у якої видно лише внутрішні грані
+   («вивернута оболонка») — виходить кольоровий контур саме по формі ворога. */
+const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: '#FF8A7A', side: THREE.BackSide });
+function rootOf(e) { return e === BOSS ? BOSS.mesh && BOSS.mesh.root : e.isMini ? e.mesh && e.mesh.root : e.parts && e.parts.root; }
+function outline(e) {
+  const root = rootOf(e); if (!root) return;
+  const list = [];
+  root.traverse(o => { if (o.isMesh && !o.userData.outline && o.geometry && o.visible) list.push(o); });
+  e._outl = list.map(o => {
+    const h = new THREE.Mesh(o.geometry, OUTLINE_MAT);
+    h.userData.outline = true; h.renderOrder = -1;
+    o.geometry.computeBoundingSphere && !o.geometry.boundingSphere && o.geometry.computeBoundingSphere();
+    const r = (o.geometry.boundingSphere && o.geometry.boundingSphere.radius) || .3;
+    h.scale.setScalar(1 + Math.min(.9, .085 / Math.max(.05, r)));   // однакова товщина контуру для великих і малих частин
+    o.add(h); return h;
+  });
+}
+function unOutline(e) { if (e && e._outl) { e._outl.forEach(h => h.parent && h.parent.remove(h)); e._outl = null; } }
+const _removeMonsterHL = removeMonster;
+removeMonster = function (m) { if (m === HL.target) { unOutline(m); HL.target = null; } return _removeMonsterHL.apply(this, arguments); };
 
 /* Відстань від точки до відрізка на екрані (від ніг до голови цілі) */
 function segDist(px, py, ax, ay, bx, by) {
@@ -94,15 +112,14 @@ A.on('tick', dt => {
       }
     }
   }
-  HL.target = c ? c.e : null;
-  HL.ring.visible = !!c; HL.tip.style.display = c ? '' : 'none';
+  const e = c ? c.e : null;
+  if (e !== HL.target) { unOutline(HL.target); if (e) outline(e); HL.target = e; }
+  HL.tip.style.display = c ? '' : 'none';
   if (!c) return;
   const low = !c.boss && c.e.stress <= c.e.max * .25 + .5;
   const col = c.boss ? '#FF5C7A' : low ? '#8FD9C0' : '#FF8A7A';
-  HL.ring.material.color.set(col); HL.ring.children[0].material.color.set(col);
-  HL.ring.position.set(c.x, (c.y > -1 ? Math.max(0, c.y) : 0) + .06, c.z);
-  HL.ring.scale.setScalar(c.r * (1 + Math.sin(HL.t * 6) * .06));
-  HL.ring.rotation.z += dt * .8;
+  OUTLINE_MAT.color.set(col);
+  OUTLINE_MAT.color.offsetHSL(0, 0, Math.sin(HL.t * 7) * .06);
   HL.tip.style.borderColor = col;
   const html = tipHTML(c); if (HL.tip.innerHTML !== html) HL.tip.innerHTML = html;
   const p = screenPos(c.x, c.y + c.h + .5, c.z);

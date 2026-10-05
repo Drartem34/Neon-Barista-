@@ -13,7 +13,7 @@ w.setTimeout = f => { f(); return 0; };
 w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
 w.__ADDON_CODE = ['progression', 'black_market', 'hover_highlight'].map(id => ({ id, src: id + '.js', code: fs.readFileSync(path.join(root, 'addons/_examples', id + '.js'), 'utf8') }));
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-src += ';window.__T={get P(){return P},pl,MON,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),spawnMonster,screenPos,questEvent,addItem,makeItem,renderPanel};';
+src += ';window.__T={get P(){return P},pl,MON,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),spawnMonster,screenPos,input,questEvent,addItem,makeItem,renderPanel};';
 w.eval(src);
 const T = w.__T; let now = 1000;
 const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; T.frame(now); } };
@@ -55,7 +55,7 @@ T.renderPanel(); assert(body().textContent.includes('Прогрес'), 'нови
   const tip = [...w.document.querySelectorAll('#fx-layer div')].find(d => d.style.display !== 'none' && /Стрес/.test(d.textContent));
   assert(tip && tip.textContent.includes(m.T.n), 'наведення мишки на ворога показує підказку: ' + (tip && tip.textContent));
   step(.4);
-  assert(Math.abs(((T.pl.face - Math.atan2(m.x - T.pl.x, m.z - T.pl.z)) + Math.PI * 3) % (Math.PI * 2) - Math.PI) < .3, 'персонаж повернувся до ворога під курсором');
+  assert(Math.abs(((T.pl.face - Math.atan2(T.input.ax - T.pl.x, T.input.az - T.pl.z)) + Math.PI * 3) % (Math.PI * 2) - Math.PI) < .3 && T.input.aimOk, 'персонаж дивиться туди, де курсор');
   const cur = [...w.document.body.children].find(d => d.style && d.style.borderRadius === '50%' && d.style.position === 'fixed');
   assert(cur && cur.style.display !== 'none', 'навколо курсора видно коло');
 }

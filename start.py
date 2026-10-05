@@ -165,8 +165,9 @@ class Tunnel:
                 m = pat.search(line)
                 if m:
                     url = m.group(1) if m.groups() else m.group(0)
-                    self.status = f'ЧЕКАЮ, ПОКИ ПОСИЛАННЯ ЗАПРАЦЮЄ ({self.kind})…'
-                    log(f'Тунель: {url} — перевіряю DNS')
+                    self.url = url
+                    self.status = f'ONLINE ({self.kind}) · перевіряю…'
+                    log(f'Тунель: {url}')
                     threading.Thread(target=self._wait_dns, args=(url, proc), daemon=True).start()
         _log.flush()
         if proc is self.proc:
@@ -178,22 +179,39 @@ class Tunnel:
                 self.proc = None
                 self.start()
 
+    @staticmethod
+    def _resolves_public(host):
+        """Чи бачить адресу публічний DNS Cloudflare (1.1.1.1) — так, як побачать друзі."""
+        try:
+            import urllib.request
+            req = urllib.request.Request(f'https://1.1.1.1/dns-query?name={host}&type=A', headers={'accept': 'application/dns-json'})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return bool(json.loads(r.read().decode()).get('Answer'))
+        except Exception:
+            return None
+
     def _wait_dns(self, url, proc):
-        """Нове посилання trycloudflare з'являється в DNS не одразу — показуємо його, коли воно справді працює."""
+        """Нове посилання trycloudflare з'являється в DNS не одразу. Посилання показуємо одразу,
+        а в статусі пишемо, чи воно вже працює для друзів і для цього комп'ютера."""
         host = re.sub(r'^https?://', '', url).split('/')[0]
-        for i in range(90):
+        for i in range(60):
             if proc is not self.proc:
                 return
             try:
-                socket.gethostbyname(host)
-                self.url = url
+                socket.gethostbyname(host); local = True
+            except OSError:
+                local = False
+            public = self._resolves_public(host)
+            if local:
                 self.status = f'ONLINE ({self.kind})'
                 log(f'Тунель: {url} — працює')
                 return
-            except OSError:
-                time.sleep(2)
-        self.url = url
-        self.status = f'ONLINE ({self.kind}), але DNS ще не бачить посилання — зачекай або спробуй інший інтернет'
+            if public:
+                self.status = 'ONLINE · друзям працює; тобі — через localhost'
+            else:
+                self.status = 'ONLINE · посилання вмикається (~1 хв)'
+            time.sleep(3)
+        log(f'Тунель: {url} — твій DNS так і не побачив посилання')
 
     def stop(self):
         p, self.proc = self.proc, None      # спершу забуваємо процес — тоді _read не перезапускатиме тунель

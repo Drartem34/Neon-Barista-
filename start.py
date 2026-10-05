@@ -231,7 +231,7 @@ class Tunnel:
                     self.status = f'ONLINE ({self.kind}) ✅ посилання працює'
                     log(f'Тунель: {url} — перевірено, гра відкривається')
                     return
-                self.status = '✅ друзям працює · твій комп ще «пам’ятає» помилку — сам грай через localhost'
+                self.status = '✅ друзям працює · тобі поки — через localhost'
             else:
                 self.status = f'ЗАПУСК ({self.kind}) · НЕ ВІДКРИВАЙ ще посилання — чекаю ({waited} с)…'
                 if waited // 20 != getattr(self, '_lastlog', -1):

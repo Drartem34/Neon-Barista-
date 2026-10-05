@@ -118,7 +118,7 @@ let hitStopT = 0, chargeRing = null;
 const WARN = [];
 function hitStop(t) { hitStopT = Math.max(hitStopT, t); }
 function atkDown() {
-  if (!running || paused) return;
+  if (!running || paused || panel) return;
   input.atk = true; input.atkHold = 0;
   attack();
 }
@@ -146,7 +146,7 @@ function updCharge(dt) {
   } else pl.chargeSlow = false;
 }
 function chargedAttack() {
-  if (pl.dead || paused || pl.jump || pl.falling || isWet(pl.terr)) return;
+  if (pl.dead || paused || panel || pl.jump || pl.falling || isWet(pl.terr)) return;
   const it = eqItem('hand1'), h = handStats(it);
   const cost = (2 + h.wt * 1.4) * 1.6;
   if (pl.st < cost) { ftext(pl.x, 2.3, pl.z, 'Видихся…', 'bad'); return; }
@@ -267,7 +267,7 @@ function skipArt() { if (!art) return; const id = art.id; art = null; $('#artui'
 /* ---------- Стрибок і планування ---------- */
 let glider = null;
 function jumpPress() {
-  if (!running || paused || pl.dead || pl.falling || pl.jump || fishing || pl.lock > 0) return;
+  if (!running || paused || panel || pl.dead || pl.falling || pl.jump || fishing || pl.lock > 0) return;
   input.jumpHeld = true;
   if (pl.grounded && !isWet(pl.terr)) {
     pl.vy = 9.2; pl.y += .05; pl.grounded = false; pl.airDash = true;

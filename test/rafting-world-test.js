@@ -24,7 +24,7 @@ async function client(name) {
   w.console.warn = () => { }; w.__ADDON_TEST = true; w.fetch = (u, o) => fetch(new URL(u, `http://127.0.0.1:${PORT}/`), o); w.setInterval = () => 0;
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
   let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-  src += ';window.__T={get P(){return P},pl,NET,WORLD,MON,BODIES,PROPS,ISLMAP,input,startGame,frame,setAcct,attack,carryTarget,pickUpAny,releaseCarry,mount,dismount,useDrink,setDrink:d=>{selDrink=d},get worldReady(){return worldReady},get S(){return S},getInteract:()=>getInteract(),hurt:d=>hurtPlayer(d),get paused(){return paused},openPanel,terrainAt:(x,z)=>terrainAt(x,z),keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c}))};';
+  src += ';window.__T={get P(){return P},pl,NET,WORLD,MON,BODIES,PROPS,ISLMAP,input,startGame,frame,setAcct,attack,carryTarget,pickUpAny,releaseCarry,mount,dismount,useDrink,setDrink:d=>{selDrink=d},get worldReady(){return worldReady},get S(){return S},getInteract:()=>getInteract(),hurt:d=>hurtPlayer(d),get gt(){return gameTime},get panel(){return panel},get paused(){return paused},openPanel,terrainAt:(x,z)=>terrainAt(x,z),keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c}))};';
   w.eval(src);
   const reg = await post('register', { login: name, pass: 'pass-' + name });
   w.__T.setAcct({ token: reg.token, login: reg.login, admin: reg.admin });
@@ -50,7 +50,7 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   await tick([a, b], 1.5);
   const hud = T => T.w.document.getElementById('raft-hud');
   assert(/ЕСПРЕСО-СПЛАВ/.test(hud(a).textContent) && /ЕСПРЕСО-СПЛАВ/.test(hud(b).textContent), 'сплав почався в обох (рахує сервер)');
-  for (let i = 0; i < 12; i++) { for (const T of [a, b]) { T.pl.hp = 9999; T.pl.x = RX - 4; } await tick([a, b], .5); }
+  for (let i = 0; i < 22; i++) { for (const T of [a, b]) { T.pl.hp = 9999; T.pl.x = RX - 4; } await tick([a, b], .5); }
   const zs = T => [...T.WORLD.proxies.values()].filter(m => m.x > RX - 10 && m.x < RX + 10 && Math.abs(m.z - RZ) < 7 && !m.calm);
   assert(zs(a).length >= 3 && Math.abs(zs(a).length - zs(b).length) <= 1, `обидва бачать хвилю зомбі (${zs(a).length} / ${zs(b).length})`);
   // плоти гойдаються однаково в обох (час сплаву з сервера)
@@ -78,6 +78,8 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
     sunk = a.terrainAt(RX + 5, RZ) === 'deep' && b.terrainAt(RX + 5, RZ) === 'deep';
   }
   assert(sunk, 'бомби Тараса потопили пліт зомбі — і в Олі, і в Тараса там вода');
+  // меню в онлайні не заморожує гру
+  { a.openPanel('inv'); const g0 = a.gt, px = a.pl.x; await tick([a, b], 1); assert(a.panel === 'inv' && a.gt - g0 > .5, `онлайн: з відкритим меню світ живе далі (час ${g0.toFixed(1)} → ${a.gt.toFixed(1)})`); a.keydown('Escape'); }
   assert(a.w.__raft.ST.roster.length === 2, 'у складі сплаву двоє: ' + a.w.__raft.ST.roster.join(', '));
   // новенький посеред сплаву не заходить
   const c = await client('Петро'); await tick([a, b, c], 1.5);

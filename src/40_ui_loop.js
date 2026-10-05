@@ -210,7 +210,7 @@ function updInteract() {
   else pr.hidden = true;
   interactNow = it;
 }
-function interact() { if (paused) return; if (fishing) { reelFish(); return; } if (interactNow) interactNow.fn(); }
+function interact() { if (paused || panel) return; if (fishing) { reelFish(); return; } if (interactNow) interactNow.fn(); }
 
 /* ---------- Керування ---------- */
 const input = { mx: 0, mz: 0, ax: 0, az: 0, aimOk: false, atk: false, jx: 0, jz: 0 };
@@ -262,6 +262,7 @@ addEventListener('pointerup', e => { if (e.pointerType !== 'touch' && e.button =
 cv.addEventListener('contextmenu', e => e.preventDefault());
 function updInput() {
   let x = 0, z = 0;
+  if (panel) { input.mx = input.mz = 0; return; }   // меню відкрите (онлайн гра йде далі) — персонаж стоїть
   if (keys.KeyA || keys.ArrowLeft) x -= 1;
   if (keys.KeyD || keys.ArrowRight) x += 1;
   if (keys.KeyW || keys.ArrowUp) z -= 1;
@@ -365,11 +366,11 @@ function refreshLook() {
 let panel = null, selU = null, newConfirm = false;
 const TABS = [['pause', '⏸️ Пауза'], ['map', '🗺️ Мапа'], ['journal', '📔 Щоденник'], ['inv', '🎒 Речі'], ['cases', '🎁 Кейси'], ['skills', '🌳 Навички'], ['drinks', '☕ Напої'], ['craft', '🛠️ Крафт'], ['work', '🔧 Майстерня'], ['shop', '🛒 Крамниця'], ['home', '🏝️ Острів'], ['stash', '📦 Сховок'], ['quest', '📜 Квест'], ['sound', '⚙️ Налаштування'], ['help', '❔ Довідка'], ['online', '👥 Онлайн'], ['admin', '🛡️ Адмін']];
 function openPanel(name) {
-  panel = name; paused = true; input.atk = false; pl.charge = 0; input.jumpHeld = false;
+  panel = name; paused = !NET.on || pl.dead; input.atk = false;   // онлайн світ не зупиняється, поки відкрите меню pl.charge = 0; input.jumpHeld = false;
   for (const k in keys) keys[k] = false;
   $('#panel').hidden = false; renderPanel();
 }
-function closePanel() { panel = null; $('#panel').hidden = true; paused = pl.dead; cv.focus(); }
+function closePanel() { panel = null; $('#panel').hidden = true; paused = pl.dead && !NET.on; cv.focus(); }
 $('#pclose').addEventListener('click', closePanel);
 $('#panel').addEventListener('click', e => { if (e.target.id === 'panel') closePanel(); });
 $('#ptabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { panel = b.dataset.tab; renderPanel(); } });

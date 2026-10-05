@@ -185,7 +185,7 @@ function funNetMsg(m) {
   }
   if (m.t === 'wfx') {
     if (m.k === 'fan' && FANS[m.i]) { switchFan(FANS[m.i], false); toast(`🌀 ${escapeHTML(m.name || '')} увімкнув вентилятор на мосту!`); }
-    if (m.k === 'boom' && m.x != null) { const d = dist2(pl.x, pl.z, m.x, m.z); if (d < 4.5) { knockMe(angTo(m.x, m.z, pl.x, pl.z), 18 * (1 - d / 6), 'БАБАХ!'); hurtPlayer(5); } }
+    if (m.k === 'boom' && m.x != null) { if (m.from != null && m.from !== NET.id) boomFX(m.x, m.z, 3.2, .8); const d = dist2(pl.x, pl.z, m.x, m.z); if (d < 4.5) { knockMe(angTo(m.x, m.z, pl.x, pl.z), 18 * (1 - d / 6), 'БАБАХ!'); hurtPlayer(5); } }
     return true;
   }
   return false;
@@ -347,10 +347,77 @@ function updFans(dt) {
   }
 }
 
+/* ---------- Ефектний вибух: вогняна куля, спалах, ударна хвиля, дим, уламки, кіптява ---------- */
+const BOOMS = [];
+let BOOM_TEX = null;
+function boomTex() {
+  if (BOOM_TEX) return BOOM_TEX;
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext && c.getContext('2d');
+  if (x && x.createRadialGradient) {
+    const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    if (g && g.addColorStop) {
+    g.addColorStop(0, 'rgba(255,255,235,1)'); g.addColorStop(.25, 'rgba(255,214,120,.9)'); g.addColorStop(.6, 'rgba(255,120,60,.35)'); g.addColorStop(1, 'rgba(255,90,40,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    }
+  }
+  return BOOM_TEX = new THREE.CanvasTexture(c);
+}
+function boomFX(x, z, R = 3, y = .6, wet) {
+  if (window.__SIM || typeof scene === 'undefined') return;
+  const g = new THREE.Group(); g.position.set(x, y, z); scene.add(g);
+  const basicT = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false });
+  const fire = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), basicT('#FF9A3C', .95)); fire.scale.setScalar(.2);
+  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), basicT('#FFF3C4', 1)); core.scale.setScalar(.15);
+  const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: boomTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); flash.scale.setScalar(R * 5);
+  g.add(fire, core, flash);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(.85, 1, 40), basicT('#FFFFFF', .85)); ring.rotation.x = -Math.PI / 2; ring.position.set(x, .08, z); ring.scale.setScalar(.4); scene.add(ring);
+  const smoke = [], debris = [];
+  for (let i = 0; i < 9; i++) {
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(.55, 0), new THREE.MeshStandardMaterial({ color: wet ? '#E8F6FF' : pick(['#6E6680', '#857C99', '#5A5470']), transparent: true, opacity: .75, flatShading: true, depthWrite: false }));
+    const a = Math.random() * 6.28, d = Math.random() * R * .35;
+    m.position.set(x + Math.cos(a) * d, y + Math.random() * .6, z + Math.sin(a) * d); m.scale.setScalar(.4); scene.add(m);
+    smoke.push({ m, vx: Math.cos(a) * rand(.4, 1.4), vz: Math.sin(a) * rand(.4, 1.4), vy: rand(1.2, 2.8), s: rand(1, 2) });
+  }
+  for (let i = 0; i < 14; i++) {
+    const ember = i % 3 === 0;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(rand(.1, .28), rand(.08, .2), rand(.1, .3)), ember ? basicT('#FFB347', 1) : mat(pick(['#A3795C', '#4E4A6E', '#C9CDD9', '#8C5A3C'])));
+    m.position.set(x, y + .3, z); scene.add(m);
+    const a = Math.random() * 6.28, sp = rand(4, 10) * (R / 3);
+    debris.push({ m, vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, vy: rand(4, 10), rx: rand(-12, 12), rz: rand(-12, 12) });
+  }
+  let scorch = null;
+  if (!wet && onGround(x, z, .2)) { scorch = new THREE.Mesh(new THREE.CircleGeometry(R * .6, 20), basicT('#2E2346', .45)); scorch.rotation.x = -Math.PI / 2; scorch.position.set(x, .04, z); scene.add(scorch); }
+  if (wet) burst(x, .2, z, '#BDEFFF', 34, 8, 1.3, 9, 1.4);
+  burst(x, y + .4, z, '#FFD27A', 22, 9, .7, 5, 1.2);
+  BOOMS.push({ g, fire, core, flash, ring, smoke, debris, scorch, t: 0, R });
+  const d = dist2(pl.x, pl.z, x, z);
+  shake = Math.max(shake, d < 8 ? .75 : d < 18 ? .4 : .15);
+  if (d < 10 && typeof hitStop === 'function') hitStop(.05);
+  sfx('boom', x, z); setTimeout(() => sfx('break', x, z), 90);
+}
+function updBooms(dt) {
+  for (let i = BOOMS.length - 1; i >= 0; i--) {
+    const b = BOOMS[i]; b.t += dt; const t = b.t, R = b.R;
+    const k = Math.min(1, t / .22);
+    b.fire.scale.setScalar(.2 + R * .6 * Math.sqrt(k)); b.fire.material.opacity = t < .22 ? .95 : Math.max(0, .95 - (t - .22) * 2.2);
+    b.fire.material.color.setHSL(.08 - Math.min(.06, t * .1), 1, Math.max(.35, .6 - t * .4));
+    b.core.scale.setScalar(.15 + R * .38 * Math.sqrt(k)); b.core.material.opacity = Math.max(0, 1 - t * 4);
+    b.flash.material.opacity = Math.max(0, 1 - t * 5); b.flash.scale.setScalar(R * (5 + t * 6));
+    b.g.position.y += dt * .8;
+    b.ring.scale.setScalar(.4 + R * 2.2 * Math.min(1, t / .45)); b.ring.material.opacity = Math.max(0, .85 - t * 1.9);
+    for (const s of b.smoke) { s.m.position.x += s.vx * dt; s.m.position.z += s.vz * dt; s.m.position.y += s.vy * dt; s.vy *= 1 - dt * .6; s.m.scale.setScalar(.4 + s.s * Math.min(1.6, t * 1.1)); s.m.material.opacity = Math.max(0, .75 - Math.max(0, t - .5) * .45); s.m.rotation.y += dt; }
+    for (const d of b.debris) { if (!d.m.parent) continue; d.vy -= 22 * dt; d.m.position.x += d.vx * dt; d.m.position.y += d.vy * dt; d.m.position.z += d.vz * dt; d.m.rotation.x += d.rx * dt; d.m.rotation.z += d.rz * dt; if (d.m.position.y < .05 && d.vy < 0) { if (onGround(d.m.position.x, d.m.position.z, 0) && !isWet(terrainAt(d.m.position.x, d.m.position.z))) { d.m.position.y = .05; d.vy *= -.35; d.vx *= .5; d.vz *= .5; } else if (d.m.position.y < -1.5) scene.remove(d.m); } }
+    if (b.scorch) b.scorch.material.opacity = Math.max(0, .45 - Math.max(0, t - 4) * .2);
+    if (t > 1.2 && b.g.parent) scene.remove(b.g, b.ring);
+    if (t > 2.6) for (const s of b.smoke) scene.remove(s.m);
+    if (t > 6.5) { for (const d of b.debris) scene.remove(d.m); if (b.scorch) scene.remove(b.scorch); BOOMS.splice(i, 1); }
+  }
+}
+
 /* ---------- Вибух кавоварки ---------- */
 function funBoom(x, z, R, net) {
-  ringFX(x, z, R, '#FFE8D6', .6); burst(x, 1, z, '#8C5A3C', 26, 7, 1.2, 6); burst(x, 1.2, z, '#FFFFFF', 18, 5, 1, 4);
-  sfx('boom', x, z); shake = Math.max(shake, .5);
+  boomFX(x, z, R * .8, .8); burst(x, 1, z, '#8C5A3C', 20, 7, 1.2, 6);
   ftext(x, 2.2, z, 'КАВОВИЙ БАБАХ!', 'big');
   for (const m of MON) {
     if (m.calm || m.state === 'fall' || m.carried) continue;
@@ -605,7 +672,7 @@ function updFun(dt) {
   if (FUN.jam > 0) { FUN.jam -= dt; if (FUN.jam <= 0) setFunOverlay(); }
   if (!pl.ride && onSyrup(pl.x, pl.z) && pl.grounded && gameTime - FUN.slipWarn > 5) { FUN.slipWarn = gameTime; ftext(pl.x, 2.2, pl.z, 'Сироп! Ковзко!', 'calm'); }
   if (!FUN.held && hero && hero.body.rotation.z) hero.body.rotation.z = 0;
-  updBodies(dt); updFans(dt); updHooks(dt); updCarry(dt); updChill(dt); updCupsVsRemotes();
+  updBodies(dt); updFans(dt); updHooks(dt); updCarry(dt); updChill(dt); updCupsVsRemotes(); updBooms(dt);
   for (const p of PROPS) if (p.gauge && p.alive) p.gauge.rotation.z = Math.sin(gameTime * 6 + p.x) * .6;
 }
 /* Візок під тімейтом, який катається */

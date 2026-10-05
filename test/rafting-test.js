@@ -15,7 +15,7 @@ w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => 
 w.__ADDON_CODE = [{ id: 'progression', src: 'progression.js', code: fs.readFileSync(path.join(root, 'addons/_examples/progression.js'), 'utf8') },
   { id: 'rafting', src: 'rafting/addon.js', code: fs.readFileSync(path.join(root, 'addons/_examples/rafting/addon.js'), 'utf8') }];
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-src += ';window.__T={get paused(){return paused},get running(){return running},get P(){return P},pl,MON,PROPS,BODIES,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),nearBar:()=>nearBar(),input,renderPanel,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),fireHook:h=>fireHook(h),releaseCarry:t=>releaseCarry(t),pickUpAny:t=>pickUpAny(t),damageProp:(p,d)=>damageProp(p,d),hurt:d=>hurtPlayer(d)};';
+src += ';window.__T={get paused(){return paused},get running(){return running},get P(){return P},pl,MON,PROPS,BODIES,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),nearBar:()=>nearBar(),input,renderPanel,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),fireHook:h=>fireHook(h),releaseCarry:t=>releaseCarry(t),pickUpAny:t=>pickUpAny(t),damageProp:(p,d)=>damageProp(p,d),hurt:d=>hurtPlayer(d),dropLoot:(x,z,l)=>dropLoot(x,z,l),DROPS};';
 w.eval(src);
 const T = w.__T; let now = 1000;
 const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; T.frame(now); if (i % 3 === 0) IV.forEach(f => f()); } };
@@ -57,14 +57,21 @@ let it = T.getInteract(); assert(it && /Відчалити/.test(it.l), 'біл�
 it.fn(); step(.1);
 const hud = () => w.document.getElementById('raft-hud');
 assert(hud() && /Хвиля 0/.test(hud().textContent), 'сплав почався, вгорі таймер і хвиля');
-step(8);
+for (let i = 0; i < 80 && !(w.__raft.ST.arr > 0); i++) step(.1);
 const zs = () => T.MON.filter(m => m.isl.id === 'river' && !m.calm && m.state !== 'fall');
-assert(zs().length >= 3 && zs().every(m => !m.zlvl), `хвиля 1: на плоту зомбі (${zs().length}), без рівнів прогресії`);
+assert(w.__raft.ST.arr > 0 && zs().length >= 3 && zs().every(m => m.z < RZ - 4 && m.state !== 'fall'), `пліт припливає вже із зомбі (${zs().length}), вони стоять на ньому, а не у воді`);
+step(4);
+assert(zs().length >= 3 && zs().every(m => !m.zlvl) && zs().some(m => Math.abs(m.z - RZ) < 5), `хвиля 1: пліт приплив із зомбі (${zs().length}), без рівнів прогресії`);
 assert(/Хвиля 1/.test(hud().textContent), 'HUD: хвиля 1');
 // зомбі стрибають на наш пліт
 let jumped = false;
 for (let i = 0; i < 40 && !jumped; i++) { step(.5); jumped = zs().some(m => m.x < RX - 1.4); T.pl.hp = 9999; }
 assert(jumped, 'зомбі стрибнули на абордаж на наш пліт');
+{ let mx = 0; for (let i = 0; i < 50; i++) { T.pl.hp = 9999; T.pl.iframes = 1e9; T.pl.x = RX - 8; T.pl.z = RZ + 4; step(.5); mx = Math.max(mx, zs().filter(m => m.x < RX - 1.4).length); }
+  assert(mx <= 2, `на абордаж — лише пара зомбі одночасно (максимум ${mx})`); }
+// те, що впало у воду, течія прибиває до плота
+{ T.dropLoot(RX + .2, RZ + 2, [{ k: 'coins', d: 3 }]); step(.05); const dd = T.DROPS[T.DROPS.length - 1]; const x0 = dd.x; step(4);
+  assert(dd.x < x0 - 1 && T.terrainAt(dd.x, dd.z) === 'land', `монети з води прибило до плота (${(x0 - RX).toFixed(1)} → ${(dd.x - RX).toFixed(1)})`); }
 // ящики пливуть річкою, вантуз їх тягне
 const rafting = T.ADDONS.list.find(a => a.id === 'rafting');
 step(3);

@@ -625,7 +625,7 @@ function breakProp(p) {
   questEvent('break');
   const big = hasSk('x3') ? 1.5 : 1;
   if (p.type === 'printer') {
-    const R = 3.2 * big; ringFX(p.x, p.z, R, '#FFE8D6', .5); burst(p.x, 1, p.z, '#FFFFFF', 20, 6, 1.2, 5); sfx('boom', p.x, p.z);
+    const R = 3.2 * big; ringFX(p.x, p.z, R, '#FFE8D6', .5); burst(p.x, 1, p.z, '#FFFFFF', 20, 6, 1.2, 5); if (typeof boomFX === 'function') boomFX(p.x, p.z, R * .7, .6); else sfx('boom', p.x, p.z);
     for (const m of MON) {
       if (m.calm || m.state === 'fall') continue;
       const d = dist2(m.x, m.z, p.x, p.z);
@@ -711,7 +711,7 @@ function checkPerfect(x, z, r) {
   }
 }
 function die() {
-  pl.dead = true; paused = true;
+  pl.dead = true; paused = !NET.on;   // онлайн світ не зупиняється, поки ти на екрані смерті
   $('#death').hidden = false;
 }
 function respawn() {
@@ -722,7 +722,7 @@ function respawn() {
   refreshHUD(); save();
 }
 function dash() {
-  if (pl.dead || pl.jump || pl.falling || paused) return;
+  if (pl.dead || pl.jump || pl.falling || paused || panel) return;
   if (pl.charges <= 0 || pl.st < 18) { if (pl.st < 18) ftext(pl.x, 2.3, pl.z, 'Видихся…', 'bad'); return; }
   pl.st -= 18; pl.stDelay = .5; pl.charges--; pl.chargeT = .9;
   pl.dashT = .19 * S.dashMul; pl.iframes = Math.max(pl.iframes, .32 * Math.max(1, S.dashMul * .8));
@@ -745,7 +745,7 @@ function aimFace() {
   if (best) pl.face = angTo(pl.x, pl.z, best.x, best.z);
 }
 function attack() {
-  if (pl.dead || paused || pl.atkCd > 0 || pl.pending || pl.jump || pl.falling) return;
+  if (pl.dead || paused || panel || pl.atkCd > 0 || pl.pending || pl.jump || pl.falling) return;
   if (isWet(pl.terr)) { if (!pl.wetWarn || gameTime - pl.wetWarn > 2) { ftext(pl.x, 1.4, pl.z, 'У воді не помахаєш — кидай каву!', 'bad'); pl.wetWarn = gameTime; } return; }
   if (fishing || pl.dig) return;
   if (pl.carry) { throwCarried(); pl.atkCd = .4; return; }
@@ -851,7 +851,7 @@ function swapHands() {
 /* ---------- Напої ---------- */
 function knownDrinks() { return DRINK_ORDER.filter(d => P.known[d]); }
 function useDrink() {
-  if (pl.dead || paused || pl.jump || pl.falling) return;
+  if (pl.dead || paused || panel || pl.jump || pl.falling) return;
   const id = selDrink, D = DRINK[id];
   if (!P.drinks[id]) {
     const alt = knownDrinks().find(d => P.drinks[d] && !DRINK[d].self);

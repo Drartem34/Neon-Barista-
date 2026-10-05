@@ -115,6 +115,12 @@ function updRemotes(dt) {
   }
   if (!NET.on) return;
   if (panel === 'online' && (NET.listT = (NET.listT || 0) - dt) <= 0) { NET.listT = 1; renderPanel(); }
+  netStateTick(dt);
+}
+/* Мій стан для інших — 10 разів на секунду. Шлеться й тоді, коли гра на паузі через смерть
+   (інакше друзі й сервер не дізнались би, що я вигорів). */
+function netStateTick(dt) {
+  if (!NET.on) return;
   NET.sendT -= dt;
   if (NET.sendT <= 0) {
     NET.sendT = .1;

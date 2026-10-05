@@ -53,7 +53,7 @@ const Addon = {
   onNet(type, fn) { ADDONS.net[addonRec().id + ':' + type] = [addonRec(), fn]; },
   /** Позначити об'єкт, що рухається / змінює колір (інакше оптимізатор «заморозить» його у статиці). */
   dynamic(obj) { ADDONS.dyn.push(obj); return obj; },
-  /** Режим / міні-гра в меню паузи (Esc): { id, ic, n, sub, go() — перенести туди, here() — чи гравець зараз там }. */
+  /** Режим / міні-гра в меню паузи (Esc): { id, ic, n, sub, go() — перенести туди, here() — чи гравець зараз там, leave() — вийти (false — лишитись) }. */
   mode(def) { if (def && def.id && !MODES.some(m => m.id === def.id)) MODES.push(Object.assign({}, def)); },
   /** Сховище аддона в прогресі гравця (зберігається разом з акаунтом). */
   data() { const id = addonRec().id; P.addons = P.addons || {}; return P.addons[id] = P.addons[id] || {}; },

@@ -4914,6 +4914,12 @@ function updRemotes(dt) {
   }
   if (!NET.on) return;
   if (panel === 'online' && (NET.listT = (NET.listT || 0) - dt) <= 0) { NET.listT = 1; renderPanel(); }
+  netStateTick(dt);
+}
+/* Мій стан для інших — 10 разів на секунду. Шлеться й тоді, коли гра на паузі через смерть
+   (інакше друзі й сервер не дізнались би, що я вигорів). */
+function netStateTick(dt) {
+  if (!NET.on) return;
   NET.sendT -= dt;
   if (NET.sendT <= 0) {
     NET.sendT = .1;
@@ -5546,7 +5552,7 @@ function renderQuestPanel() {
   <h3 style="margin-top:16px">Твоя зміна</h3><div class="chips"><span class="chip">Заспокоєно: ${P.calmed}</span><span class="chip">Рейдів пройдено: ${P.bossWins}</span><span class="chip">Відвідувачів у «Гущі»: ${CROWD.length}</span></div>`;
 }
 /* ---------- Пауза (Esc): режими й міні-ігри ---------- */
-const MODES = [];   // аддони додають режими через Addon.mode({ id, ic, n, sub, go, here })
+const MODES = [];   // аддони додають режими через Addon.mode({ id, ic, n, sub, go, here, leave })
 function curMode() { return MODES.find(m => { try { return m.here && m.here(); } catch (e) { return false; } }) || null; }
 function renderPause() {
   const cur = curMode();
@@ -5565,6 +5571,7 @@ $('#pbody').addEventListener('click', e => {
   const p = e.target.closest('[data-pause]'); if (p) { const a = p.dataset.pause; if (a === 'go') closePanel(); else openPanel(a); return; }
   const b = e.target.closest('[data-mode]'); if (!b || b.disabled) return;
   const id = b.dataset.mode, cur = curMode();
+  if (cur && cur.id !== id && cur.leave && !cur.leave()) return;   // режим може не відпустити (або спитати «точно?»)
   if (id === 'world') { if (!cur) { closePanel(); return; } goHub('🌍 Відкритий світ. З поверненням у «Гущу».'); return; }
   const m = MODES.find(x => x.id === id); if (!m) return;
   if (cur === m) { closePanel(); return; }
@@ -5701,6 +5708,7 @@ function frame(now) {
     }
     updWarn(dt); updProj(dt); updTele(dt); updNodes(dt); updChests(dt); updDrops(dt); updBrew(dt); updCrowd(dt); updGiver(); updInteract(); updDummy(dt); updTut(dt); updExplore(dt); updRemotes(dt); updFun(dt); addonTick(dt);
   }
+  else if (running && pl.dead) netStateTick(rdt);   // мертвий: гра на паузі, але друзі мають бачити
   updParticles(live ? dt : 0); updFX(live ? dt : 0); updLights(rdt);
   updWorldAnim(rdt); updCamera(rdt); updOverlays(live ? rdt : 0); updCase(rdt); updArt(rdt); updFps(rdt);
   if (running) updHUDFrame();
@@ -7298,7 +7306,7 @@ const Addon = {
   onNet(type, fn) { ADDONS.net[addonRec().id + ':' + type] = [addonRec(), fn]; },
   /** Позначити об'єкт, що рухається / змінює колір (інакше оптимізатор «заморозить» його у статиці). */
   dynamic(obj) { ADDONS.dyn.push(obj); return obj; },
-  /** Режим / міні-гра в меню паузи (Esc): { id, ic, n, sub, go() — перенести туди, here() — чи гравець зараз там }. */
+  /** Режим / міні-гра в меню паузи (Esc): { id, ic, n, sub, go() — перенести туди, here() — чи гравець зараз там, leave() — вийти (false — лишитись) }. */
   mode(def) { if (def && def.id && !MODES.some(m => m.id === def.id)) MODES.push(Object.assign({}, def)); },
   /** Сховище аддона в прогресі гравця (зберігається разом з акаунтом). */
   data() { const id = addonRec().id; P.addons = P.addons || {}; return P.addons[id] = P.addons[id] || {}; },

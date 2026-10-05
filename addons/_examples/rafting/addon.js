@@ -12,7 +12,7 @@
    Інвентар той самий, що й у відкритому світі; нагороди — туди ж.
    У спільному світі (сервер світу) сплав один на всіх: хвилі, пліт і лут рахує сервер.
    Картинку для картки в меню поклади поруч: addons/rafting/rafting-bg.jpg */
-const A = Addon.info({ name: 'Еспресо-Сплав', version: '1.1', desc: 'Режим «Рафтинг-Запара»: 5 хвилин на плоту, хвилі зомбі з сусіднього плота, лут у річці, бомби, баки й коробки-снаряди, хаос-події й своя музика.' });
+const A = Addon.info({ name: 'Еспресо-Сплав', version: '1.2', desc: 'Режим «Рафтинг-Запара»: 5 хвилин на плоту, хвилі зомбі з сусіднього плота, лут у річці, бомби, баки й коробки-снаряди, хаос-події й своя музика.' });
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);   // хто рахує сплав: сервер світу або сам гравець
@@ -85,13 +85,14 @@ canCarry = function (m) { return !m.rj && _canCarry.apply(this, arguments); };
 if (!BARS.some(b => b.x === BAR.x && b.z === BAR.z)) BARS.push({ x: BAR.x, z: BAR.z });
 
 /* ---------- Стан сплаву ---------- */
-const ST = { on: false, t: 0, dur: 300, wave: 0, next: 0, hp: 4, max: 4, enemy: true, arr: 0, lv: 0, sunk: 0, crates: [], seq: 0, res: null, sp: null };
+const ST = { on: false, t: 0, dur: 300, wave: 0, next: 0, hp: 4, max: 4, enemy: true, arr: 0, lv: 0, sunk: 0, crates: [], seq: 0, res: null, sp: null, roster: [] };
 const AU = { jumpT: 3, crateT: 2, rapT: 50, idle: 0, stT: 0, pend: 0, rapGo: -1, chaosT: 30, last: '', quake: 0, storm: [], prevOff: 0, spHit: false };   // лише в того, хто рахує
 const myId = () => (NET.on && typeof WORLD !== 'undefined' && WORLD.on ? NET.id : 'me');
-function snap() { return { on: ST.on ? 1 : 0, t: Math.round(ST.t * 10) / 10, dur: ST.dur, w: ST.wave, nx: Math.round(ST.next), hp: ST.hp, mx: ST.max, en: ST.enemy ? 1 : 0, arr: Math.round(ST.arr * 10) / 10, lv: Math.round(ST.lv * 10) / 10, sp: ST.sp, sk: ST.sunk, cr: ST.crates.map(c => [c.id, c.x, c.z0, c.t0, c.k]) }; }
+function snap() { return { on: ST.on ? 1 : 0, t: Math.round(ST.t * 10) / 10, dur: ST.dur, w: ST.wave, nx: Math.round(ST.next), hp: ST.hp, mx: ST.max, en: ST.enemy ? 1 : 0, arr: Math.round(ST.arr * 10) / 10, lv: Math.round(ST.lv * 10) / 10, sp: ST.sp, ro: ST.roster, sk: ST.sunk, cr: ST.crates.map(c => [c.id, c.x, c.z0, c.t0, c.k]) }; }
 function applySnap(d) {
   const was = ST.on;
   Object.assign(ST, { on: !!d.on, t: +d.t || 0, dur: +d.dur || 300, wave: d.w | 0, next: +d.nx || 0, hp: d.hp | 0, max: d.mx | 0 || 4, enemy: !!d.en, arr: +d.arr || 0, lv: +d.lv || 0, sp: d.sp == null ? null : +d.sp, sunk: d.sk | 0 });
+  ST.roster = Array.isArray(d.ro) ? d.ro.slice(0, 40).map(String) : [];
   if (Array.isArray(d.cr)) ST.crates = d.cr.slice(0, 40).map(a => ({ id: a[0], x: +a[1], z0: +a[2], t0: +a[3], k: a[4] === 'barrel' ? 'barrel' : 'box' }));
   if (ST.on && !was) joinedRun();
 }
@@ -103,9 +104,19 @@ A.onNet('ev', (d, from) => { if (!SIMSIDE && !AUTH() && from.id === -1 && d) onE
 A.onNet('rq', (d, from) => { if (SIMSIDE && d) onReq(d, from); });
 
 /* ---------- Хто на сплаві ---------- */
+/* Склад сплаву фіксується на старті: хто був на плоту. Новенькі не заходять, поки сплав іде;
+   учасники виходять лише кнопкою «Покинути сплав», а після смерті повертаються на пліт.
+   Ключ гравця — логін (у спільному світі; переживає перепідключення) або 'me' (гра сама собі сервер). */
+const keyOf = from => SIMSIDE ? String(from && from.name || '') : 'me';
+const myKey = () => (NET.on && typeof WORLD !== 'undefined' && WORLD.on ? myName() : 'me');
+const inRun = () => ST.on && ST.roster.includes(myKey());
+function rosterOnline() {   // учасники, що зараз у грі
+  if (SIMSIDE) return simPlayers().filter(p => ST.roster.includes(p.name));
+  return ST.roster.includes('me') ? [{ id: myId(), name: 'me', x: pl.x, z: pl.z, dead: pl.dead }] : [];
+}
 function participants() {
-  if (SIMSIDE) return simPlayers().filter(p => !p.dead && inRiver(p.x, p.z));
-  return !pl.dead && inRiver(pl.x, pl.z) ? [{ id: myId(), x: pl.x, z: pl.z }] : [];
+  if (!ST.on) return SIMSIDE ? simPlayers().filter(p => !p.dead && inRiver(p.x, p.z)) : (!pl.dead && inRiver(pl.x, pl.z) ? [{ id: myId(), x: pl.x, z: pl.z }] : []);
+  return rosterOnline().filter(p => !p.dead && inRiver(p.x, p.z));
 }
 const riverMon = () => MON.filter(m => m.isl && m.isl.id === 'river');
 const hostile = () => riverMon().filter(m => !m.calm && m.state !== 'fall');
@@ -113,11 +124,13 @@ const hostile = () => riverMon().filter(m => !m.calm && m.state !== 'fall');
 /* ---------- Логіка сплаву (сервер світу або сам гравець) ---------- */
 function onReq(d, from) {
   if (d.k === 'start') { if (!ST.on) startRun(from); }
+  else if (d.k === 'leave') { const k = keyOf(from), i = ST.roster.indexOf(k); if (ST.on && i >= 0) { ST.roster.splice(i, 1); emit({ k: 'msg', txt: SIMSIDE ? `🚪 ${escapeHTML(k)} покинув сплав.` : '🚪 Ти покинув сплав.' }); if (!ST.roster.length) endRun(false); else pushState(); } }
   else if (d.k === 'grab') grabCrate(+d.id, from);
   else if (d.k === 'bomb') bombAt(+d.x, +d.z, from);
 }
 function startRun(from) {
   for (const m of riverMon()) removeMonster(m);
+  ST.roster = SIMSIDE ? [...new Set([keyOf(from), ...simPlayers().filter(p => !p.dead && inRiver(p.x, p.z)).map(p => p.name)])].filter(Boolean) : ['me'];
   Object.assign(ST, { on: true, t: 0, wave: 0, next: 7, hp: 4, max: 4, enemy: true, arr: 0, lv: 0, sunk: 0, crates: [], res: null, sp: null });
   Object.assign(AU, { jumpT: 4, crateT: 1, rapT: rand(40, 55), idle: 0, stT: 0, pend: 0, rapGo: -1, chaosT: rand(28, 38), last: '', quake: 0, storm: [], prevOff: 0, spHit: false });
   for (const p of RAFT_PROPS) if (!p.alive) { p.alive = true; p.hp = p.max; if (p.mesh) p.mesh.visible = true; }
@@ -127,7 +140,8 @@ function startRun(from) {
 function endRun(win) {
   if (!ST.on) return;
   ST.on = false;
-  const res = { k: 'end', win: win ? 1 : 0, w: ST.wave, sk: ST.sunk, t: Math.round(ST.t) };
+  const res = { k: 'end', win: win ? 1 : 0, w: ST.wave, sk: ST.sunk, t: Math.round(ST.t), ro: ST.roster.slice() };
+  ST.roster = [];
   for (const m of hostile()) sinkMon(m);
   ST.crates = []; ST.enemy = true; ST.arr = 2.5; ST.lv = 0; ST.sp = null; ST.hp = ST.max = 4; AU.storm = []; AU.quake = 0;
   emit(res); pushState();
@@ -203,7 +217,10 @@ function authTick(dt) {
   if (!ST.on) { if (ST.arr > 0) ST.arr = Math.max(0, ST.arr - dt); return; }
   ST.t += dt;
   const ps = participants();
-  if (!ps.length) { AU.idle += dt; if (AU.idle > (SIMSIDE ? 10 : 4)) { emit({ k: 'msg', txt: '🛶 На плоту нікого не лишилось — сплав завершено.' }); endRun(false); } return; }
+  // усі учасники вигоріли одночасно — сплав провалено
+  const on = rosterOnline();
+  if (on.length && on.every(p => p.dead)) { AU.wipe = (AU.wipe || 0) + dt; if (AU.wipe > 1.2) { emit({ k: 'msg', big: 1, txt: '💀 Усі вигоріли — сплав провалено.' }); endRun(false); return; } } else AU.wipe = 0;
+  if (!ps.length) { AU.idle += dt; if (AU.idle > (SIMSIDE ? (on.length ? 25 : 10) : 4)) { emit({ k: 'msg', txt: '🛶 На плоту нікого не лишилось — сплав завершено.' }); endRun(false); } return; }
   AU.idle = 0;
   if (ST.t >= ST.dur) { endRun(true); return; }
   // прибуття нового плота
@@ -535,7 +552,7 @@ function spawnRocks() {
 }
 function joinedRun() { if (inRiver(pl.x, pl.z)) V.joined = true; }
 function finishRun(e) {
-  const was = V.joined || inRiver(pl.x, pl.z); V.joined = false;
+  const was = Array.isArray(e.ro) ? e.ro.map(String).includes(myKey()) : (V.joined || inRiver(pl.x, pl.z)); V.joined = false;
   if (!was || !running) return;
   const w = Math.max(0, e.w | 0), sk = Math.max(0, e.sk | 0), win = !!e.win;
   const coins = 25 * w + 40 * sk + (win ? 60 : 0), xp = 40 * w + 30 * sk + (win ? 80 : 0);
@@ -585,7 +602,10 @@ function clientTick(dt) {
   const here = inRiver(pl.x, pl.z);
   hud(here && !panel);
   if (!here) { V.wetT = 0; return; }
-  if (ST.on) V.joined = true;
+  // сплав іде, а ти не з цієї команди — назад у «Гущу»
+  if (ST.on && !inRun() && !V.kickT) { V.kickT = 1; goTo(0, 3, `🛶 Тут іде чужий сплав. Лишилось ${mmss(Math.max(0, ST.dur - ST.t))} — потім можна відчалити разом.`); }
+  if (!ST.on || inRun()) V.kickT = 0;
+  if (inRun()) V.joined = true;
   // стою на плоту зомбі — їду разом із ним
   { const o = enOff(); if (V.prevOff != null && enLand() && pl.y > -.4 && inRect(enR(V.prevOff), pl.x, pl.z, -.3)) pl.x += o - V.prevOff; V.prevOff = o; }
   // землетрус
@@ -641,7 +661,7 @@ function hud(show) {
   if (ST.on) {
     const left = Math.max(0, ST.dur - ST.t), mm = Math.floor(left / 60), ss = String(Math.floor(left % 60)).padStart(2, '0');
     const hp = ST.enemy ? (ST.arr > 0 ? 'припливає…' : '<span style="color:#FF8A7A">' + '■'.repeat(Math.max(0, ST.hp)) + '</span><span style="opacity:.35">' + '■'.repeat(Math.max(0, ST.max - ST.hp)) + '</span>') : 'на дні 💥';
-    html = `🛶 ЕСПРЕСО-СПЛАВ · ⏱ ${mm}:${ss} · 🌊 Хвиля ${ST.wave}${ST.next > 0 ? ` (наступна ${Math.ceil(ST.next)} с)` : ''}<br><span style="font-weight:600;font-size:12px">Пліт зомбі: ${hp} · 💣 ${P.ing.cbomb || 0} · 🧨 ${P.ing.powder || 0}${V.craft ? ' · збираю бомбу…' : ''}${!kitchenOk() ? ' · <span style="color:#FF8A7A">кавомашини розбиті!</span>' : ''}</span>`;
+    html = `🛶 ЕСПРЕСО-СПЛАВ · ⏱ ${mm}:${ss} · 🌊 Хвиля ${ST.wave}${ST.next > 0 ? ` (наступна ${Math.ceil(ST.next)} с)` : ''}<br><span style="font-weight:600;font-size:12px">Пліт зомбі: ${hp} · 💣 ${P.ing.cbomb || 0} · 🧨 ${P.ing.powder || 0}${V.craft ? ' · збираю бомбу…' : ''}${!kitchenOk() ? ' · <span style="color:#FF8A7A">кавомашини розбиті!</span>' : ''}${inRun() && ST.roster.length > 1 ? ` · 👥 ${ST.roster.length}` : ''}</span>`;
   } else html = `🛶 Еспресо-Сплав · <span style="font-weight:600">ударь у дзвін 🔔 на плоту (F), щоб відчалити</span>`;
   if (V.hud.innerHTML !== html) V.hud.innerHTML = html;
 }
@@ -725,7 +745,53 @@ function goTo(x, z, msg) {
   closePanel(); const f = $('#fade'); if (f) f.style.opacity = 1; sfx('travel');
   setTimeout(() => { place(x, z); if (f) f.style.opacity = 0; if (msg) toast(msg); }, 260);
 }
-const goRaft = () => goTo(SPAWN.x, SPAWN.z, '🛶 Ти на плоту «Еспресо-Сплаву». Дзвін 🔔 (F) — відчалити. Бар — варити каву, стіл — бомби, баки — кидати (F, потім Q).');
+const mmss = sec => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+function goRaft() {
+  if (ST.on && !inRun()) { toast(`🛶 Сплав уже йде — новенькі не заходять. Лишилось ${mmss(Math.max(0, ST.dur - ST.t))}, потім можна буде відчалити разом.`); return false; }
+  goTo(SPAWN.x, SPAWN.z, '🛶 Ти на плоту «Еспресо-Сплаву». Дзвін 🔔 (F) — відчалити. Бар — варити каву, стіл — бомби, баки — кидати (F, потім Q).');
+  return true;
+}
+/* Покинути сплав можна лише кнопкою (вкладка «Сплав» або Esc → інший режим). */
+function leaveRun(where) {
+  if (inRun()) { req('leave'); V.left = true; }
+  if (where !== false) goTo(0, 3, '🚪 Ти покинув сплав. З поверненням у «Гущу».');
+}
+function askLeave() {
+  if (!inRun()) return true;
+  const ok = typeof confirm !== 'function' || confirm('Покинути сплав? Повернутись до цього сплаву вже не вийде, і нагороди за нього не буде.');
+  if (ok) leaveRun(false);
+  return ok;
+}
+/* Смерть на сплаві: відроджуєшся на плоту (не в «Гущі»). Якщо вигоріли всі — сплав провалено. */
+let deathHTML = null;
+const _die = die;
+die = function () {
+  const r = _die.apply(this, arguments);
+  if (!SIMSIDE && (inRun() || (inRiver(pl.x, pl.z) && ST.on))) {
+    V.diedRun = true;
+    const card = $('#death .card');
+    if (card) {
+      if (deathHTML == null) deathHTML = card.innerHTML;
+      const solo = AUTH();
+      card.querySelector('h1').textContent = solo ? 'Ти вигорів. Сплав провалено.' : 'Ти вигорів на сплаві.';
+      card.querySelector('p').textContent = solo ? 'Повернешся на пліт — можна відчалити ще раз. Монети не губляться.' : 'Кенти ще тримаються! Повертайся на пліт. Якщо вигорять усі — сплав провалено.';
+      const b = card.querySelector('#b-respawn'); b.textContent = 'Повернутись на пліт';
+      if (!solo) { b.disabled = true; let n = 4; b.textContent = `Повернутись на пліт (${n})`; const iv = setInterval(() => { n--; if (n <= 0 || !V.diedRun) { clearInterval(iv); b.disabled = false; b.textContent = 'Повернутись на пліт'; } else b.textContent = `Повернутись на пліт (${n})`; }, 1000); }
+    }
+    if (AUTH() && ST.on) { emit({ k: 'msg', big: 1, txt: '💀 Ти вигорів — сплав провалено.' }); endRun(false); }
+  }
+  return r;
+};
+if (!SIMSIDE && typeof document !== 'undefined') document.addEventListener('click', e => {
+  if (!V.diedRun || !e.target.closest || !e.target.closest('#b-respawn')) return;
+  e.stopPropagation(); e.preventDefault();
+  if (e.target.closest('#b-respawn').disabled) return;
+  V.diedRun = false;
+  const card = $('#death .card'); if (card && deathHTML != null) card.innerHTML = deathHTML;
+  $('#death').hidden = true;
+  place(SPAWN.x, SPAWN.z); pl.hp = S.maxHP; pl.st = S.maxSt; pl.dead = false; pl.iframes = 3; paused = false;
+  burst(pl.x, 1, pl.z, '#8FD9C0', 16, 4, .8, 4); refreshHUD(); save();
+}, true);
 
 /* ---------- Вкладка ---------- */
 const TAB = A.tab('rafting', '🛶 Сплав', () => {
@@ -736,7 +802,7 @@ const TAB = A.tab('rafting', '🛶 Сплав', () => {
     ${status}
     <p style="font-size:13px;line-height:1.5;margin:4px 0 10px">5 хвилин, два плоти поруч на бурхливій річці. Зомбі підпливають хвилями й стрибають до тебе на кухню.
       Відбивайся кавою, тягни вантузом лут з води (або зомбі — у воду), збирай бомби й топи їхній пліт: 3–4 вибухи — і хвиля пройдена достроково.</p>
-    <div class="btns">${here ? (ST.on ? '' : '<button class="btn" data-rf="start">🔔 Відчалити</button>') + '<button class="btn alt" data-rf="hub">🏠 Назад у «Гущу»</button>' : '<button class="btn" data-rf="go">🛶 На пліт</button>'}
+    <div class="btns">${inRun() ? '<button class="btn alt" data-rf="leave" style="background:#FFE1E1">🚪 Покинути сплав</button>' : here ? (ST.on ? '' : '<button class="btn" data-rf="start">🔔 Відчалити</button>') + '<button class="btn alt" data-rf="hub">🏠 Назад у «Гущу»</button>' : ST.on ? `<button class="btn" disabled>🛶 Сплав іде (${mmss(Math.max(0, ST.dur - ST.t))}) — зачекай</button>` : '<button class="btn" data-rf="go">🛶 На пліт</button>'}
       <button class="btn alt" data-rf="craft" ${here && dist2(pl.x, pl.z, TABLE.x, TABLE.z) < 2.6 ? '' : 'disabled'} title="Біля столу на плоту">💣 Зібрати бомбу · ${needChips(BOMB_NEED)}</button></div>
     <div class="list" style="margin-top:10px;font-size:13px;line-height:1.55">
       <div>☕ <b>Кава</b> — вари на барі плоту, кидай ПКМ / Q. Зомбі розбили кавомашини — бар не працює ~25 с.</div>
@@ -755,12 +821,13 @@ const TAB = A.tab('rafting', '🛶 Сплав', () => {
   const a = b.dataset.rf;
   if (a === 'go') goRaft();
   else if (a === 'hub') goTo(0, 3, 'З поверненням у «Гущу».');
+  else if (a === 'leave') { if (askLeave()) goTo(0, 3, '🚪 Ти покинув сплав. З поверненням у «Гущу».'); }
   else if (a === 'start') { req('start'); closePanel(); }
   else if (a === 'craft') { startCraft(); closePanel(); }
 });
 
 /* ---------- Режим у меню паузи (Esc) ---------- */
-if (A.mode) A.mode({ id: 'rafting', ic: '🛶', n: 'Еспресо-Сплав', sub: '5 хв на плоту проти хвиль зомбі', go: () => goRaft(), here: () => running && inRiver(pl.x, pl.z) });
+if (A.mode) A.mode({ id: 'rafting', ic: '🛶', n: 'Еспресо-Сплав', sub: '5 хв на плоту проти хвиль зомбі', go: () => goRaft(), here: () => running && inRiver(pl.x, pl.z), leave: () => askLeave() });
 
 /* ---------- Музика сплаву: драйвовий серф-рок, що розганяється разом із боєм ----------
    0 — тиха річка (стил-драм), 1 — сплав почався, 2 — зомбі поруч, 3 — м'ясорубка (хаос, багато зомбі, останні 30 с). */
@@ -832,7 +899,7 @@ if (!SIMSIDE && typeof document !== 'undefined') {
     document.head.appendChild(css); box.classList.add('mm-4');
     card.addEventListener('click', () => {
       V.auto = true;
-      if (running) { goRaft(); }
+      if (running) goRaft();
       const mm = document.getElementById('main-menu'); if (mm) { mm.classList.add('mm-hide'); mm.addEventListener('transitionend', () => mm.remove(), { once: true }); }
     });
   }

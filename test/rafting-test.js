@@ -15,7 +15,7 @@ w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => 
 w.__ADDON_CODE = [{ id: 'progression', src: 'progression.js', code: fs.readFileSync(path.join(root, 'addons/_examples/progression.js'), 'utf8') },
   { id: 'rafting', src: 'rafting/addon.js', code: fs.readFileSync(path.join(root, 'addons/_examples/rafting/addon.js'), 'utf8') }];
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-src += ';window.__T={get paused(){return paused},get running(){return running},get P(){return P},pl,MON,PROPS,BODIES,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),nearBar:()=>nearBar(),input,renderPanel,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),fireHook:h=>fireHook(h),releaseCarry:t=>releaseCarry(t),pickUpAny:t=>pickUpAny(t),damageProp:(p,d)=>damageProp(p,d)};';
+src += ';window.__T={get paused(){return paused},get running(){return running},get P(){return P},pl,MON,PROPS,BODIES,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),nearBar:()=>nearBar(),input,renderPanel,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),fireHook:h=>fireHook(h),releaseCarry:t=>releaseCarry(t),pickUpAny:t=>pickUpAny(t),damageProp:(p,d)=>damageProp(p,d),hurt:d=>hurtPlayer(d)};';
 w.eval(src);
 const T = w.__T; let now = 1000;
 const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; T.frame(now); if (i % 3 === 0) IV.forEach(f => f()); } };
@@ -133,5 +133,25 @@ const coins0 = T.P.coins; step(1);
 for (let i = 0; i < 70; i++) { T.pl.hp = 9999; T.pl.iframes = 1e9; T.pl.x = RX - 5.2; T.pl.z = RZ + 1.6; T.pl.y = 0; step(5);  if (!/ЕСПРЕСО-СПЛАВ/.test(hud().textContent)) break; }
 assert(!/ЕСПРЕСО-СПЛАВ/.test(hud().textContent) && T.P.coins > coins0, `сплав завершився, нагорода видана (+${T.P.coins - coins0} 🪙)`);
 const d = T.P.addons.rafting; assert(d.runs === 1 && d.wins === 1 && d.best >= 5, `рекорд збережено: ${JSON.stringify(d)}`);
+// смерть на сплаві (сам) → сплав провалено, відроджуєшся на плоту, не в «Гущі»
+{
+  T.pl.x = RX - 2.6; T.pl.z = RZ + 3.4; T.pl.y = 0; T.pl.iframes = 0; T.pl.hp = 100; step(.1);
+  T.getInteract().fn(); step(.5);
+  assert(w.__raft.ST.on && w.__raft.ST.roster.join() === 'me', 'новий сплав: ти в складі команди');
+  const c0 = T.P.coins; T.pl.iframes = 0; T.hurt(99999); step(.1);
+  assert(T.pl.dead && !w.__raft.ST.on, 'вигорів сам — сплав провалено');
+  assert(/Повернутись на пліт/.test(w.document.querySelector('#b-respawn').textContent), 'кнопка «Повернутись на пліт»');
+  w.document.querySelector('#b-respawn').click(); step(.2);
+  assert(!T.pl.dead && !T.paused && Math.hypot(T.pl.x - (RX - 5.2), T.pl.z - (RZ + 1.6)) < .6 && T.P.coins >= c0, 'відродився на плоту (не в «Гущі»), монети не згоріли');
+  assert(w.document.querySelector('#b-respawn').textContent === 'Взяти лікарняний', 'текст екрана смерті повернувся звичайний');
+}
+// покинути сплав — лише кнопкою
+{
+  T.pl.x = RX - 2.6; T.pl.z = RZ + 3.4; T.pl.iframes = 1e9; step(.1); T.getInteract().fn(); step(.5);
+  T.openPanel('ax_rafting');
+  assert(body().querySelector('[data-rf="leave"]') && !body().querySelector('[data-rf="hub"]'), 'під час сплаву у вкладці лише «Покинути сплав»');
+  w.confirm = () => true; body().querySelector('[data-rf="leave"]').click(); step(1);
+  assert(Math.hypot(T.pl.x, T.pl.z - 3) < 1 && !w.__raft.ST.on, 'покинув сплав → «Гуща», сплав без учасників закінчився');
+}
 assert(rafting.ok, 'аддон не зламався');
 console.log('ALL OK'); process.exit(0);

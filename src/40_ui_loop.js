@@ -539,7 +539,7 @@ function renderQuestPanel() {
   <h3 style="margin-top:16px">Твоя зміна</h3><div class="chips"><span class="chip">Заспокоєно: ${P.calmed}</span><span class="chip">Рейдів пройдено: ${P.bossWins}</span><span class="chip">Відвідувачів у «Гущі»: ${CROWD.length}</span></div>`;
 }
 /* ---------- Пауза (Esc): режими й міні-ігри ---------- */
-const MODES = [];   // аддони додають режими через Addon.mode({ id, ic, n, sub, go, here })
+const MODES = [];   // аддони додають режими через Addon.mode({ id, ic, n, sub, go, here, leave })
 function curMode() { return MODES.find(m => { try { return m.here && m.here(); } catch (e) { return false; } }) || null; }
 function renderPause() {
   const cur = curMode();
@@ -558,6 +558,7 @@ $('#pbody').addEventListener('click', e => {
   const p = e.target.closest('[data-pause]'); if (p) { const a = p.dataset.pause; if (a === 'go') closePanel(); else openPanel(a); return; }
   const b = e.target.closest('[data-mode]'); if (!b || b.disabled) return;
   const id = b.dataset.mode, cur = curMode();
+  if (cur && cur.id !== id && cur.leave && !cur.leave()) return;   // режим може не відпустити (або спитати «точно?»)
   if (id === 'world') { if (!cur) { closePanel(); return; } goHub('🌍 Відкритий світ. З поверненням у «Гущу».'); return; }
   const m = MODES.find(x => x.id === id); if (!m) return;
   if (cur === m) { closePanel(); return; }
@@ -694,6 +695,7 @@ function frame(now) {
     }
     updWarn(dt); updProj(dt); updTele(dt); updNodes(dt); updChests(dt); updDrops(dt); updBrew(dt); updCrowd(dt); updGiver(); updInteract(); updDummy(dt); updTut(dt); updExplore(dt); updRemotes(dt); updFun(dt); addonTick(dt);
   }
+  else if (running && pl.dead) netStateTick(rdt);   // мертвий: гра на паузі, але друзі мають бачити
   updParticles(live ? dt : 0); updFX(live ? dt : 0); updLights(rdt);
   updWorldAnim(rdt); updCamera(rdt); updOverlays(live ? rdt : 0); updCase(rdt); updArt(rdt); updFps(rdt);
   if (running) updHUDFrame();

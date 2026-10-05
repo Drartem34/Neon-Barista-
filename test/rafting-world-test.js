@@ -24,7 +24,7 @@ async function client(name) {
   w.console.warn = () => { }; w.__ADDON_TEST = true; w.fetch = (u, o) => fetch(new URL(u, `http://127.0.0.1:${PORT}/`), o); w.setInterval = () => 0;
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
   let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-  src += ';window.__T={get P(){return P},pl,NET,WORLD,MON,BODIES,PROPS,ISLMAP,input,startGame,frame,setAcct,attack,carryTarget,pickUpAny,releaseCarry,mount,dismount,useDrink,setDrink:d=>{selDrink=d},get worldReady(){return worldReady},get S(){return S},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c}))};';
+  src += ';window.__T={get P(){return P},pl,NET,WORLD,MON,BODIES,PROPS,ISLMAP,input,startGame,frame,setAcct,attack,carryTarget,pickUpAny,releaseCarry,mount,dismount,useDrink,setDrink:d=>{selDrink=d},get worldReady(){return worldReady},get S(){return S},getInteract:()=>getInteract(),hurt:d=>hurtPlayer(d),get paused(){return paused},openPanel,terrainAt:(x,z)=>terrainAt(x,z),keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c}))};';
   w.eval(src);
   const reg = await post('register', { login: name, pass: 'pass-' + name });
   w.__T.setAcct({ token: reg.token, login: reg.login, admin: reg.admin });
@@ -78,5 +78,22 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
     sunk = a.terrainAt(RX + 5, RZ) === 'deep' && b.terrainAt(RX + 5, RZ) === 'deep';
   }
   assert(sunk, 'бомби Тараса потопили пліт зомбі — і в Олі, і в Тараса там вода');
+  assert(a.w.__raft.ST.roster.length === 2, 'у складі сплаву двоє: ' + a.w.__raft.ST.roster.join(', '));
+  // новенький посеред сплаву не заходить
+  const c = await client('Петро'); await tick([a, b, c], 1.5);
+  assert(c.w.__raft.ST.on, 'Петро бачить, що сплав іде');
+  c.openPanel('ax_rafting'); const goBtn = c.w.document.querySelector('#pbody [data-rf="go"]');
+  assert(!goBtn && /зачекай/.test(c.w.document.querySelector('#pbody').textContent), 'у Петра кнопки «На пліт» нема — «Сплав іде, зачекай»');
+  c.keydown('Escape'); c.pl.x = RX - 5; c.pl.z = RZ; c.pl.y = 0; await tick([a, b, c], 1);
+  assert(Math.hypot(c.pl.x, c.pl.z - 3) < 1.5, 'Петра, що опинився на плоту посеред чужого сплаву, повертає в «Гущу»');
+  // Тарас вигорів — відроджується на плоту, сплав іде далі
+  b.pl.iframes = 0; b.hurt(99999); await tick([a, b, c], 1.5);
+  assert(b.pl.dead && a.w.__raft.ST.on, 'Тарас вигорів, але Оля ще тримається — сплав іде');
+  assert(/на сплаві/.test(b.w.document.querySelector('#death h1').textContent), 'у Тараса екран «Ти вигорів на сплаві»');
+  const btn = b.w.document.querySelector('#b-respawn'); btn.disabled = false; btn.click(); await tick([a, b, c], .5);
+  assert(!b.pl.dead && Math.hypot(b.pl.x - (RX - 5.2), b.pl.z - (RZ + 1.6)) < .8, 'Тарас відродився на плоту, а не в «Гущі»');
+  // обоє вигоріли — сплав провалено
+  a.pl.iframes = 0; b.pl.iframes = 0; a.hurt(99999); b.hurt(99999); await tick([a, b, c], 3);
+  assert(!a.w.__raft.ST.on && !b.w.__raft.ST.on, 'усі вигоріли — сервер завершив сплав');
   console.log('ALL OK'); cleanup(0);
 })().catch(e => { console.error(e); cleanup(1); });

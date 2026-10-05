@@ -39,10 +39,14 @@ const it = T.getInteract(); assert(it && /Сісти/.test(it.l), 'біля ст
 it.fn(); step(1);
 assert(B.BW.seated && B.M.on && B.M.sides[1].kind === 'bot', 'сів у крісло, офлайн — гра проти бота Кента');
 assert(w.document.getElementById('bowl-hud').textContent.includes('Бот Кент'), 'HUD: рахунок проти бота');
-// перший кидок: затиснути й відпустити
-const L = B.LN[B.BW.lane]; L.t = 0;
-T.keydown('Space'); step(.45); w.dispatchEvent(new w.KeyboardEvent('keyup', { code: 'Space' })); step(.05);
-assert(L.state === 'roll' && L.vx > 5, `поїхав доріжкою (швидкість ${L.vx.toFixed(1)})`);
+// перший кидок: розгін на WASD (п'яно) до лінії фолу
+const L = B.LN[B.BW.lane]; L.t = 0; const x0 = L.cx;
+T.keydown('KeyW'); step(.4); w.dispatchEvent(new w.KeyboardEvent('keyup', { code: 'KeyW' })); step(.3);
+assert(L.state === 'aim' && Math.abs(L.cz - L.z) > .05, `W зсуває крісло вбік по доріжці (${(L.cz - L.z).toFixed(2)}) — ще не поїхав`);
+T.keydown('KeyD'); let gd = 0; while (L.state === 'aim' && gd++ < 60) step(.05); w.dispatchEvent(new w.KeyboardEvent('keyup', { code: 'KeyD' }));
+assert(L.state === 'roll' && L.cx > x0 && L.vx > 7, `D — розігнався, перетнув лінію фолу й поїхав (швидкість ${L.vx.toFixed(1)})`);
+{ const B0 = B.BW; B0.lag.length = 0; B0.inv = 0; B0.lurch = 0; B0.hicT = 99; const ix = B0.ix; B0.ix = 0; B0.iz = 1; const v = []; for (let k = 0; k < 15; k++) v.push(B.drunk(1 / 60)); B0.iz = 0; B0.ix = ix;
+  assert(v[0][1] === 0 && Math.abs(v[14][1]) > .3, 'п\'яне керування: натиснув — крісло слухається із запізненням'); B0.inv = 1; B0.lag = Array(14).fill([0, 1]); B0.lurch = 0; const sgn = Math.sign(B.drunk(1 / 60)[1]); B0.inv = 0; B0.lag = Array(14).fill([0, 1]); assert(sgn === -Math.sign(B.drunk(1 / 60)[1]), 'гикавка міняє ліво й право'); B0.lag.length = 0; }
 let guard = 0; while (L.state !== 'aim' && L.state !== 'done' && guard++ < 600) step(.05);
 const me = B.M.sides[0];
 assert(me.rolls.length === 1, `кидок пораховано: збито ${me.rolls[0]}`);

@@ -1,24 +1,26 @@
 /* Аддон «Офісний боулінг»: новий режим.
    Сідаєш в офісне крісло (або візок із супермаркету), п'єш «Веселковий чай» — і летиш доріжкою
    в десятьох зомбі-офісників, що стоять трикутником, як кеглі. Вони розлітаються, як ганчір'яні ляльки.
-   - Пробіл або ЛКМ: затисни — набираєш силу (шкала гойдається), відпусти — поїхав.
-     Напрямок гойдається сам (це чай), A/D трохи підрулюють уже в дорозі.
+   - Керуєш кріслом на WASD (або джойстиком), але персонаж п'яний від чаю: керування запізнюється,
+     напрямок «пливе», а від гикавки ліво й право міняються місцями. Розженись і перетни лінію фолу —
+     поїхали (чим швидше розігнався, тим сильніше). У дорозі WASD рулить далі — так само хаотично.
+   - Пробіл або ЛКМ: затисни — набираєш силу, відпусти — потужний кидок із місця.
    - 5 фреймів, правила справжнього боулінгу: страйк, спер, бонусні кидки в останньому фреймі.
    - Дві доріжки: грай проти друга (сідайте обоє) або проти бота Кента, якщо нікого нема.
    - Хто більше набрав — той і переміг: монети, досвід, рекорд.
    Картинку для картки в меню поклади поруч: addons/bowling/bowling-bg.jpg (або menu/bowling-bg.jpg). */
-const A = Addon.info({ name: 'Офісний боулінг', version: '1.0', desc: 'Режим «Боулінг»: крісло, «Веселковий чай» і зомбі-кеглі з ганчір\'яною фізикою. Проти друга або бота.' });
+const A = Addon.info({ name: 'Офісний боулінг', version: '1.1', desc: 'Режим «Боулінг»: крісло, «Веселковий чай» і зомбі-кеглі з ганчір\'яною фізикою. Проти друга або бота.' });
 
 const SIMSIDE = !!window.__SIM;
 const IX = 118, IZ = 64, ISL_R = 19;
 const LANES_Z = [IZ - 2.6, IZ + 2.6], START_X = IX - 13.5, HEAD_X = IX + 7.6, END_X = IX + 11.2, LANE_HW = 1.25, GUT_HW = 1.75;
-const PIN_R = .3, CHAIR_R = .45, FRAMES = 5;
+const PIN_R = .3, CHAIR_R = .45, FRAMES = 5, FOUL_X = START_X + 2.6;
 const inBowl = (x, z) => dist2(x, z, IX, IZ) < ISL_R + 2;
 
 A.island({ id: 'bowling', n: 'Офісний боулінг', sub: 'крісло, чай і зомбі-кеглі · вибий страйк', x: IX, z: IZ, r: ISL_R, top: '#D9D2E8', rock: '#8C84C6', tier: 1, safe: true });
 
 /* ======================= ДАЛІ — ЛИШЕ В ГРАВЦЯ ======================= */
-const BW = { seated: false, lane: -1, kind: 'chair', aimT: 0, charge: -1, aura: null, hud: null, board: null, boardKey: '', sendT: 0, filterT: 0, music: -1 };
+const BW = { seated: false, lane: -1, kind: 'chair', aimT: 0, charge: -1, ix: 0, iz: 0, lag: [], hicT: 4, inv: 0, lurch: 0, aura: null, hud: null, board: null, boardKey: '', sendT: 0, filterT: 0, music: -1 };
 const LN = [0, 1].map(i => ({ i, z: LANES_Z[i], pins: [], chair: null, cx: START_X, cz: LANES_Z[i], vx: 0, vz: 0, state: 'idle', t: 0,
   owner: null, ownerId: null, name: '', side: null, arrow: null, kind: 'chair', remoteT: 0 }));
 // одна партія: два гравці (або гравець і бот), у кожного свої кидки
@@ -128,9 +130,10 @@ function laneChair(L, kind) {
   if (L.chair) scene.remove(L.chair);
   L.kind = kind; L.chair = bodyMesh(kind === 'cart' ? 'cart' : 'chair'); scene.add(A.dynamic(L.chair));
 }
-function simChair(L, dt, steer) {
+function simChair(L, dt, sx, sz) {
   L.cx += L.vx * dt; L.cz += L.vz * dt;
-  L.vz += steer * 2.4 * dt + Math.sin(gameTime * 2.3 + L.i) * .55 * dt;   // чай трохи «несе»
+  L.vz += (sz || 0) * 3.4 * dt + Math.sin(gameTime * 2.3 + L.i) * .55 * dt;   // чай трохи «несе»
+  if (sx) L.vx = Math.max(1.4, L.vx + sx * 2 * dt);                             // D — підштовхнути, A — пригальмувати
   const fr = Math.exp(-.22 * dt); L.vx *= fr; L.vz *= fr;
   const off = L.cz - L.z;
   if (Math.abs(off) > LANE_HW + .05) { L.gutter = true; L.cz = L.z + Math.sign(off) * (GUT_HW - .2); L.vz = 0; }
@@ -142,6 +145,21 @@ function simChair(L, dt, steer) {
 }
 
 /* ---------- Кидок: прицілювання, сила, поїхали ---------- */
+/* п'яне керування: запізнення, «плаваючий» напрямок, гикавка міняє ліво й право, раптові хитання */
+function drunk(dt) {
+  while (BW.lag.length < 13) BW.lag.unshift([0, 0]);
+  BW.lag.push([BW.ix, BW.iz]); while (BW.lag.length > 14) BW.lag.shift();            // ~0,2 с запізнення
+  let [x, z] = BW.lag[0];
+  const t = gameTime, a = .5 * Math.sin(t * 1.3) + .28 * Math.sin(t * 3.7 + 1);      // напрямок пливе до ±45°
+  const c = Math.cos(a), sn = Math.sin(a); [x, z] = [x * c - z * sn, x * sn + z * c];
+  if ((BW.hicT -= dt) <= 0) {
+    BW.hicT = rand(3, 6.5); BW.inv = rand(.8, 1.4); BW.lurch = pick([-1, 1]) * rand(.6, 1.2);
+    ftext(pl.x, 2.6, pl.z, pick(['гик! 🥴', '*гик*', 'ой-ой… 🍵', 'світ кружляє!']), 'calm'); sfx('pop', pl.x, pl.z);
+  }
+  if (BW.inv > 0) { BW.inv -= dt; z = -z; }                                          // гикавка: ліво ↔ право
+  z += BW.lurch; BW.lurch *= Math.exp(-4 * dt);
+  return [x, z];
+}
 const aimAngle = t => .17 * Math.sin(t * 1.6) + .07 * Math.sin(t * 4.7);
 const power = t => .5 - .5 * Math.cos(t * 3.2);
 function launch(L, ang, pw) {
@@ -282,6 +300,7 @@ A.on('world', () => {
       put(g, mesh(new THREE.BoxGeometry(len, .06, .06), bulb(s < 0 ? '#FF6BD6' : '#6BE7FF'), false), (START_X + END_X) / 2, .14, z + s * GUT_HW);
     }
     for (let k = 0; k < 5; k++) put(g, mesh(new THREE.ConeGeometry(.12, .3, 3), '#FF8A5B', false), START_X + 3 + k * .01, .13, z + (k - 2) * .4).rotation.set(-Math.PI / 2, 0, Math.PI / 2);   // стрілки-орієнтири
+    put(g, mesh(new THREE.BoxGeometry(.1, .02, LANE_HW * 2), bulb('#FF5C7A'), false), FOUL_X, .13, z);   // лінія фолу: перетнув — поїхав
     put(g, mesh(new THREE.BoxGeometry(.4, 1.6, GUT_HW * 2 + .4), '#3E3A5C'), END_X + .4, .8, z);   // задня стінка
   }
   // START на підлозі
@@ -339,8 +358,8 @@ A.on('tick', dt => {
       if (L.state === 'roll' || L.state === 'settle') {
         L.t += dt;
         if (L.state === 'roll') {
-          const steer = L.owner === 'me' ? ((keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0)) : 0;
-          simChair(L, dt, steer);
+          const [sx, sz] = L.owner === 'me' ? drunk(dt) : [0, 0];
+          simChair(L, dt, sx, sz);
           if (Math.hypot(L.vx, L.vz) < .6 || L.cx >= END_X - .35 || L.t > 6) { L.state = 'settle'; L.t = 0; }
         }
         const mv = simPins(L, dt);
@@ -359,10 +378,23 @@ A.on('tick', dt => {
     pl.emote = 'sit'; pl.emoteT = 1;
     if (hero) { hero.root.position.set(pl.x, .35, pl.z); hero.root.rotation.y = pl.face; }
     if (L.state === 'wait' && !M.on) { M.waitT -= dt; if (M.waitT <= 0) startMatch(BW.lane, null); }
-    if (L.state === 'aim') { L.t += dt; BW.aimT = L.t; }
+    if (L.state === 'aim') {
+      L.t += dt; BW.aimT = L.t;
+      // розгін на WASD до лінії фолу (п'яно!)
+      const [dx, dz] = drunk(dt), fr = Math.exp(-2.6 * dt);
+      L.vx = (L.vx + dx * 10 * dt) * fr; L.vz = (L.vz + dz * 10 * dt) * fr;
+      L.cx += L.vx * dt; L.cz += L.vz * dt;
+      if (L.cx < START_X - 1.2) { L.cx = START_X - 1.2; L.vx = Math.max(0, L.vx); }
+      if (Math.abs(L.cz - L.z) > LANE_HW - .1) { L.cz = L.z + Math.sign(L.cz - L.z) * (LANE_HW - .1); L.vz = 0; }
+      if (L.cx >= FOUL_X) {
+        const pw = clamp((L.vx - .8) / 3.6, 0, 1); L.cx = FOUL_X;
+        launch(L, clamp(Math.atan2(L.vz, Math.max(1, L.vx)), -.45, .45), pw); BW.charge = -1;
+        ftext(pl.x, 2.6, pl.z, pw > .8 ? 'РОЗІГНАВСЯ! 🍵' : pw < .25 ? 'Ледь-ледь…' : 'Поїхали!', 'crit');
+      }
+    }
     // прицільна стрілка й шкала сили
     if (!BW.arrow) { BW.arrow = new THREE.Group(); const sh = mesh(new THREE.BoxGeometry(3, .04, .12), bulb('#FFE066'), false); sh.position.x = 1.5; BW.arrow.add(sh); const hd = mesh(new THREE.ConeGeometry(.22, .5, 3), bulb('#FFE066'), false); hd.rotation.z = -Math.PI / 2; hd.position.x = 3.2; BW.arrow.add(hd); scene.add(BW.arrow); }
-    BW.arrow.visible = L.state === 'aim'; BW.arrow.position.set(L.cx + .5, .2, L.cz); BW.arrow.rotation.y = -aimAngle(L.t);
+    BW.arrow.visible = L.state === 'aim'; BW.arrow.position.set(L.cx + .5, .2, L.cz); BW.arrow.rotation.y = -(aimAngle(L.t) * .5 + clamp(Math.atan2(L.vz, 6), -.45, .45));
     if (BW.charge >= 0) { BW.charge += dt; BW.arrow.scale.x = .4 + power(BW.charge) * 1.2; } else BW.arrow.scale.x = 1;
     // «Веселковий чай»: веселкова аура й трохи психоделіки
     if (!BW.aura) { BW.aura = new THREE.Mesh(new THREE.TorusGeometry(.95, .09, 8, 40), new THREE.MeshBasicMaterial({ color: '#FF6BD6', transparent: true, opacity: .85, depthWrite: false })); scene.add(BW.aura); }
@@ -370,7 +402,7 @@ A.on('tick', dt => {
     BW.aura.material.color.setHSL((t * .6) % 1, .9, .65); BW.aura.scale.setScalar(1 + Math.sin(t * 6) * .08);
     if (Math.random() < dt * 10) burst(pl.x + rand(-.6, .6), 1.4 + rand(0, .6), pl.z + rand(-.6, .6), `hsl(${Math.floor(Math.random() * 360)},90%,70%)`, 1, .5, .6, .4);
     if (typeof cv !== 'undefined') cv.style.filter = `hue-rotate(${Math.round(Math.sin(t * .8) * 28)}deg) saturate(1.3)`;
-    if (L.owner === 'me' && (BW.sendT -= dt) <= 0) { BW.sendT = L.state === 'roll' || L.state === 'settle' ? .1 : 1; netLane(L); }
+    if (L.owner === 'me' && (BW.sendT -= dt) <= 0) { BW.sendT = L.state === 'roll' || L.state === 'settle' || L.state === 'aim' ? .1 : 1; netLane(L); }
   } else {
     if (BW.aura) BW.aura.visible = false; if (BW.arrow) BW.arrow.visible = false;
   }
@@ -394,14 +426,14 @@ if (!SIMSIDE && typeof updCamera === 'function') {
 }
 /* персонаж не ходить, поки сидить у кріслі */
 const _updInput = updInput;
-updInput = function () { _updInput.apply(this, arguments); if (BW.seated) { input.mx = 0; input.mz = 0; } };
+updInput = function () { _updInput.apply(this, arguments); BW.ix = input.mx; BW.iz = input.mz; if (BW.seated) { input.mx = 0; input.mz = 0; } };
 
 /* ---------- Керування: пробіл / ЛКМ — затиснути й відпустити ---------- */
 function chargeStart() { const L = BW.seated && LN[BW.lane]; if (!L || L.state !== 'aim' || BW.charge >= 0) return false; BW.charge = 0; sfx('charge'); return true; }
 function chargeRelease() {
   const L = BW.seated && LN[BW.lane]; if (!L || BW.charge < 0) return;
   const pw = power(BW.charge); BW.charge = -1;
-  if (L.state === 'aim') { launch(L, aimAngle(L.t), pw); ftext(pl.x, 2.6, pl.z, pw > .85 ? 'НА ПОВНУ! 🍵' : pw < .25 ? 'Ледь-ледь…' : 'Поїхали!', 'crit'); }
+  if (L.state === 'aim') { launch(L, aimAngle(L.t) * .5 + clamp(Math.atan2(L.vz, 6), -.45, .45), pw); ftext(pl.x, 2.6, pl.z, pw > .85 ? 'НА ПОВНУ! 🍵' : pw < .25 ? 'Ледь-ледь…' : 'Поїхали!', 'crit'); }
 }
 A.key('Space', () => { if (!BW.seated) return false; chargeStart(); });
 if (!SIMSIDE) {
@@ -432,7 +464,7 @@ function hud() {
   if (BW.seated) {
     const L = LN[BW.lane], s = L.side;
     const sc = M.sides.map(x => `${x.lane === BW.lane ? '🟣' : '🔵'} ${escapeHTML(x.name)} <b style="color:#FFE066">${totalOf(x)}</b>`).join(' &nbsp;·&nbsp; ');
-    const what = L.state === 'wait' ? `чекаю суперника… ${Math.max(0, Math.ceil(M.waitT))}` : L.state === 'aim' ? (BW.charge >= 0 ? `сила: ${'▮'.repeat(Math.round(power(BW.charge) * 10))}${'▯'.repeat(10 - Math.round(power(BW.charge) * 10))}` : 'затисни ПРОБІЛ або ЛКМ — сила, відпусти — поїхали') : L.state === 'roll' ? 'A/D — підрулити!' : L.state === 'done' ? 'чекаємо суперника…' : '…';
+    const what = L.state === 'wait' ? `чекаю суперника… ${Math.max(0, Math.ceil(M.waitT))}` : L.state === 'aim' ? (BW.charge >= 0 ? `сила: ${'▮'.repeat(Math.round(power(BW.charge) * 10))}${'▯'.repeat(10 - Math.round(power(BW.charge) * 10))}` : 'WASD — розганяйся до лінії фолу (ти п\'яний! 🥴) · або затисни ПРОБІЛ — потужний кидок') : L.state === 'roll' ? (BW.inv > 0 ? '🥴 ГИК! ліво й право переплутались!' : 'WASD — рули! (п\'яно)') : L.state === 'done' ? 'чекаємо суперника…' : '…';
     h = `🎳 ${s ? `Фрейм ${Math.min(FRAMES, s.frame + 1)}/${FRAMES}${s.frame === FRAMES - 1 ? ` · кидок ${s.ball + 1}` : s.ball ? ' · другий кидок' : ''}` : 'Боулінг'} &nbsp; ${sc}<br><span style="font-weight:600;font-size:12px">${what} · F — встати</span>`;
   } else h = `🎳 Офісний боулінг · <span style="font-weight:600">підійди до старту доріжки й натисни F — сідай у крісло</span>`;
   if (BW.hud.innerHTML !== h) BW.hud.innerHTML = h;
@@ -470,7 +502,7 @@ const TAB = A.tab('bowling', '🎳 Боулінг', () => {
       <button class="btn ${BW.kind === 'chair' ? '' : 'alt'}" data-bw="chair">🪑 Офісне крісло</button><button class="btn ${BW.kind === 'cart' ? '' : 'alt'}" data-bw="cart">🛒 Візок</button></div>
     <div class="list" style="margin-top:10px;font-size:13px;line-height:1.55">
       <div>🪑 <b>F</b> біля старту доріжки — сісти. Чекаєш 8 с на суперника (друг сідає на сусідню доріжку), інакше — бот Кент.</div>
-      <div>🍵 <b>Пробіл / ЛКМ</b>: затисни — шкала сили гойдається, відпусти — поїхав. Напрямок гойдається сам — це чай!</div>
+      <div>🥴 <b>WASD</b> (або джойстик): розганяй крісло й перетни лінію фолу — чим швидше, тим сильніший кидок. У дорозі WASD рулить. Але ти п'яний від чаю: керування запізнюється, напрямок пливе, а від гикавки ліво й право міняються місцями!</div><div>🍵 <b>Пробіл / ЛКМ</b>: затисни — шкала сили, відпусти — потужний кидок із місця.</div>
       <div>↔️ <b>A / D</b> — трохи підрулити вже в дорозі. Вилетів у жолоб — мимо.</div>
       <div>🎳 5 фреймів за правилами боулінгу: страйк (усі 10 з першого) — +10 і два наступні кидки, спер — +наступний кидок.</div>
     </div>
@@ -497,4 +529,4 @@ if (!SIMSIDE && typeof document !== 'undefined') {
   }
 }
 A.on('start', () => { if (BW.auto && !SIMSIDE) setTimeout(goBowl, 700); });
-if (window.__ADDON_TEST) window.__bowl = { BW, LN, M, scoreOf, frameMarks, sitDown, standUp, chargeStart, chargeRelease };
+if (window.__ADDON_TEST) window.__bowl = { BW, LN, M, scoreOf, frameMarks, sitDown, standUp, chargeStart, chargeRelease, drunk };

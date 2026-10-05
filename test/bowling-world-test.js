@@ -55,7 +55,7 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   assert(moved, 'Кент бачить, як крісло Друга їде доріжкою');
   await tick([a, b], 3);
   assert(A.M.sides[0].rolls.length === 1 && B.M.sides[1].rolls.length === 1 && B.M.sides[1].rolls[0] === A.M.sides[0].rolls[0], `рахунок Друга (${A.M.sides[0].rolls[0]}) бачить і Кент`);
-  assert(B.LN[0].pins.filter(p => p.down || p.gone).length >= 1 || A.M.sides[0].rolls[0] === 0, 'збиті кеглі Друга видно в Кента');
+  assert(B.LN[0].pins.filter(p => p.down || p.gone).length >= 1 || A.M.sides[0].rolls[0] === 0 || A.M.sides[0].rolls[0] === 10, 'збиті кеглі Друга видно в Кента (після страйку кеглі ставлять заново)');
   // Кент здається — Друг перемагає
   b.w.confirm = () => true; it = b.getInteract(); it.fn(); await tick([a, b], 1.5);
   assert(!A.M.on && a.P.addons.bowling && a.P.addons.bowling.games === 1, 'Кент встав — партія закінчилась, Другу зарахували');

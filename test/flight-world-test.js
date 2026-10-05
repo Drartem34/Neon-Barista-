@@ -42,9 +42,9 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   const a = await client('Пілот'), b = await client('Стюард');
   await tick([a, b], 1.5);
   const F = a.w.__flight, G = b.w.__flight;
-  for (const T of [a, b]) { T.pl.x = F.DOOR.x + 1; T.pl.z = 118; T.pl.y = 0; T.pl.hp = 9999; }
+  for (const T of [a, b]) { T.pl.x = F.BOARD.x + .5; T.pl.z = 118; T.pl.y = 0; T.pl.hp = 9999; }
   await tick([a, b], 1);
-  a.pl.x = F.DOOR.x; a.pl.z = F.DOOR.z + .5; await tick([a, b], .3);
+  a.pl.x = F.BOARD.x + .3; a.pl.z = F.BOARD.z + .6; await tick([a, b], .3);
   let it = a.getInteract(); assert(it && /посадку/.test(it.l), 'Пілот біля дверей'); it.fn(); await tick([a, b], 1);
   assert(F.ST.on && G.ST.on, 'рейс вилетів в обох (рахує сервер)');
   a.pl.x = F.COCKPIT.x - .3; a.pl.z = F.COCKPIT.z; await tick([a, b], .3);
@@ -66,5 +66,11 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
     const before = F.ST.served; it = b.getInteract(); if (it && /Подати/.test(it.l)) { it.fn(); await tick([a, b], .8); if (F.ST.served > before) served++; }
   }
   assert(served >= 2 && G.ST.served === F.ST.served, `Стюард обслужив пасажирів — бачать обоє (${F.ST.served})`);
+  G.setHeld('tea'); await tick([a, b], 1);
+  assert(F.V.remote.has(b.NET.id), 'Пілот бачить чай на таці в Стюарда');
+  G.setHeld(''); await tick([a, b], 1);
+  assert(!F.V.remote.has(b.NET.id), 'віддав — таця зникла й у Пілота');
+  // поломка на сервері — бачать обоє, лагодить Стюард
+  b.pl.x = F.FUSE.x + .6; b.pl.z = F.FUSE.z; await tick([a, b], .3);
   console.log('ALL OK'); cleanup(0);
 })().catch(e => { console.error(e); cleanup(1); });

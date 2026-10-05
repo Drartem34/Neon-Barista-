@@ -489,11 +489,7 @@ if (!SIMSIDE && typeof document !== 'undefined') {
       <div class="mm-desc">Крісло, «Веселковий чай» і зомбі-кеглі. Вибий страйк і переможи друга!</div></div>`;
     const locked = [...box.children].filter(c => c.classList.contains('mm-locked')).pop();
     box.insertBefore(card, locked || null);
-    const css = document.createElement('style');
-    css.textContent = '#main-menu .mm-container.mm-5.mm-5{flex-wrap:nowrap;gap:clamp(8px,1.2vw,20px)}#main-menu .mm-container.mm-5.mm-5 .mm-card{width:clamp(140px,17vw,250px);height:clamp(280px,32vw,420px)}#main-menu .mm-container.mm-5.mm-5 .mm-card-body h2{font-size:clamp(1.2rem,2.2vw,2.1rem)}@media (max-width:760px){#main-menu .mm-container.mm-5.mm-5{flex-wrap:wrap;overflow:auto;max-height:100%}#main-menu .mm-container.mm-5.mm-5 .mm-card{width:42vw;height:56vw}}';
-    document.head.appendChild(css);
-    const fit = () => { const n = box.querySelectorAll('.mm-card').length; box.classList.toggle('mm-5', n >= 5); };
-    fit(); A.on('world', fit);   // інші аддони теж можуть додати картки
+    // розмір карток і перенос рядків — у ядрі (максимум 3 в ряд)
     card.addEventListener('click', () => {
       BW.auto = true; if (running) goBowl();
       const mm = document.getElementById('main-menu'); if (mm) { mm.classList.add('mm-hide'); mm.addEventListener('transitionend', () => mm.remove(), { once: true }); }

@@ -21,17 +21,17 @@ const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; T.frame(now)
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exit(1); } console.log('ok -', m); };
 const body = () => w.document.querySelector('#pbody');
 assert(T.ADDONS.list.every(a => a.ok), 'аддон завантажився: ' + T.ADDONS.list.map(a => a.name + (a.ok ? '' : ' ✗ ' + a.err)).join(', '));
-assert(w.document.querySelector('#mm-flight .mm-subtitle').textContent === 'Кавовий рейс', 'у меню картка «РЕЙС» (бета)');
+assert(w.document.querySelector('#mm-flight .mm-subtitle').textContent === 'Espresso Flight', 'у меню картка «РЕЙС · Espresso Flight»');
 const F = w.__flight;
 T.startGame(true); T.P.tut = -1; T.pl.hp = 9999; step(.3);
 T.keydown('Escape'); step(.05); body().querySelector('[data-mode="flight"]').click(); step(.5);
-assert(Math.abs(T.pl.x - (F.DOOR.x + 1)) < .6, 'Esc → «Кавовий рейс» переносить на борт');
+assert(Math.abs(T.pl.x - (F.BOARD.x + .5)) < .6, 'Esc → «Кавовий рейс» переносить на борт');
 // посадка
-T.pl.x = F.DOOR.x; T.pl.z = F.DOOR.z + .5; step(.1);
+T.pl.x = F.BOARD.x + .3; T.pl.z = F.BOARD.z + .6; step(.1);
 let it = T.getInteract(); assert(it && /посадку/.test(it.l), 'біля дверей F — «Оголосити посадку»'); it.fn(); step(.2);
 assert(F.ST.on, 'рейс вилетів');
 // стіни салону не випускають
-T.pl.x = -30; T.pl.z = 118 + 4.5; step(.1); assert(Math.abs(T.pl.z - 118) < 2.6, 'з літака не випадеш (стіни салону)');
+T.pl.x = -30 + 6; T.pl.z = 118; step(.1); T.pl.z = 118 + 4.5; step(.1); assert(Math.abs(T.pl.z - 118) < 2.6, 'з літака не випадеш (стіни салону)');
 // пілот
 T.pl.x = F.COCKPIT.x - .3; T.pl.z = F.COCKPIT.z; step(.1);
 it = T.getInteract(); assert(it && /штурвал/.test(it.l), 'у кабіні F — «Сісти за штурвал»'); it.fn(); step(.3);
@@ -40,7 +40,7 @@ assert(F.ST.pilot === 'me', 'ти пілот');
 w.dispatchEvent(new w.KeyboardEvent('keydown', { code: 'KeyD' })); step(1.2); const r1 = F.ST.roll; w.dispatchEvent(new w.KeyboardEvent('keyup', { code: 'KeyD' }));
 w.dispatchEvent(new w.KeyboardEvent('keydown', { code: 'KeyA' })); step(1.2); const r2 = F.ST.roll; w.dispatchEvent(new w.KeyboardEvent('keyup', { code: 'KeyA' }));
 assert(r1 > r2 + .3, `A/D керують креном (${r1.toFixed(2)} → ${r2.toFixed(2)})`);
-T.getInteract().fn(); step(.2); assert(!F.ST.pilot, 'встав з-за штурвала — автопілот');
+T.getInteract().fn(); step(.2); assert(!F.ST.pilot && F.ST.ap > 20, `встав з-за штурвала — сильний автопілот ${Math.round(F.ST.ap)} с, пілот ходить по салону`);
 // пасажири хочуть — несемо
 let served = 0;
 for (let k = 0; k < 40 && served < 3; k++) {
@@ -54,6 +54,53 @@ for (let k = 0; k < 40 && served < 3; k++) {
   const before = F.ST.served; it = T.getInteract(); if (it && /Подати/.test(it.l)) { it.fn(); step(.1); if (F.ST.served > before) served++; }
 }
 assert(served >= 3, `рознесли замовлення пасажирам: ${served}`);
+// двері й крило
+{
+  const D = F.DOORS[1]; T.pl.x = D.x; T.pl.z = 118 + 2.6 - .4; F.ST.roll = 0; step(.1);
+  let it2 = T.getInteract(); assert(it2 && /Відчинити двері/.test(it2.l), 'біля дверей F — «Відчинити двері»'); it2.fn(); step(.3);
+  assert(F.ST.doors[1] === 1, 'двері відчинено');
+  T.pl.z = 118 + 2.6 + .3; step(.05); T.pl.z = 118 + 2.6 + 1.5; T.pl.x = -30 + .5; step(.05);
+  assert(F.where(T.pl.x, T.pl.z) === 'wing', 'вийшов на крило');
+  const hp0 = T.pl.hp = 300; T.pl.iframes = 0; let blown = false;
+  for (let k = 0; k < 60 && !blown; k++) { step(.2); if (F.where(T.pl.x, T.pl.z) === 'cabin' && T.pl.hp < hp0) blown = true; }
+  assert(blown, 'на крилі зустрічний вітер — здуло, рятують у салон');
+  T.pl.x = D.x; T.pl.z = 118 + 2.6 - .4; step(.1); T.getInteract().fn(); step(.3); assert(F.ST.doors[1] === 0, 'двері зачинено');
+}
+// поломки: пробоїна всмоктує, латаємо
+{
+  F.damage('hole'); step(.2); const h = F.ST.holes[0]; assert(h, 'блискавка пробила фюзеляж');
+  const hz = 118 + h.side * 2.6; T.pl.x = h.x + 3; T.pl.z = 118; F.ST.roll = 0; step(.05); const d0 = Math.hypot(T.pl.x - h.x, T.pl.z - hz); step(1); F.ST.roll = 0;
+  assert(Math.hypot(T.pl.x - h.x, T.pl.z - hz) < d0 - .3, 'пробоїна всмоктує до себе');
+  T.pl.x = h.x; T.pl.z = 118 + h.side * (2.6 - .5); step(.05);
+  let it3 = T.getInteract(); assert(it3 && /пробоїну/.test(it3.l), 'біля пробоїни F — «Залатати»'); it3.fn();
+  for (let k = 0; k < 40 && F.ST.holes.length; k++) { T.pl.x = h.x; T.pl.z = 118 + h.side * (2.6 - .5); F.ST.roll = 0; step(.1); }
+  assert(!F.ST.holes.length, 'пробоїну залатано');
+}
+// двигун: ремонт на крилі
+{
+  F.ST.eng = [1, 1]; F.damage('engine'); const i = F.ST.eng.indexOf(0); assert(i >= 0, 'двигун загорівся');
+  const E = F.ENGINES[i], D = F.DOORS[i];
+  T.pl.x = D.x; T.pl.z = 118 + D.side * 2.2; step(.05); T.getInteract().fn(); step(.3);
+  T.pl.z = 118 + D.side * 2.9; step(.05); T.pl.z = 118 + D.side * 3.6; step(.05);
+  for (let k = 0; k < 60 && !F.ST.eng[i]; k++) {
+    T.pl.x = F.engFix(i).x; T.pl.z = E.z; F.ST.roll = 0; step(.05);
+    const it4 = T.getInteract(); if (k === 0) assert(it4 && /двигун/.test(it4.l), 'на крилі біля двигуна F — «Полагодити»'); if (it4 && /Полагодити/.test(it4.l)) it4.fn();
+    step(.1);
+  }
+  assert(F.ST.eng[i] === 1, 'двигун полагоджено');
+  T.pl.x = D.x; T.pl.z = 118 + D.side * 3.2; step(.05); T.pl.z = 118 + D.side * 2.2; step(.05);
+  if (F.ST.doors[i]) { T.getInteract().fn(); step(.2); }
+}
+// світло: щиток у вантажному відсіку
+{
+  F.damage('power'); assert(!F.ST.lights, 'зникло світло');
+  T.pl.x = F.FUSE.x + .6; T.pl.z = F.FUSE.z; step(.05); T.getInteract().fn();
+  for (let k = 0; k < 40 && !F.ST.lights; k++) { T.pl.x = F.FUSE.x + .6; T.pl.z = F.FUSE.z; F.ST.roll = 0; step(.1); }
+  assert(F.ST.lights === 1, 'світло увімкнули на щитку');
+  T.pl.x = F.BOMBS.x + .6; T.pl.z = F.BOMBS.z; step(.05); const b0 = T.P.ing.cbomb || 0; T.getInteract().fn(); step(.05);
+  assert((T.P.ing.cbomb || 0) === b0 + 1, 'з вантажного відсіку взяв бомбу');
+  assert(T.BODIES.filter(b => b.kind === 'chair' && Math.abs(b.hx - (-30 - 15 + 3.2)) < .1).length === 2 && T.PROPS.filter(p => p.type === 'crate' && Math.abs(p.ox - (-30 - 13)) < 2.5).length === 3, 'у вантажному відсіку 2 офісні крісла й 3 коробки');
+}
 // злі пасажири: терпіння закінчується
 for (const p of F.ST.pass) { p.want = 'coffee'; p.pat = .01; }
 step(1); assert(F.ST.pass.some(p => p.angry), 'кому не принесли — злиться');

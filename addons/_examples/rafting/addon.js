@@ -267,6 +267,8 @@ function authTick(dt) {
     }
   }
   for (const m of riverMon()) {
+    // збили посеред стрибка (бомба, блискавка) — падає: у воду або на пліт
+    if (!m.rj && m.y > .05 && !m.carried && m.state !== 'fall') { if (isWet(terrainAt(m.x, m.z))) { sinkMon(m); continue; } m.y = 0; }
     if (m.rj) {
       const j = m.rj; j.t += dt / .85; m.stun = Math.max(m.stun, .1);
       const k = Math.min(1, j.t);
@@ -968,9 +970,7 @@ if (!SIMSIDE && typeof document !== 'undefined') {
     const locked = [...box.children].filter(c => c.classList.contains('mm-locked')).pop();
     box.insertBefore(card, locked || null);
     // 4 картки в ряд: трохи вужчі
-    const css = document.createElement('style');
-    css.textContent = '#main-menu .mm-container.mm-4{flex-wrap:nowrap;gap:clamp(10px,1.6vw,24px)}#main-menu .mm-container.mm-4 .mm-card{width:clamp(170px,21vw,280px);height:clamp(300px,36vw,440px)}#main-menu .mm-container.mm-4 .mm-card-body h2{font-size:clamp(1.4rem,2.6vw,2.4rem)}@media (max-width:700px){#main-menu .mm-container.mm-4{flex-wrap:wrap;overflow:auto;max-height:100%}#main-menu .mm-container.mm-4 .mm-card{width:42vw;height:56vw}}';
-    document.head.appendChild(css); box.classList.add('mm-4');
+    // розмір карток і перенос рядків — у ядрі (максимум 3 в ряд)
     card.addEventListener('click', () => {
       V.auto = true;
       if (running) goRaft();

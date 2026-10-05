@@ -401,7 +401,7 @@ async def handle_msg(p: Player, m):
         p.name = u['login']
         u['seen'], u['ip'] = time.time(), p.ip
         WORLD.send({'t': 'join', 'id': p.id, 'name': p.name})
-        await send(p, {'t': 'hello', 'id': p.id, 'world': WORLD.ready, 'players': [{'id': o.id, 'name': o.name, 's': o.state} for o in PLAYERS.values() if o is not p]})
+        await send(p, {'t': 'hello', 'id': p.id, 'world': WORLD.ready, 'asig': WORLD.sig if WORLD.ready else addons_sig(), 'players': [{'id': o.id, 'name': o.name, 's': o.state} for o in PLAYERS.values() if o is not p]})
         await broadcast({'t': 'join', 'id': p.id, 'name': p.name}, skip=p)
         log(f'  #{p.id} назвався «{p.name}»')
     elif t == 's':
@@ -493,6 +493,7 @@ class World:
         self.stats = {}
         self.enabled = True
         self.installing = False
+        self.sig = ''
 
     def node(self):
         return shutil.which('node') or shutil.which('nodejs')
@@ -526,6 +527,7 @@ class World:
             if not self.has_modules() and not await self.install():
                 return
             self.status = 'ЗАПУСК…'
+            self.sig = addons_sig()
             try:
                 self.proc = await asyncio.create_subprocess_exec(self.node(), os.path.join(ROOT, 'server', 'world.js'), cwd=ROOT,
                                                                  stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
@@ -890,6 +892,29 @@ def addon_list():
             out.append({'id': name, 'src': name + '/addon.js', 'v': int(os.path.getmtime(os.path.join(full, 'addon.js')))})
     return out
 
+def addons_sig():
+    """Підпис набору аддонів (назви + час зміни): якщо він змінився — сервер світу треба перезапустити."""
+    return ';'.join(f"{a['id']}@{a['v']}" for a in addon_list())
+
+async def watch_addons():
+    """Аддони поміняли, поки сервер працює: перезапускаємо сервер світу й просимо гравців оновити сторінку.
+    Інакше в гравця й на сервері світу різні предмети (наприклад, баки-«фантоми», які не піднімаються)."""
+    last = addons_sig()
+    while True:
+        await asyncio.sleep(3)
+        try:
+            sig = addons_sig()
+        except Exception:
+            continue
+        if sig == last:
+            continue
+        last = sig
+        log('Аддони змінились — перезапускаю сервер світу')
+        await broadcast({'t': 'addons'})
+        if WORLD.proc and WORLD.proc.returncode is None:
+            try: WORLD.proc.kill()
+            except Exception: pass
+
 def resolve_addon(path):
     rel = path.split('?', 1)[0].split('#', 1)[0][len('/addons/'):]
     full = os.path.normpath(os.path.join(ADDONS_DIR, rel))
@@ -1097,6 +1122,7 @@ async def main(args):
         WORLD.status = 'ВИМКНЕНО (--no-world)'
     else:
         asyncio.create_task(WORLD.run())
+    asyncio.create_task(watch_addons())
     mon = Monitor(args.port, tunnel)
 
     async def ui():

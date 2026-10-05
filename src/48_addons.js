@@ -5,7 +5,7 @@
    Аддон — звичайний .js, що бачить усі змінні гри й має API `Addon`
    (див. addons/README.md). Працюють, коли гра відкрита через start.py.
    ===================================================================== */
-const ADDONS = { list: [], hooks: { world: [], start: [], tick: [] }, tabs: {}, keys: {}, net: {}, dyn: [], cur: null, ready: false };
+const ADDONS = { list: [], hooks: { world: [], start: [], tick: [] }, tabs: {}, keys: {}, net: {}, dyn: [], cur: null, ready: false, sig: null, late: false, done: false };
 
 function addonRec() { return ADDONS.cur || { id: 'addon', name: 'addon', ok: true, err: '' }; }
 function addonFail(rec, e) {
@@ -102,8 +102,8 @@ function loadAddons() {
     return null;
   }
   if (!netAvailable() || typeof fetch !== 'function') return null;
-  const timeout = new Promise(r => setTimeout(r, 5000));
+  const timeout = new Promise(r => setTimeout(() => { if (!ADDONS.done) ADDONS.late = true; r(); }, 15000));   // повільний тунель: чекаємо довше
   const go = fetch('addons/index.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : []).catch(() => [])
-    .then(async list => { for (const a of (Array.isArray(list) ? list : [])) await loadAddonScript(a); });
+    .then(async list => { list = Array.isArray(list) ? list : []; ADDONS.sig = list.map(a => a.id + '@' + a.v).join(';'); for (const a of list) await loadAddonScript(a); ADDONS.done = true; });
   return Promise.race([go, timeout]);
 }

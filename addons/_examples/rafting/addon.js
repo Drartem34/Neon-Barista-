@@ -12,7 +12,7 @@
    Інвентар той самий, що й у відкритому світі; нагороди — туди ж.
    У спільному світі (сервер світу) сплав один на всіх: хвилі, пліт і лут рахує сервер.
    Картинку для картки в меню поклади поруч: addons/rafting/rafting-bg.jpg */
-const A = Addon.info({ name: 'Еспресо-Сплав', version: '1.3', desc: 'Режим «Рафтинг-Запара»: 5 хвилин на плоту, хвилі зомбі з сусіднього плота, лут у річці, бомби, баки й коробки-снаряди, хаос-події й своя музика.' });
+const A = Addon.info({ name: 'Еспресо-Сплав', version: '1.4', desc: 'Режим «Рафтинг-Запара»: 5 хвилин на плоту, хвилі зомбі з сусіднього плота, лут у річці, бомби, баки й коробки-снаряди, хаос-події й своя музика.' });
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);   // хто рахує сплав: сервер світу або сам гравець
@@ -627,7 +627,7 @@ function clientTick(dt) {
     if (k >= 1) { scene.remove(v.m); V.crates.delete(id); }
   }
   updBombs(dt);
-  updZones(t);
+  updZones(t); updPile(t);
   updStorm(dt);
   if (V.spit) { const on = ST.sp != null && ST.t - ST.sp < 15.2; V.spit.position.y = lerp(V.spit.position.y, on ? -.25 : -2.6, Math.min(1, dt * 1.5)); V.spit.position.x = (OUR.x1 + enR().x0) / 2; V.spit.visible = V.spit.position.y > -2.5; }
   if (!running || pl.dead) { hud(false); return; }
@@ -674,11 +674,15 @@ function clientTick(dt) {
   // збираю бомбу
   if (V.craft) {
     V.craft.t += dt;
-    if (dist2(pl.x, pl.z, TABLE.x, TABLE.z) > 2.6) { V.craft = null; toast('Відійшов від столу — бомбу не дозібрано.'); }
-    else if (V.craft.t >= 2.2) {
-      V.craft = null;
-      if (canAfford(BOMB_NEED)) { for (const k in BOMB_NEED) P.ing[k] -= BOMB_NEED[k]; P.ing.cbomb = (P.ing.cbomb || 0) + 1; toast(`💣 Бомба готова! Усього: <b>${P.ing.cbomb}</b>. <b>G</b> — кинути туди, де курсор.`); sfx('equip'); save(); }
-    } else if (Math.random() < dt * 6) burst(TABLE.x, 1.2, TABLE.z, '#FFD27A', 2, 1.5, .4, 1);
+    if (!inRect(OUR, pl.x, pl.z, -.5)) { for (const k in BOMB_NEED) P.ing[k] = (P.ing[k] || 0) + BOMB_NEED[k]; V.craft = null; toast('Зійшов з плота — бомбу не дозібрано (інгредієнти повернуто).'); refreshHUD(); }
+    else if (V.craft.t >= CRAFT_T) {
+      V.craft = null; P.ing.cbomb = (P.ing.cbomb || 0) + 1;
+      ftext(pl.x, 2.7, pl.z, `+1 💣 (усього ${P.ing.cbomb}) · G — кинути`, 'gold');
+      toast(`💣 Бомба готова! Усього: <b>${P.ing.cbomb}</b> (лежать на столі й видно в інвентарі → ресурси). <b>G</b> — кинути туди, де курсор.`); sfx('legend'); refreshHUD(); save();
+    } else {
+      V.craft.pt -= dt; if (V.craft.pt <= 0) { V.craft.pt = .5; ftext(pl.x, 2.5, pl.z, `🛠️ ${Math.round(V.craft.t / CRAFT_T * 100)}%`, 'calm'); }
+      if (Math.random() < dt * 8) burst(TABLE.x, 1.2, TABLE.z, '#FFD27A', 2, 1.5, .4, 1);
+    }
   }
   // пороги: удар об камінь
   if (V.rap) {
@@ -701,7 +705,7 @@ function hud(show) {
   if (ST.on) {
     const left = Math.max(0, ST.dur - ST.t), mm = Math.floor(left / 60), ss = String(Math.floor(left % 60)).padStart(2, '0');
     const hp = ST.enemy ? (ST.arr > 0 ? 'припливає…' : '<span style="color:#FF8A7A">' + '■'.repeat(Math.max(0, ST.hp)) + '</span><span style="opacity:.35">' + '■'.repeat(Math.max(0, ST.max - ST.hp)) + '</span>') : 'на дні 💥';
-    html = `🛶 ЕСПРЕСО-СПЛАВ · ⏱ ${mm}:${ss} · 🌊 Хвиля ${ST.wave}${ST.next > 0 ? ` (наступна ${Math.ceil(ST.next)} с)` : ''}<br><span style="font-weight:600;font-size:12px">Пліт зомбі: ${hp} · 💣 ${P.ing.cbomb || 0} · 🧨 ${P.ing.powder || 0}${V.craft ? ' · збираю бомбу…' : ''}${!kitchenOk() ? ' · <span style="color:#FF8A7A">кавомашини розбиті!</span>' : ''}${inRun() && ST.roster.length > 1 ? ` · 👥 ${ST.roster.length}` : ''}</span>`;
+    html = `🛶 ЕСПРЕСО-СПЛАВ · ⏱ ${mm}:${ss} · 🌊 Хвиля ${ST.wave}${ST.next > 0 ? ` (наступна ${Math.ceil(ST.next)} с)` : ''}<br><span style="font-weight:600;font-size:12px">Пліт зомбі: ${hp} · <b style="color:#FFD27A">💣 ${P.ing.cbomb || 0}</b>${P.ing.cbomb ? ' (G)' : ''} · 🧨 ${P.ing.powder || 0}/2${V.craft ? ` · 🛠️ ${Math.round(V.craft.t / CRAFT_T * 100)}%` : ''}${!kitchenOk() ? ' · <span style="color:#FF8A7A">кавомашини розбиті!</span>' : ''}${inRun() && ST.roster.length > 1 ? ` · 👥 ${ST.roster.length}` : ''}</span>`;
   } else html = `🛶 Еспресо-Сплав · <span style="font-weight:600">ударь у дзвін 🔔 на плоту (F), щоб відчалити</span>`;
   if (V.hud.innerHTML !== html) V.hud.innerHTML = html;
 }
@@ -761,10 +765,27 @@ getInteract = function () {
   }
   return _getInteract.apply(this, arguments);
 };
+const CRAFT_T = 1.5;
 function startCraft() {
-  if (V.craft) return;
-  if (!canAfford(BOMB_NEED)) { toast(`Бракує: ${needChips(BOMB_NEED)}. Порох 🧨 — у бочках, що пливуть річкою (вантуз їх притягне).`); return; }
-  V.craft = { t: 0 }; toast('🛠️ Збираю бомбу… (2 с, не відходь від столу)'); sfx('brew');
+  if (V.craft) { toast('🛠️ Уже збираю бомбу…'); return; }
+  if (!inRect(OUR, pl.x, pl.z, -.3)) { toast('Бомби збираються на твоєму плоту.'); return; }
+  if (!canAfford(BOMB_NEED)) { toast(`Бракує: ${needChips(BOMB_NEED)}. Порох 🧨 — у червоних бочках, що пливуть річкою (вантуз їх притягне).`); return; }
+  for (const k in BOMB_NEED) P.ing[k] -= BOMB_NEED[k];   // інгредієнти беремо одразу — бомба точно буде
+  V.craft = { t: 0, pt: 0 }; toast('🛠️ Збираю бомбу… (1,5 с, не стрибай з плота)'); sfx('brew'); refreshHUD();
+}
+/* Готові бомби лежать купкою на столі — видно, скільки їх */
+function updPile(t) {
+  if (!V.pile) { V.pile = new THREE.Group(); V.pile.position.set(TABLE.x - .2, .92, TABLE.z); scene.add(V.pile); }
+  const n = Math.min(6, P && P.ing ? P.ing.cbomb || 0 : 0);
+  while (V.pile.children.length < n) {
+    const i = V.pile.children.length, b = new THREE.Group();
+    put(b, mesh(new THREE.SphereGeometry(.16, 8, 6), '#2E2346'), 0, 0, 0);
+    put(b, mesh(flat(new THREE.CylinderGeometry(.025, .025, .14, 5)), '#E8D7B0'), 0, .17, 0);
+    b.userData.spark = put(b, mesh(new THREE.SphereGeometry(.05, 6, 4), bulb('#FFD27A'), false), 0, .26, 0);
+    b.position.set((i % 3) * .34 - .34, Math.floor(i / 3) * .28, (i % 2) * .12 - .06); V.pile.add(b);
+  }
+  while (V.pile.children.length > n) V.pile.remove(V.pile.children[V.pile.children.length - 1]);
+  for (const b of V.pile.children) b.userData.spark.visible = Math.sin(t * 20 + b.position.x * 9) > 0;
 }
 
 /* ---------- Вантуз: притягує ящики й бочки з річки ---------- */
@@ -844,7 +865,7 @@ const TAB = A.tab('rafting', '🛶 Сплав', () => {
     <p style="font-size:13px;line-height:1.5;margin:4px 0 10px">5 хвилин, два плоти поруч на бурхливій річці. Зомбі підпливають хвилями й стрибають до тебе на кухню.
       Відбивайся кавою, тягни вантузом лут з води (або зомбі — у воду), збирай бомби й топи їхній пліт: 3–4 вибухи — і хвиля пройдена достроково.</p>
     <div class="btns">${inRun() ? '<button class="btn alt" data-rf="leave" style="background:#FFE1E1">🚪 Покинути сплав</button>' : here ? (ST.on ? '' : '<button class="btn" data-rf="start">🔔 Відчалити</button>') + '<button class="btn alt" data-rf="hub">🏠 Назад у «Гущу»</button>' : ST.on ? `<button class="btn" disabled>🛶 Сплав іде (${mmss(Math.max(0, ST.dur - ST.t))}) — зачекай</button>` : '<button class="btn" data-rf="go">🛶 На пліт</button>'}
-      <button class="btn alt" data-rf="craft" ${here && dist2(pl.x, pl.z, TABLE.x, TABLE.z) < 2.6 ? '' : 'disabled'} title="Біля столу на плоту">💣 Зібрати бомбу · ${needChips(BOMB_NEED)}</button></div>
+      <button class="btn alt" data-rf="craft" ${here && inRect(OUR, pl.x, pl.z, -.3) ? '' : 'disabled'} title="На своєму плоту">💣 Зібрати бомбу · ${needChips(BOMB_NEED)}</button></div>
     <div class="list" style="margin-top:10px;font-size:13px;line-height:1.55">
       <div>☕ <b>Кава</b> — вари на барі плоту, кидай ПКМ / Q. Зомбі розбили кавомашини — бар не працює ~25 с.</div>
       <div>🪠 <b>Вантуз-гарпун</b> — притягує ящики (інгредієнти) й бочки (порох 🧨), а зомбі з чужого плота — прямо в річку.</div>
@@ -941,7 +962,7 @@ if (!SIMSIDE && typeof document !== 'undefined') {
   const box = document.querySelector('#main-menu .mm-container');
   if (box && !document.getElementById('mm-rafting')) {
     const card = document.createElement('div'); card.className = 'mm-card'; card.id = 'mm-rafting';
-    card.innerHTML = `<div class="mm-img-wrap"><div class="mm-card-img" style="background-image:url('${IMG}');background-color:#2c2c54"></div></div>
+    card.innerHTML = `<div class="mm-img-wrap"><div class="mm-card-img" style="background-image:url('menu/rafting-bg.jpg'),url('${IMG}');background-color:#2c2c54"></div></div>
       <div class="mm-card-body"><h2>СПЛАВ</h2><div class="mm-subtitle">Рафтинг-Запара</div>
       <div class="mm-desc">5 хвилин, два плоти. Вари каву, крафти бомби, відбивай хвилі зомбі на воді! Інвентар спільний з основою.</div></div>`;
     const locked = [...box.children].filter(c => c.classList.contains('mm-locked')).pop();

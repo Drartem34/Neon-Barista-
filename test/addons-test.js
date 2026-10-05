@@ -54,5 +54,9 @@ T.renderPanel(); assert(body().textContent.includes('Прогрес'), 'нови
   step(.03);
   const tip = [...w.document.querySelectorAll('#fx-layer div')].find(d => d.style.display !== 'none' && /Стрес/.test(d.textContent));
   assert(tip && tip.textContent.includes(m.T.n), 'наведення мишки на ворога показує підказку: ' + (tip && tip.textContent));
+  step(.4);
+  assert(Math.abs(((T.pl.face - Math.atan2(m.x - T.pl.x, m.z - T.pl.z)) + Math.PI * 3) % (Math.PI * 2) - Math.PI) < .3, 'персонаж повернувся до ворога під курсором');
+  const cur = [...w.document.body.children].find(d => d.style && d.style.borderRadius === '50%' && d.style.position === 'fixed');
+  assert(cur && cur.style.display !== 'none', 'навколо курсора видно коло');
 }
 console.log('ALL OK'); process.exit(0);

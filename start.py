@@ -164,23 +164,46 @@ class Tunnel:
             if not self.url:
                 m = pat.search(line)
                 if m:
-                    self.url = m.group(1) if m.groups() else m.group(0)
-                    self.status = f'ONLINE ({self.kind})'
-                    log(f'Тунель: {self.url}')
+                    url = m.group(1) if m.groups() else m.group(0)
+                    self.status = f'ЧЕКАЮ, ПОКИ ПОСИЛАННЯ ЗАПРАЦЮЄ ({self.kind})…'
+                    log(f'Тунель: {url} — перевіряю DNS')
+                    threading.Thread(target=self._wait_dns, args=(url, proc), daemon=True).start()
         _log.flush()
         if proc is self.proc:
-            self.status = 'ЗУПИНЕНО' if self.status.startswith('ONLINE') else f'ПОМИЛКА ({self.kind}) — дивись лог'
+            self.status = f'ВПАВ ({self.kind}) — перезапуск…'
             self.url = ''
+            log('Тунель: процес завершився — перезапуск через 5 с')
+            time.sleep(5)
+            if proc is self.proc:            # ніхто не вимикав вручну
+                self.proc = None
+                self.start()
+
+    def _wait_dns(self, url, proc):
+        """Нове посилання trycloudflare з'являється в DNS не одразу — показуємо його, коли воно справді працює."""
+        host = re.sub(r'^https?://', '', url).split('/')[0]
+        for i in range(90):
+            if proc is not self.proc:
+                return
+            try:
+                socket.gethostbyname(host)
+                self.url = url
+                self.status = f'ONLINE ({self.kind})'
+                log(f'Тунель: {url} — працює')
+                return
+            except OSError:
+                time.sleep(2)
+        self.url = url
+        self.status = f'ONLINE ({self.kind}), але DNS ще не бачить посилання — зачекай або спробуй інший інтернет'
 
     def stop(self):
-        if self.proc and self.proc.poll() is None:
+        p, self.proc = self.proc, None      # спершу забуваємо процес — тоді _read не перезапускатиме тунель
+        if p and p.poll() is None:
             try:
-                self.proc.terminate()
-                self.proc.wait(timeout=3)
+                p.terminate()
+                p.wait(timeout=3)
             except Exception:
-                try: self.proc.kill()
+                try: p.kill()
                 except Exception: pass
-        self.proc = None
         self.url = ''
         self.status = 'OFFLINE'
 

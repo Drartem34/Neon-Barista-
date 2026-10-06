@@ -1,6 +1,8 @@
 /* Аддон «Сховайся від боса» (ХОВАНКИ): Prop Hunt в офісі на 2–6 гравців, а наодинці — проти ботів.
-   Поверх опен-спейсу: столи з комп’ютерами, крісла, кулер, фікуси, ксерокс, шафи, коробки, смітники,
-   кавомашина й диван. Один гравець — БОС, решта — ліниві офісники.
+   Справжній поверх офісу: коридор, опенспейс з рядами столів (монітор, клавіатура, крісло), переговорна,
+   бухгалтерія, копі-центр, скляний кабінет боса, рецепція, кухня, лаунж, серверна, туалет і склад.
+   Маскуватись можна під меблі цих кімнат: крісло, фікус, кулер, ксерокс, шафа, коробка, смітник, кавомашина, диван.
+   Один гравець — БОС, решта — ліниві офісники.
    - Офісник: F біля меблів — маскуєшся під них (тебе не видно, на твоєму місці стоїть такий самий предмет).
      Рух у маскуванні повільний і предмет хитається — це підозріло. «Продуктивність» тане: щоб її поповнити,
      треба попрацювати за комп’ютером (F біля столу, 3 с) — і в цей час тебе видно. Впала до нуля —
@@ -17,18 +19,18 @@ const A = Addon.info({ name: 'Сховайся від боса', version: '1.0',
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);
-const IX = 0, IZ = -120, ISL_R = 20;
-const HX = 14.2, HZ = 11.2;                                   // півширина / півглибина поверху (стіни)
+const IX = 0, IZ = -120, ISL_R = 24;
+const HX = 18, HZ = 13;                                       // півширина / півглибина будівлі (зовнішні стіни)
 const MEET = 20, DUR = 180, PENALTY = 5, CHECK_CD = 12, CHECK_R = 7, WORK_T = 3, DRAIN = 100 / 75;
 const W = (lx, lz) => ({ x: IX + lx, z: IZ + lz });
-const OFF = { x0: IX + 8.95, x1: IX + 13.75, z0: IZ - 10.75, z1: IZ - 4.75 };      // скляний кабінет боса (всередині)
-const BOSS_SPOT = W(10.8, -7.4), CARPET = W(12.4, -5.7), DOOR = W(10.7, -4.3);
-const BOARD = W(8.2, 10.45), ROLE = W(10.6, 10.45), SPAWN = W(7.4, 7.6);
+const OFF = { x0: IX + 11.5, x1: IX + 17.5, z0: IZ - 12.5, z1: IZ - 2.5 };      // скляний кабінет боса (всередині)
+const BOSS_SPOT = W(13, -6.2), CARPET = W(16.6, -3.4), DOOR = W(14.5, -2);
+const BOARD = W(-15.6, 4.4), ROLE = W(-12.6, 4.4), SPAWN = W(-14, 9.6);
 const inIsl = (x, z) => dist2(x, z, IX, IZ) < ISL_R + 2;
 const inOffice = (x, z) => x > OFF.x0 - .3 && x < OFF.x1 + .3 && z > OFF.z0 - .3 && z < OFF.z1 + .2;
 const r2 = v => Math.round(v * 100) / 100;
 
-A.island({ id: 'hideboss', n: 'Сховайся від боса', sub: 'хованки в офісі · бос шукає офісників-меблі', x: IX, z: IZ, r: ISL_R, top: '#9AA3BF', rock: '#8C84C6', biome: 'hideboss', tier: 1, safe: true, noZone: true });
+A.island({ id: 'hideboss', n: 'Сховайся від боса', sub: 'хованки в офісі · бос шукає офісників-меблі', x: IX, z: IZ, r: ISL_R, top: '#A9C99A', rock: '#8C84C6', biome: 'hideboss', tier: 1, safe: true, noZone: true });
 const _buildIsland = buildIsland;
 buildIsland = function (s) {
   if (s.biome !== 'hideboss') return _buildIsland.apply(this, arguments);
@@ -37,87 +39,172 @@ buildIsland = function (s) {
   return g;
 };
 
+/* ---------- План поверху: стіни з дверима (локальні координати від центру острова) ---------- */
+// Будівля 36×26. Північний ряд: опенспейс · переговорна · бухгалтерія + копі-центр · скляний кабінет боса.
+// Коридор посередині. Південний ряд: рецепція (вхід) · кухня · лаунж · серверна + туалет · склад.
+const WALLS = [
+  { x1: -18, z1: -13, x2: 18, z2: -13, outer: 1, tall: 1 }, { x1: -18, z1: 13, x2: 18, z2: 13, outer: 1, doors: [-14], shut: 1 },
+  { x1: -18, z1: -13, x2: -18, z2: 13, outer: 1 }, { x1: 18, z1: -13, x2: 18, z2: 13, outer: 1 },
+  // коридор
+  { x1: -18, z1: -2, x2: 11, z2: -2, doors: [-12.5, -7.5, 1.5, 8.5] }, { x1: 11, z1: -2, x2: 18, z2: -2, doors: [14.5], glass: 1 },
+  { x1: -18, z1: 1.5, x2: 18, z2: 1.5, doors: [-14, -6, 2, 8.5, 14.5] },
+  // північні кімнати
+  { x1: -2, z1: -13, x2: -2, z2: -2 }, { x1: 5, z1: -13, x2: 5, z2: -2 }, { x1: 11, z1: -13, x2: 11, z2: -2, glass: 1 },
+  { x1: 5, z1: -7.5, x2: 11, z2: -7.5, doors: [9.5] },
+  // південні кімнати
+  { x1: -10, z1: 1.5, x2: -10, z2: 13, doors: [4] }, { x1: -2, z1: 1.5, x2: -2, z2: 13, doors: [4] }, { x1: 6, z1: 1.5, x2: 6, z2: 13, doors: [10.5] },
+  { x1: 11, z1: 1.5, x2: 11, z2: 13 }, { x1: 6, z1: 7, x2: 11, z2: 7 },
+].map(w => Object.assign({}, w, { x1: IX + w.x1, x2: IX + w.x2, z1: IZ + w.z1, z2: IZ + w.z2, doors: (w.doors || []).map(d => d + (w.z1 === w.z2 ? IX : IZ)) }));
+function wallParts(w) {   // проміжки стіни між дверима
+  const horiz = w.z1 === w.z2, lo = Math.min(horiz ? w.x1 : w.z1, horiz ? w.x2 : w.z2), hi = Math.max(horiz ? w.x1 : w.z1, horiz ? w.x2 : w.z2);
+  const ds = (w.doors || []).slice().sort((a, b) => a - b), out = []; let a = lo;
+  for (const d of ds) { out.push([a, d - .9]); a = d + .9; } out.push([a, hi]); return out;
+}
+// кімнати: назва, межі, підлога (для підписів і табличок на дверях)
+const ROOMS = [
+  { id: 'open', n: '💻 Опенспейс', x0: -18, z0: -13, x1: -2, z1: -2, fl: '#6C7BC4' },
+  { id: 'meet', n: '📊 Переговорна', x0: -2, z0: -13, x1: 5, z1: -2, fl: '#8C7FC2' },
+  { id: 'copy', n: '🖨️ Копі-центр', x0: 5, z0: -13, x1: 11, z1: -7.5, fl: '#D9DCE8' },
+  { id: 'acc', n: '🧮 Бухгалтерія', x0: 5, z0: -7.5, x1: 11, z1: -2, fl: '#7FA6C9' },
+  { id: 'boss', n: '👔 Кабінет боса', x0: 11, z0: -13, x1: 18, z1: -2, fl: '#9A6A4C' },
+  { id: 'hall', n: '🚶 Коридор', x0: -18, z0: -2, x1: 18, z1: 1.5, fl: '#C9CDD9' },
+  { id: 'rec', n: '🛎️ Рецепція', x0: -18, z0: 1.5, x1: -10, z1: 13, fl: '#E3D7C4' },
+  { id: 'kitchen', n: '☕ Кухня', x0: -10, z0: 1.5, x1: -2, z1: 13, tiles: 1 },
+  { id: 'lounge', n: '🛋️ Лаунж', x0: -2, z0: 1.5, x1: 6, z1: 13, fl: '#C4956A' },
+  { id: 'server', n: '🖥️ Серверна', x0: 6, z0: 1.5, x1: 11, z1: 7, fl: '#5C6680' },
+  { id: 'wc', n: '🚻 Туалет', x0: 6, z0: 7, x1: 11, z1: 13, tiles: 2 },
+  { id: 'store', n: '📦 Склад', x0: 11, z0: 1.5, x1: 18, z1: 13, fl: '#B9AE98' },
+];
+const roomAt = (x, z) => ROOMS.find(r => r.id !== 'hall' && x > IX + r.x0 && x < IX + r.x1 && z > IZ + r.z0 && z < IZ + r.z1) || ROOMS[5];
+
 /* ---------- Меблі: типи й розстановка (однакові на сервері й у гравців) ---------- */
+// dis — під це можна замаскуватись; c — кола-зіткнення [x, z, r] у локальних координатах предмета (порожньо — на стіні)
 const FT = {
-  desk: { n: 'Стіл з комп’ютером', ic: '💻', r: .45, h: .9, miss: 'Це просто стіл. Комп’ютер гуде.' },
-  bossdesk: { n: 'Стіл боса', ic: '🏢', r: .5, h: .9, miss: 'Це ж мій стіл!' },
-  chair: { n: 'Офісне крісло', ic: '🪑', r: .32, h: .9, dis: 1, miss: 'Просто крісло. Порожнє, як мої KPI.' },
+  desk: { n: 'Стіл з комп’ютером', ic: '💻', h: .9, c: [[-.4, 0, .42], [.4, 0, .42]], miss: 'Це просто стіл. Комп’ютер гуде.' },
+  bossdesk: { n: 'Стіл боса', ic: '🏢', h: .9, c: [[-.75, 0, .55], [0, 0, .55], [.75, 0, .55]], miss: 'Це ж мій стіл!' },
+  chair: { n: 'Офісне крісло', ic: '🪑', r: .3, h: .9, dis: 1, miss: 'Просто крісло. Порожнє, як мої KPI.' },
   cooler: { n: 'Кулер', ic: '🚰', r: .35, h: 1.4, dis: 1, miss: 'Кулер. Булькає. Не офісник.' },
   ficus: { n: 'Фікус', ic: '🪴', r: .38, h: 1.5, dis: 1, miss: 'Це просто фікус…' },
-  copier: { n: 'Ксерокс', ic: '🖨️', r: .55, h: 1, dis: 1, miss: 'Ксерокс зажував папір. І все.' },
-  cabinet: { n: 'Шафа з документами', ic: '🗄️', r: .48, h: 1.4, dis: 1, miss: 'Шафа. Документи. Нудьга.' },
+  copier: { n: 'Ксерокс', ic: '🖨️', h: 1, dis: 1, c: [[-.25, 0, .4], [.25, 0, .4]], miss: 'Ксерокс зажував папір. І все.' },
+  cabinet: { n: 'Шафа з документами', ic: '🗄️', r: .46, h: 1.4, dis: 1, miss: 'Шафа. Документи. Нудьга.' },
   box: { n: 'Коробка', ic: '📦', r: .4, h: .6, dis: 1, miss: 'Коробка з-під принтера. Порожня.' },
   trash: { n: 'Смітник', ic: '🗑️', r: .28, h: .6, dis: 1, miss: 'Смітник. Тут лише чиїсь мрії.' },
-  coffee: { n: 'Кавомашина', ic: '☕', r: .42, h: 1.3, dis: 1, miss: 'Кавомашина. Свята річ, не чіпай.' },
-  sofa: { n: 'Диван', ic: '🛋️', r: .45, h: .9, dis: 1, miss: 'Диван. Підозріло зручний, але порожній.' },
+  coffee: { n: 'Кавомашина', ic: '☕', r: .4, h: 1.3, dis: 1, miss: 'Кавомашина. Свята річ, не чіпай.' },
+  sofa: { n: 'Диван', ic: '🛋️', h: .9, dis: 1, c: [[-.62, 0, .45], [0, 0, .45], [.62, 0, .45]], miss: 'Диван. Підозріло зручний, але порожній.' },
   report: { n: 'Звіт', ic: '📄', r: .3, h: .3, miss: 'Фейковий звіт! Тебе обвели навколо пальця.' },
+  // декор (тверде, але під нього не замаскуєшся)
+  shelf: { n: 'Стелаж', ic: '📚', h: 1.8, c: [[-.6, 0, .33], [0, 0, .33], [.6, 0, .33]], miss: 'Стелаж. Тут лише папки за 2009 рік.' },
+  counter: { n: 'Кухонна стійка', ic: '🍽️', h: 1, c: [[-1.5, 0, .4], [-.5, 0, .4], [.5, 0, .4], [1.5, 0, .4]], miss: 'Стійка. Хтось знову не помив чашку.' },
+  fridge: { n: 'Холодильник', ic: '🧊', r: .45, h: 1.9, miss: 'Холодильник. Тут мій йогурт! А, ні — уже нема.' },
+  mtable: { n: 'Стіл для нарад', ic: '📊', h: .9, c: [[-2.4, 0, .7], [-1.2, 0, .7], [0, 0, .7], [1.2, 0, .7], [2.4, 0, .7]], miss: 'Стіл для нарад. Пам’ятає всі мої промови.' },
+  ktable: { n: 'Обідній стіл', ic: '🍽️', h: .9, c: [[-.6, 0, .55], [.6, 0, .55]], miss: 'Обідній стіл. Крихти, але не офісник.' },
+  ctable: { n: 'Журнальний столик', ic: '☕', h: .5, c: [[-.35, 0, .42], [.35, 0, .42]], miss: 'Столик. На ньому журнал «Ефективний менеджмент».' },
+  reception: { n: 'Стійка рецепції', ic: '🛎️', h: 1.1, c: [[-1.4, 0, .45], [-.7, 0, .45], [0, 0, .45], [.7, 0, .45], [1.4, 0, .45]], miss: 'Рецепція. Дзвоник: дзинь!' },
+  vend: { n: 'Автомат зі снеками', ic: '🍫', h: 1.9, c: [[-.25, 0, .4], [.25, 0, .4]], miss: 'Автомат. Знову з’їв мою монетку.' },
+  rack: { n: 'Серверна стійка', ic: '🖥️', r: .42, h: 2, miss: 'Сервер. Гуде. Блимає. Не чіпати!' },
+  sink: { n: 'Умивальник', ic: '🚰', r: .32, h: 1, miss: 'Умивальник. Мий руки, бос.' },
+  wc: { n: 'Кабінка', ic: '🚽', r: .42, h: 1.8, miss: 'Кабінка порожня. Фух.' },
+  pingpong: { n: 'Тенісний стіл', ic: '🏓', h: .8, c: [[-.8, 0, .72], [.8, 0, .72]], miss: 'Тенісний стіл. Тимбілдинг!' },
+  tv: { n: 'Телевізор', ic: '📺', h: 0, c: [] }, board: { n: 'Дошка', ic: '📝', h: 0, c: [] },
 };
 const FURN = [];
-function addF(t, lx, lz, rot) { const p = W(lx, lz); FURN.push({ i: FURN.length, t, x: p.x, z: p.z, rot: rot || 0 }); }
-const CX = [-9.5, -3.5, 2.5], CZ = [-5.5, .5, 6.5];
-const EXTRA = [
-  [['ficus', -1.95, 1.9], ['trash', 1.95, 1.95], ['box', 1.9, -1.9, .3]],
-  [['cabinet', -1.95, -1.85], ['trash', -1.95, 1.95], ['chair', 1.95, 1.8, 2.4]],
-  [['cooler', 1.95, 1.9], ['box', -1.95, 1.9, -.4], ['ficus', -1.95, -1.9]],
-  [['copier', 0, -1.95], ['trash', 1.95, 1.95], ['ficus', -1.95, 1.9]],
-  [['box', -1.95, 1.9, .2], ['box', 1.95, 1.9, -.3], ['cabinet', 1.95, -1.85]],
-  [['ficus', 1.95, -1.9], ['chair', -1.95, 1.8, .7], ['trash', 1.95, 1.95]],
-  [['cabinet', -1.95, -1.85], ['cabinet', 1.95, -1.85], ['ficus', 0, 1.95]],
-  [['trash', -1.95, 1.95], ['cooler', 1.95, 1.9], ['box', 0, -1.95, .5]],
-  [['ficus', -1.95, 1.9], ['coffee', 1.95, 1.9], ['copier', 0, -1.95]],
-];
-CZ.forEach((cz, j) => CX.forEach((cx, i) => {
-  addF('desk', cx - .85, cz - .6); addF('desk', cx + .85, cz - .6);
-  addF('chair', cx - .4, cz + .25, Math.PI + .25); addF('chair', cx + 1.3, cz + .25, Math.PI - .2);
-  for (const [t, ox, oz, r] of EXTRA[j * 3 + i]) addF(t, cx + ox, cz + oz, r || 0);
-}));
-// уздовж стін
-[['cabinet', -12.9, -10.2], ['cabinet', -11.95, -10.2], ['ficus', -10, -10.3], ['copier', -7.6, -10.15], ['cabinet', -4.2, -10.2], ['cabinet', -3.25, -10.2],
- ['box', -1.2, -10.3, .4], ['ficus', 1.4, -10.3], ['copier', 3.9, -10.15], ['trash', 6.4, -10.4]].forEach(a => addF(a[0], a[1], a[2], a[3] || 0));
-[['ficus', -13.4, -6.5], ['trash', -13.5, -.6], ['cooler', -13.4, 2.6], ['box', -13.4, 6.4, .5]].forEach(a => addF(a[0], a[1], a[2], a[3] || 0));
-[['box', -12.2, 10.4, .2], ['ficus', -9.5, 10.45], ['trash', -6.9, 10.55], ['box', -4.1, 10.4, -.3], ['cooler', -1.2, 10.45], ['ficus', 2.4, 10.45], ['box', 4.6, 10.4, .6]].forEach(a => addF(a[0], a[1], a[2], a[3] || 0));
-// кухня-лаунж і кабінет боса
-addF('sofa', 12.4, 1.6, -Math.PI / 2); addF('coffee', 13.3, 5.2, -Math.PI / 2); addF('cooler', 13.35, 7, -Math.PI / 2); addF('ficus', 13.3, -2.9);
-addF('trash', 13.4, 8.6); addF('box', 7.3, -3.55, .2); addF('chair', 10.7, 2.7, Math.PI / 2 + .3); addF('ficus', 6.8, 4.6);
-addF('bossdesk', 11.6, -9.4); addF('chair', 11.6, -10.3, 0); addF('ficus', 13.55, -10.55); addF('cabinet', 9.35, -10.4); addF('cabinet', 9.35, -8.8, Math.PI / 2);
+const loc = (f, lx, lz) => { const c = Math.cos(f.rot), s = Math.sin(f.rot); return { x: f.x + lx * c + lz * s, z: f.z - lx * s + lz * c }; };
+function addF(t, lx, lz, rot) { const p = W(lx, lz); const f = { i: FURN.length, t, x: p.x, z: p.z, rot: rot || 0 }; FURN.push(f); return f; }
+const PI = Math.PI, H2 = Math.PI / 2;
+// стіл із ПК + крісло (rot 0 — працівник сидить з боку +z і дивиться на -z)
+function deskSet(lx, lz, rot, k) {
+  const d = addF('desk', lx, lz, rot), c = loc(d, .35, .9);
+  addF('chair', c.x - IX, c.z - IZ, rot + PI + ((k * 37) % 7 - 3) * .08);
+  return d;
+}
+// 💻 Опенспейс: три кластери по 2×2 столи (монітори спина до спини), два ряди
+let dk = 0;
+for (const cx of [-15.6, -10.6, -5.6]) for (const rz of [-10.2, -5.6]) for (const ox of [0, 1.6]) { deskSet(cx + ox, rz + .4, 0, dk++); deskSet(cx + ox, rz - .4, PI, dk++); }
+[['ficus', -17.4, -12.4], ['ficus', -2.6, -12.4], ['cooler', -17.4, -7.9], ['trash', -12.3, -12.5], ['trash', -7.3, -12.5], ['cabinet', -17.3, -2.7, PI], ['cabinet', -16.4, -2.7, PI],
+ ['box', -10, -2.7, .2], ['trash', -4.6, -2.6], ['ficus', -2.6, -2.6], ['cabinet', -2.65, -7.9, -H2]].forEach(a => addF(a[0], a[1], a[2], a[3] || 0));
+// 📊 Переговорна: довгий стіл, крісла по боках, телевізор і дошка
+addF('mtable', 1.5, -7.6, H2); addF('tv', 1.5, -12.85, 0); addF('board', -1.88, -7.6, H2);
+for (const z of [-9.8, -8.4, -7, -5.6]) { addF('chair', .25, z, H2); addF('chair', 2.75, z, -H2); }
+addF('chair', 1.5, -11.2, 0); addF('ficus', -1.4, -12.4); addF('ficus', 4.4, -12.4); addF('cooler', 4.4, -2.7); addF('trash', -1.4, -2.7);
+// 🖨️ Копі-центр: ксерокси, шафи, коробки з папером
+addF('copier', 6.6, -12.4, 0); addF('copier', 8.6, -12.4, 0); addF('box', 10.4, -12.4, .3); addF('box', 10.4, -11.5, -.2);
+addF('cabinet', 5.55, -10.6, H2); addF('cabinet', 5.55, -9.7, H2); addF('trash', 10.4, -8.2); addF('shelf', 6.9, -8.1, PI);
+// 🧮 Бухгалтерія: 4 столи й шафи
+for (const x of [6.9, 8.5]) { deskSet(x, -4.3, 0, dk++); deskSet(x, -5.1, PI, dk++); }
+addF('cabinet', 5.55, -4.6, H2); addF('cabinet', 5.55, -5.5, H2); addF('ficus', 10.4, -2.7); addF('trash', 10.5, -7);
+// 👔 Кабінет боса: великий стіл, крісла, диван, стелаж, фікуси
+addF('bossdesk', 14.5, -10.2, 0); addF('chair', 14.5, -11.3, 0); addF('chair', 13.8, -8.7, PI); addF('chair', 15.2, -8.7, PI);
+addF('shelf', 17.55, -9.6, -H2); addF('cabinet', 17.4, -12.4); addF('ficus', 11.7, -12.4); addF('ficus', 17.4, -6.4); addF('sofa', 11.8, -5.6, H2); addF('board', 14.5, -12.88, 0);
+// 🚶 Коридор
+[['ficus', -17.4, -1.4], ['cooler', -10, 1], ['trash', -3.8, 1.05], ['ficus', 5.8, -1.45], ['box', 11.6, 1, .3], ['ficus', 17.4, 0], ['trash', 12.2, -1.5]].forEach(a => addF(a[0], a[1], a[2], a[3] || 0));
+// 🛎️ Рецепція: стійка, крісло адміністратора, диванчики для гостей
+addF('reception', -11.6, 8.6, H2); addF('chair', -10.7, 8.6, -H2); addF('sofa', -17.4, 6.4, H2); addF('sofa', -17.4, 10.4, H2); addF('ctable', -16.2, 8.4, H2);
+addF('ficus', -17.4, 2.2); addF('ficus', -17.4, 12.4); addF('ficus', -11, 12.4); addF('cooler', -10.6, 2.2); addF('trash', -10.6, 5.6);
+// ☕ Кухня: стійка з мийкою, холодильник, кавомашина, автомат, два столи
+addF('fridge', -9.4, 12.3, PI); addF('counter', -6.4, 12.45, PI); addF('coffee', -3.6, 12.4, PI); addF('cooler', -2.6, 12.4); addF('vend', -9.4, 2.3, 0);
+for (const tx of [-7.4, -4.4]) { addF('ktable', tx, 7.4, 0); for (const sx of [-.6, .6]) { addF('chair', tx + sx, 6.55, 0); addF('chair', tx + sx, 8.25, PI); } }
+addF('trash', -2.6, 2.2); addF('ficus', -9.4, 5.8);
+// 🛋️ Лаунж: дивани навколо столика, пінг-понг, фікуси
+addF('sofa', 2, 12.3, PI); addF('sofa', -1.4, 9, H2); addF('sofa', 5.4, 7.8, -H2); addF('ctable', 2, 9.4, 0); addF('pingpong', 2, 4.6, 0);
+addF('ficus', -1.4, 12.4); addF('ficus', 5.4, 12.4); addF('ficus', -1.4, 2.2); addF('box', 5.3, 2.3, .4); addF('chair', -.9, 5.2, H2);
+// 🖥️ Серверна: ряд стійок
+for (const x of [6.7, 7.6, 8.5, 9.4]) addF('rack', x, 6.4, PI);
+deskSet(10.3, 3.8, -H2, dk++); addF('box', 6.6, 2.2, .2); addF('trash', 10.5, 2.1);
+// 🚻 Туалет: кабінки, умивальники
+for (const z of [8.1, 9.6, 11.1]) addF('wc', 10.4, z, -H2);
+addF('sink', 6.6, 7.7, H2); addF('sink', 6.6, 8.6, H2); addF('trash', 6.6, 12.4); addF('ficus', 8.6, 12.4);
+// 📦 Склад: стелажі, коробки, старі шафи й зламаний ксерокс
+for (const z of [3.2, 5.6, 8, 10.4]) addF('shelf', 17.55, z, -H2);
+for (const [x, z, r] of [[11.6, 12.4, .2], [12.5, 12.45, -.3], [13.4, 12.4, .5], [12, 11.5, .1], [14.6, 6.8, .3], [14.6, 7.7, -.2], [13.8, 9.6, .7], [15.4, 4, .1]]) addF('box', x, z, r);
+addF('cabinet', 11.55, 3.2, H2); addF('cabinet', 11.55, 4.1, H2); addF('cabinet', 11.55, 5, H2); addF('copier', 16.3, 12.35, PI); addF('chair', 13, 8.4, 1.2); addF('ficus', 11.6, 9.4); addF('trash', 17.4, 12.4);
 const DESKS = FURN.filter(f => f.t === 'desk');
 const DISF = FURN.filter(f => FT[f.t].dis);
-/* кола-зіткнення предмета (стіл і диван — довгі) */
-function circles(f) {
-  const c = Math.cos(f.rot), s = Math.sin(f.rot), T = FT[f.t];
-  const along = f.t === 'sofa' ? [-.62, 0, .62] : f.t === 'desk' ? [-.4, .4] : f.t === 'bossdesk' ? [-.6, 0, .6] : [0];
-  return along.map(a => ({ x: f.x + a * c, z: f.z - a * s, r: T.r }));
-}
+/* кола-зіткнення предмета у світових координатах */
+function circles(f) { const T = FT[f.t]; return (T.c || [[0, 0, T.r]]).map(([lx, lz, r]) => Object.assign(loc(f, lx, lz), { r })); }
 function fdist(f, x, z) { let d = 1e9; for (const c of circles(f)) d = Math.min(d, dist2(x, z, c.x, c.z) - c.r); return d; }
-const workSpot = f => ({ x: f.x - .3, z: f.z + 1.15 });
+const workSpot = f => loc(f, -.45, 1.05);   // збоку від крісла, обличчям до монітора
 
-/* ---------- Проходи для ботів: сітка вузлів ---------- */
-const NODES = [], GX = [-12.35, -6.5, -.5, 5.5, 9.3], GZ = [-8.5, -2.5, 3.5, 9.3], GID = {};
-GZ.forEach((lz, zi) => GX.forEach((lx, xi) => { const p = W(lx, lz); if (inOffice(p.x, p.z)) return; GID[zi + ',' + xi] = NODES.length; NODES.push(p); }));
-const DOOR_N = NODES.push(W(10.7, -3.6)) - 1, OFF_N = NODES.push(W(10.7, -6.8)) - 1;   // двері кабінету й кабінет
-const LINKS = NODES.map(() => []);
-const link = (a, b) => { if (a == null || b == null) return; LINKS[a].push(b); LINKS[b].push(a); };
-GZ.forEach((lz, zi) => GX.forEach((lx, xi) => { const a = GID[zi + ',' + xi]; if (a == null) return; link(a, GID[zi + ',' + (xi + 1)]); link(a, GID[(zi + 1) + ',' + xi]); }));
-link(DOOR_N, GID['1,4']); link(DOOR_N, OFF_N);
-const nearNode = (x, z) => { let b = 0, bd = 1e9; NODES.forEach((n, i) => { const d = dist2(x, z, n.x, n.z); if (d < bd) { bd = d; b = i; } }); return b; };
-function route(x, z, tx, tz) {
-  const s = nearNode(x, z), e = nearNode(tx, tz), prev = { [s]: -1 }, q = [s];
-  while (q.length) { const c = q.shift(); if (c === e) break; for (const n of LINKS[c]) if (!(n in prev)) { prev[n] = c; q.push(n); } }
-  const path = []; for (let c = e; c !== undefined && c !== -1; c = prev[c]) path.unshift(NODES[c]);
-  if (path.length > 1 && dist2(x, z, path[1].x, path[1].z) < dist2(path[0].x, path[0].z, path[1].x, path[1].z)) path.shift();
-  path.push({ x: tx, z: tz }); return path;
+/* ---------- Навігація ботів: сітка 0,5 м і пошук шляху (стіни й меблі — перешкоди) ---------- */
+const NAV = { cell: .5, x0: IX - HX, z0: IZ - HZ, nx: HX * 4, nz: HZ * 4, block: null };
+function navBuild() {
+  const b = new Uint8Array(NAV.nx * NAV.nz);
+  const ss = STATICS.filter(o => Math.abs(o.x - IX) < HX + 2 && Math.abs(o.z - IZ) < HZ + 2);
+  for (let i = 0; i < NAV.nx; i++) for (let j = 0; j < NAV.nz; j++) {
+    const x = NAV.x0 + (i + .5) * NAV.cell, z = NAV.z0 + (j + .5) * NAV.cell;
+    b[i + j * NAV.nx] = ss.some(o => dist2(x, z, o.x, o.z) < o.r + .26) ? 1 : 0;
+  }
+  NAV.block = b;
 }
-/* сховки для ботів: поруч із меблями, не в стіні й не в іншому предметі */
+const cellOf = (x, z) => [clamp(Math.floor((x - NAV.x0) / NAV.cell), 0, NAV.nx - 1), clamp(Math.floor((z - NAV.z0) / NAV.cell), 0, NAV.nz - 1)];
+const navFree = (x, z) => { if (!NAV.block) navBuild(); const [i, j] = cellOf(x, z); return !NAV.block[i + j * NAV.nx]; };
+function route(x, z, tx, tz) {
+  if (!NAV.block) navBuild();
+  const [si, sj] = cellOf(x, z), [ti, tj] = cellOf(tx, tz), nx = NAV.nx, start = si + sj * nx, goal = ti + tj * nx;
+  const prev = new Int32Array(nx * NAV.nz).fill(-1), q = [start]; prev[start] = start;
+  for (let h = 0; h < q.length && prev[goal] < 0; h++) {   // BFS (8 сусідів) — для такої сітки досить
+    const c = q[h], ci = c % nx, cj = (c / nx) | 0;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const ni = ci + di, nj = cj + dj; if (ni < 0 || nj < 0 || ni >= nx || nj >= NAV.nz) continue;
+      const n = ni + nj * nx; if (prev[n] >= 0 || (NAV.block[n] && n !== goal)) continue;
+      if (di && dj && (NAV.block[ci + di + cj * nx] || NAV.block[ci + (cj + dj) * nx])) continue;
+      prev[n] = c; q.push(n);
+    }
+  }
+  if (prev[goal] < 0) return [{ x: tx, z: tz }];
+  const pts = []; for (let c = goal; c !== start; c = prev[c]) pts.push({ x: NAV.x0 + (c % nx + .5) * NAV.cell, z: NAV.z0 + (((c / nx) | 0) + .5) * NAV.cell });
+  pts.reverse(); const out = pts.filter((p, k) => k % 2 === 1 || k === pts.length - 1); if (!out.length) return [{ x: tx, z: tz }]; out[out.length - 1] = { x: tx, z: tz }; return out;
+}
+/* сховки для ботів: поруч із меблями, на вільній клітинці, не в кабінеті боса */
 let HIDE = null;
 function hideSpots() {
   if (HIDE) return HIDE;
   HIDE = [];
   for (const f of DISF) {
     if (inOffice(f.x, f.z)) continue;
-    const ext = f.t === 'sofa' ? 1.2 : FT[f.t].r;
-    for (let k = 0; k < 8; k++) {
-      const a = k / 8 * Math.PI * 2 + .4, x = f.x + Math.cos(a) * (ext + .72), z = f.z + Math.sin(a) * (ext + .72);
-      if (Math.abs(x - IX) > HX - .7 || Math.abs(z - IZ) > HZ - .7 || inOffice(x, z)) continue;
+    const cs = circles(f), ext = Math.max(...cs.map(c => dist2(c.x, c.z, f.x, f.z) + c.r));
+    for (let k = 0; k < 12; k++) {
+      const a = k / 12 * Math.PI * 2 + .4, x = f.x + Math.cos(a) * (ext + .6), z = f.z + Math.sin(a) * (ext + .6);
+      if (Math.abs(x - IX) > HX - .6 || Math.abs(z - IZ) > HZ - .6 || inOffice(x, z) || !navFree(x, z)) continue;
       if (STATICS.some(o => dist2(x, z, o.x, o.z) < o.r + .42)) continue;
       HIDE.push({ x, z, f }); break;
     }
@@ -204,7 +291,7 @@ function startRound(starter, role) {
   if (H.length === 1) {
     if (bossK === 'bot:boss') ST.ro.push(Object.assign(mk('bot:boss', 'Бос Геннадій', true, true), { x: BOSS_SPOT.x, z: BOSS_SPOT.z, f: Math.PI }));
     const names = ['Петро з бухгалтерії', 'Оксана з HR', 'Стажер Вітя'].slice(0, bossK === 'bot:boss' ? 2 : 3);
-    names.forEach((n, i) => { const s = W(4.5 + i * 1.2, 8.2); ST.ro.push(Object.assign(mk('bot:' + i, n, false, true), { x: s.x, z: s.z })); });
+    names.forEach((n, i) => { const s = W(-15.4 + i * 1.4, 2.9); ST.ro.push(Object.assign(mk('bot:' + i, n, false, true), { x: s.x, z: s.z })); });
   }
   for (const e of ST.ro) if (e.bot) AU.bot[e.k] = { path: [], mode: e.boss ? 'meet' : 'go', t: 0, thr: rand(18, 40), think: 0 };
   ST.on = true; ST.ph = 'meet'; ST.t = 0; ST.rn++; ST.cd = 0; ST.bk = bossK; AU.clock = 0;
@@ -221,7 +308,7 @@ function catchE(b, t, tp) {
   if (!b.bot) ST.sc[b.k] = (ST.sc[b.k] || 0) + 1;
   const n = hiders().filter(e => e.c).length;
   emit({ k: 'caught', who: t.k, wn: t.n, by: b.k, x: r2(tp.x), z: r2(tp.z), i: n });
-  if (t.bot) { const s = W(12.4 - (n - 1) % 3 * .8, -5.6 - Math.floor((n - 1) / 3) * .8); t.x = s.x; t.z = s.z; t.f = 0; t.mv = false; }
+  if (t.bot) { const s = { x: CARPET.x - (n - 1) % 3 * .8, z: CARPET.z - Math.floor((n - 1) / 3) * .8 }; t.x = s.x; t.z = s.z; t.f = 0; t.mv = false; }
   else emit({ k: 'tp', who: t.k, x: r2(CARPET.x - (n - 1) % 3 * .8), z: r2(CARPET.z - Math.floor((n - 1) / 3) * .8) });
   pushState();
   if (!alive().length) endRound('boss');
@@ -463,6 +550,74 @@ function furnMesh(t) {
       for (const a of [-.45, .45]) put(g, mesh(new THREE.BoxGeometry(.85, .14, .62), '#A58BE0'), a, .56, .08);
       put(g, mesh(new THREE.BoxGeometry(.3, .3, .1), '#FFD27A'), -.6, .75, -.15).rotation.z = .3;
       break;
+    case 'shelf':   // стелаж з папками
+      put(g, mesh(new THREE.BoxGeometry(1.8, 1.8, .45), '#B8A68E'), 0, .9, 0);
+      for (let y = 0; y < 4; y++) for (let k = 0; k < 5; k++) put(g, mesh(new THREE.BoxGeometry(.3, .32, .36), ['#E0607E', '#6BB8FF', '#FFE066', '#7FE08A', '#B07CF0', '#FFFFFF'][(y * 5 + k * 3) % 6], false), -.72 + k * .36, .25 + y * .43, .06);
+      break;
+    case 'counter':   // кухонна стійка: мийка й мікрохвильовка
+      put(g, mesh(new THREE.BoxGeometry(4, .9, .7), '#FFFFFF'), 0, .45, 0); put(g, mesh(new THREE.BoxGeometry(4.05, .06, .75), '#4E4A6E'), 0, .92, 0);
+      for (let k = 0; k < 5; k++) put(g, mesh(new THREE.BoxGeometry(.04, .5, .02), '#C9CDD9', false), -1.6 + k * .8, .5, .36);
+      put(g, mesh(new THREE.BoxGeometry(.6, .05, .4), '#8FD3FF', false), -.4, .96, 0); put(g, mesh(flat(new THREE.CylinderGeometry(.03, .03, .3, 6)), '#C9CDD9'), -.4, 1.1, -.25);
+      put(g, mesh(new THREE.BoxGeometry(.6, .35, .4), '#C9CDD9'), 1.3, 1.13, 0); put(g, mesh(new THREE.BoxGeometry(.35, .22, .02), '#2E2346', false), 1.25, 1.13, .21);
+      for (const x of [.4, .6, .8]) put(g, mesh(flat(new THREE.CylinderGeometry(.06, .05, .12, 8)), ['#FF6BD6', '#FFFFFF', '#FFE066'][Math.round(x * 5) % 3]), x, 1.01, .1);
+      break;
+    case 'fridge':
+      put(g, mesh(new THREE.BoxGeometry(.8, 1.9, .7), '#E9E2FA'), 0, .95, 0); put(g, mesh(new THREE.BoxGeometry(.78, .03, .02), '#B7AFD0', false), 0, 1.3, .36);
+      put(g, mesh(new THREE.BoxGeometry(.05, .4, .05), '#8E86B0'), .3, 1.55, .37); put(g, mesh(new THREE.BoxGeometry(.05, .4, .05), '#8E86B0'), .3, .9, .37);
+      put(g, mesh(new THREE.BoxGeometry(.15, .15, .01), '#FFE066', false), -.15, 1.6, .36);
+      break;
+    case 'mtable':   // довгий стіл для нарад
+      put(g, mesh(new THREE.BoxGeometry(6, .09, 1.4), '#4E3A7C'), 0, .76, 0);
+      for (const x of [-2.4, 0, 2.4]) put(g, mesh(new THREE.BoxGeometry(.2, .72, .6), '#2E2346'), x, .36, 0);
+      for (const x of [-2, -.6, .8, 2.2]) for (const z of [-.4, .4]) put(g, mesh(new THREE.BoxGeometry(.3, .02, .22), '#FFFFFF', false), x, .82, z);
+      put(g, mesh(flat(new THREE.CylinderGeometry(.18, .2, .06, 10)), '#2E2346'), 0, .83, 0);   // спікерфон
+      break;
+    case 'ktable': case 'ctable': {
+      const k = t === 'ktable', w = k ? 2.4 : 1.4, d = k ? 1.2 : .8, y = k ? .75 : .42;
+      put(g, mesh(new THREE.BoxGeometry(w, .07, d), k ? '#E8DCC8' : '#6B4A3A'), 0, y, 0);
+      for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) put(g, mesh(new THREE.BoxGeometry(.07, y, .07), '#4E4A6E'), a * (w / 2 - .1), y / 2, b * (d / 2 - .1));
+      if (k) { put(g, mesh(flat(new THREE.CylinderGeometry(.06, .05, .12, 8)), '#FFFFFF'), -.5, .84, .2); put(g, mesh(flat(new THREE.CylinderGeometry(.2, .2, .03, 12)), '#FFFFFF'), .4, .8, -.1); }
+      else put(g, mesh(new THREE.BoxGeometry(.4, .03, .3), '#FF6BD6', false), .2, .47, 0);
+      break;
+    }
+    case 'reception':   // стійка рецепції
+      put(g, mesh(new THREE.BoxGeometry(3.6, 1.05, .7), '#4E3A7C'), 0, .52, 0); put(g, mesh(new THREE.BoxGeometry(3.7, .07, .9), '#E8DCC8'), 0, 1.08, .05);
+      put(g, mesh(new THREE.BoxGeometry(3, .06, .02), bulb('#FF6BD6'), false), 0, .75, .36);
+      put(g, mesh(new THREE.BoxGeometry(.6, .4, .05), '#2E2346'), .6, 1.35, -.15); put(g, mesh(flat(new THREE.CylinderGeometry(.08, .1, .08, 10)), '#FFD27A'), -.8, 1.15, .2);
+      break;
+    case 'vend':   // автомат зі снеками
+      put(g, mesh(new THREE.BoxGeometry(1, 1.9, .8), '#C2335A'), 0, .95, 0); put(g, mesh(new THREE.BoxGeometry(.65, 1.2, .02), mat('#BFE6FF', { transparent: true, opacity: .6 }), false), -.12, 1.15, .41);
+      for (let y = 0; y < 4; y++) for (let k = 0; k < 3; k++) put(g, mesh(new THREE.BoxGeometry(.14, .14, .1), ['#FFE066', '#7FE08A', '#6BB8FF', '#FF9C8A'][(y + k) % 4], false), -.32 + k * .2, .7 + y * .28, .3);
+      put(g, mesh(new THREE.BoxGeometry(.18, .5, .03), '#2E2346', false), .36, 1.25, .41);
+      break;
+    case 'rack':   // серверна стійка з лампочками
+      put(g, mesh(new THREE.BoxGeometry(.75, 2, .9), '#2E2346'), 0, 1, 0);
+      for (let y = 0; y < 7; y++) { put(g, mesh(new THREE.BoxGeometry(.65, .2, .02), '#4E4A6E', false), 0, .3 + y * .24, .46); put(g, mesh(new THREE.BoxGeometry(.05, .05, .02), bulb(y % 3 ? '#7FE08A' : '#6BE7FF'), false), .25, .3 + y * .24, .47); }
+      break;
+    case 'sink':
+      put(g, mesh(new THREE.BoxGeometry(.55, .8, .45), '#FFFFFF'), 0, .4, 0); put(g, mesh(new THREE.BoxGeometry(.4, .04, .3), '#8FD3FF', false), 0, .82, .03);
+      put(g, mesh(new THREE.BoxGeometry(.5, .6, .03), mat('#DDF3FF', { transparent: true, opacity: .8 }), false), 0, 1.5, -.22);   // дзеркало
+      break;
+    case 'wc':   // кабінка з дверцятами
+      put(g, mesh(new THREE.BoxGeometry(1.3, 1.7, .05), '#7FA6C9'), 0, .95, .68); put(g, mesh(new THREE.BoxGeometry(.05, 1.7, 1.35), '#7FA6C9'), -.66, .95, 0);
+      put(g, mesh(new THREE.BoxGeometry(.4, .4, .55), '#FFFFFF'), 0, .2, -.3); put(g, mesh(new THREE.BoxGeometry(.4, .45, .15), '#FFFFFF'), 0, .55, -.6);
+      put(g, mesh(new THREE.BoxGeometry(.05, 1.6, 1.2), '#9BBBD6'), .64, .9, 0).rotation.y = .5;   // прочинені дверцята
+      break;
+    case 'pingpong':
+      put(g, mesh(new THREE.BoxGeometry(2.7, .06, 1.5), '#3E8E6A'), 0, .76, 0); put(g, mesh(new THREE.BoxGeometry(2.7, .01, .03), '#FFFFFF', false), 0, .8, 0);
+      put(g, mesh(new THREE.BoxGeometry(.03, .16, 1.55), '#FFFFFF', false), 0, .86, 0);
+      for (const [a, b] of [[-1.2, -.6], [1.2, -.6], [-1.2, .6], [1.2, .6]]) put(g, mesh(new THREE.BoxGeometry(.07, .74, .07), '#4E4A6E'), a, .37, b);
+      put(g, mesh(new THREE.SphereGeometry(.05, 6, 5), '#FF9C3A'), .6, .84, .3);
+      break;
+    case 'tv':   // телевізор на стіні
+      put(g, mesh(new THREE.BoxGeometry(2.2, 1.2, .08), '#2E2346'), 0, 1.6, 0); put(g, mesh(new THREE.BoxGeometry(2.05, 1.05, .02), bulb('#6BB8FF'), false), 0, 1.6, .05);
+      put(g, mesh(new THREE.BoxGeometry(1.2, .1, .01), '#FFFFFF', false), -.2, 1.8, .065); put(g, mesh(new THREE.BoxGeometry(.25, .5, .01), '#7FE08A', false), .6, 1.45, .065);
+      break;
+    case 'board':   // маркерна дошка зі схемою «синергії»
+      put(g, mesh(new THREE.BoxGeometry(2.2, 1.1, .05), '#FFFFFF'), 0, 1.45, 0);
+      for (let k = 0; k < 4; k++) put(g, mesh(new THREE.BoxGeometry(.5 + (k * .37) % 1.2, .04, .02), ['#E0607E', '#6BB8FF', '#2E2346', '#7FE08A'][k], false), -.4 + (k % 2) * .5, 1.2 + k * .17, .03);
+      put(g, mesh(new THREE.BoxGeometry(2.2, .05, .1), '#8E86B0'), 0, .88, .04);
+      break;
     case 'report': default:
       for (let i = 0; i < 4; i++) put(g, mesh(new THREE.BoxGeometry(.42, .07, .3), i % 2 ? '#FFFFFF' : '#F2F0F7'), (i % 2) * .04, .04 + i * .075, -(i % 3) * .02).rotation.y = i * .12;
       put(g, mesh(new THREE.BoxGeometry(.2, .01, .08), '#FF5C7A', false), 0, .34, 0);
@@ -481,37 +636,64 @@ function signPlane(txt, col, w, h, bg) {
   }
   return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
 }
-/* ---------- Офіс: підлога, стіни, скляний кабінет, кухня ---------- */
+/* ---------- Офіс: підлоги кімнат, стіни з дверима, таблички, меблі ---------- */
+function floorBox(g, x0, z0, x1, z1, col, y) { const m = mesh(new THREE.BoxGeometry(x1 - x0, .02, z1 - z0), col, false, true); m.position.set((x0 + x1) / 2, y || .05, (z0 + z1) / 2); g.add(m); return m; }
+function wallMeshes(g) {
+  for (const w of WALLS) {
+    const horiz = w.z1 === w.z2, H = w.tall ? 2.6 : w.outer ? 1.3 : 1.15;
+    for (const [a, b] of wallParts(w)) {
+      const len = b - a; if (len < .05) continue;
+      const mx = horiz ? (a + b) / 2 : w.x1, mz = horiz ? w.z1 : (a + b) / 2, h = w.glass ? 2.2 : H;
+      const m = mesh(new THREE.BoxGeometry(horiz ? len : .2, h, horiz ? .2 : len), w.glass ? mat('#BFE6FF', { transparent: true, opacity: .3 }) : w.outer ? '#D9D2EE' : '#ECE6FB', !w.glass);
+      m.position.set(mx, h / 2, mz); g.add(m);
+      const t = mesh(new THREE.BoxGeometry(horiz ? len : .26, .08, horiz ? .26 : len), w.glass ? '#4E4A6E' : '#9F8BE0', false); t.position.set(mx, h + .04, mz); g.add(t);
+      if (!w.glass) { const sk = mesh(new THREE.BoxGeometry(horiz ? len : .24, .12, horiz ? .24 : len), '#8E86B0', false); sk.position.set(mx, .06, mz); g.add(sk); }   // плінтус
+    }
+    // одвірки й таблички над дверима
+    for (const d of w.doors || []) {
+      const H2d = (w.glass ? 2.2 : H) + .35;
+      for (const s of [-1, 1]) put(g, mesh(new THREE.BoxGeometry(.24, H2d, .24), w.glass ? '#4E4A6E' : '#9F8BE0', false), horiz ? d + s * .95 : w.x1, H2d / 2, horiz ? w.z1 : d + s * .95);
+      if (w.shut) {   // головний вхід зачинено: скляні двері
+        put(g, mesh(new THREE.BoxGeometry(1.7, 2, .08), mat('#BFE6FF', { transparent: true, opacity: .45 }), false), d, 1, w.z1);
+        const s = signPlane('ВХІД · 9:00–18:00', '#7FE08A', 2.4, .45, 'rgba(46,35,70,.9)'); s.position.set(d, 2.25, w.z1 + .14); g.add(s);
+      } else if (horiz && !(w.glass && Math.abs(d - DOOR.x) < .1)) {
+        // табличка кімнати, у яку ведуть двері (дивиться в коридор)
+        const into = roomAt(d, w.z1 + (w.z1 < IZ ? -.6 : .6)); if (!into || into.id === 'hall') continue;
+        const s = signPlane(into.n, '#FFD27A', 2, .42, 'rgba(46,35,70,.9)'); s.position.set(d, H2d + .25, w.z1 + .14); g.add(s);
+      }
+    }
+  }
+}
 function buildFloor() {
   const g = new THREE.Group(); scene.add(g);
-  put(g, mesh(new THREE.BoxGeometry(HX * 2, .06, HZ * 2), '#B4BCD6', false, true), IX, .03, IZ);
-  for (const lx of [-12.35, -6.5, -.5, 5.5]) put(g, mesh(new THREE.BoxGeometry(1.1, .01, HZ * 2 - 1.4), '#C9D0E6', false, true), IX + lx, .065, IZ);
-  for (const lz of [-8.5, -2.5, 3.5, 9.3]) put(g, mesh(new THREE.BoxGeometry(HX * 2 - 1.4, .01, 1.1), '#C9D0E6', false, true), IX, .066, IZ + lz);
-  put(g, mesh(new THREE.BoxGeometry(OFF.x1 - OFF.x0 + .8, .02, OFF.z1 - OFF.z0 + .8), '#C4956A', false, true), (OFF.x0 + OFF.x1) / 2, .08, (OFF.z0 + OFF.z1) / 2);
-  put(g, mesh(new THREE.BoxGeometry(2.6, .02, 1.3), '#C2335A', false, true), CARPET.x - .7, .1, CARPET.z - .35);   // килим
-  put(g, mesh(new THREE.BoxGeometry(6.6, .015, 6.8), '#E9DCC4', false, true), IX + 10.3, .075, IZ + 3.2);          // кухня
-  // стіни: задня висока з вікнами й плакатами, бічні й передня — низькі (видно, що всередині)
-  put(g, mesh(new THREE.BoxGeometry(HX * 2 + .4, 2.8, .3), '#E6E0F2', false, true), IX, 1.4, IZ - HZ - .15);
-  for (let k = 0; k < 6; k++) put(g, mesh(new THREE.BoxGeometry(2.2, 1.1, .05), bulb('#BFE9FF'), false), IX - 11 + k * 4.4, 1.85, IZ - HZ + .02);
-  for (const s of [-1, 1]) put(g, mesh(new THREE.BoxGeometry(.3, 1.2, HZ * 2), '#E6E0F2', false, true), IX + s * (HX + .15), .6, IZ);
-  put(g, mesh(new THREE.BoxGeometry(HX * 2 + .6, .5, .3), '#E6E0F2', false, true), IX, .25, IZ + HZ + .15);
-  [['KPI ↑↑↑', '#7FE08A', -12.5], ['ДЕДЛАЙН — ВЧОРА', '#FF6BD6', -3.8], ['МИ — СІМ’Я', '#FFD27A', 3.6]].forEach(([t, c, lx]) => { const p = signPlane(t, c, 3, .7, 'rgba(46,35,70,.92)'); p.position.set(IX + lx + 1.6, 2.55, IZ - HZ + .05); g.add(p); });
-  const neon = signPlane('ВІДДІЛ ПРОДАЖІВ', '#6BE7FF', 5, .9, 'rgba(46,35,70,.85)'); neon.position.set(IX - 7.5, 1.05, IZ - HZ + .06); neon.scale.setScalar(.6); g.add(neon);
-  const clock = put(g, mesh(flat(new THREE.CylinderGeometry(.35, .35, .06, 16)), '#FFFFFF', false), IX + 1, 2.55, IZ - HZ + .05); clock.rotation.x = Math.PI / 2;
-  // скляний кабінет боса
-  const glass = mat('#9FD8F5', { transparent: true, opacity: .28 });
-  const gx0 = OFF.x0 - .45, gz1 = OFF.z1 + .45;
-  put(g, mesh(new THREE.BoxGeometry(.08, 2.2, gz1 - (IZ - HZ)), glass, false), gx0, 1.1, (gz1 + IZ - HZ) / 2);
-  put(g, mesh(new THREE.BoxGeometry(DOOR.x - .7 - gx0, 2.2, .08), glass, false), (gx0 + DOOR.x - .7) / 2, 1.1, gz1);
-  put(g, mesh(new THREE.BoxGeometry(IX + HX - DOOR.x - .7, 2.2, .08), glass, false), (IX + HX + DOOR.x + .7) / 2, 1.1, gz1);
-  for (const [x, z] of [[gx0, gz1], [gx0, IZ - HZ], [DOOR.x - .7, gz1], [DOOR.x + .7, gz1], [IX + HX, gz1]]) put(g, mesh(new THREE.BoxGeometry(.12, 2.3, .12), '#4E4A6E'), x, 1.15, z);
-  put(g, mesh(new THREE.BoxGeometry(IX + HX - gx0, .1, .12), '#4E4A6E'), (gx0 + IX + HX) / 2, 2.25, gz1);
-  const bs = signPlane('БОС', '#FF5C7A', 1.6, .55, 'rgba(46,35,70,.9)'); bs.position.set(DOOR.x, 2.65, gz1 + .05); scene.add(A.dynamic(bs));
-  V.door = put(scene, mesh(new THREE.BoxGeometry(1.4, 2.1, .06), mat('#BFE9FF', { transparent: true, opacity: .4 }), false), DOOR.x, 1.05, gz1 + .06); A.dynamic(V.door);
-  // кухня: вивіска й стійки старту
-  const kt = signPlane('☕ КУХНЯ', '#FFD27A', 2.4, .6, 'rgba(46,35,70,.85)'); kt.position.set(IX + HX - .02, 1.6, IZ + 4); kt.rotation.y = -Math.PI / 2; g.add(kt);
-  put(g, mesh(flat(new THREE.CylinderGeometry(.6, .6, .06, 12)), '#FFF3E6'), IX + 10.4, .5, IZ + 1.6);
-  put(g, mesh(flat(new THREE.CylinderGeometry(.06, .1, .5, 6)), '#8E86B0'), IX + 10.4, .25, IZ + 1.6);
+  // доріжка від входу й газон довкола
+  floorBox(g, IX - HX - .6, IZ - HZ - .6, IX + HX + .6, IZ + HZ + .6, '#B9B4C8', .02);
+  floorBox(g, IX - 15.2, IZ + HZ, IX - 12.8, IZ + ISL_R - 1.5, '#D6CFC0', .03);
+  // підлоги кімнат: ковролін в офісах, плитка на кухні й у туалеті, паркет у боса й лаунжі
+  for (const r of ROOMS) {
+    const x0 = IX + r.x0, z0 = IZ + r.z0, x1 = IX + r.x1, z1 = IZ + r.z1;
+    if (r.tiles) {
+      const [a, b] = r.tiles === 1 ? ['#FFFFFF', '#DCD6EA'] : ['#E6F1F5', '#BFD9E2'];
+      floorBox(g, x0, z0, x1, z1, a, .05);
+      for (let x = x0; x < x1 - .01; x += 1) for (let z = z0; z < z1 - .01; z += 1) if ((Math.round(x - x0) + Math.round(z - z0)) % 2) floorBox(g, x, z, Math.min(x1, x + 1), Math.min(z1, z + 1), b, .056);
+    } else floorBox(g, x0, z0, x1, z1, r.fl, .05);
+  }
+  for (let x = -16; x <= 16; x += 4) floorBox(g, IX + x - .6, IZ - .3, IX + x + .6, IZ - .2, '#FFE066', .062);   // розмітка в коридорі
+  floorBox(g, CARPET.x - 2.2, CARPET.z - 1.2, CARPET.x + .6, CARPET.z + .4, '#C2335A', .065);                    // «килим» у боса
+  floorBox(g, IX + 12.6, IZ - 11.8, IX + 16.4, IZ - 7.8, '#7A3A4A', .062);                                        // перський килим під столом
+  floorBox(g, IX - 16.9, IZ + 7, IX - 15.5, IZ + 9.8, '#8C7FC2', .062);                                             // килимок у рецепції
+  wallMeshes(g);
+  // вікна в задній стіні й плакати
+  for (let k = 0; k < 8; k++) put(g, mesh(new THREE.BoxGeometry(2.4, 1.1, .05), bulb('#BFE9FF'), false), IX - 15.75 + k * 4.5, 1.7, IZ - HZ + .13);
+  [['KPI ↑↑↑', '#7FE08A', -10], ['ДЕДЛАЙН — ВЧОРА', '#FF6BD6', -1], ['МИ — СІМ’Я', '#FFD27A', 8]].forEach(([t, c, lx]) => { const p = signPlane(t, c, 2.6, .55, 'rgba(46,35,70,.92)'); p.position.set(IX + lx, 2.75, IZ - HZ + .14); g.add(p); });
+  const neon = signPlane('ВІДДІЛ ПРОДАЖІВ', '#6BE7FF', 3.2, .5, 'rgba(46,35,70,.85)'); neon.position.set(IX - 15.75, 2.75, IZ - HZ + .14); g.add(neon);
+  const clock = put(g, mesh(flat(new THREE.CylinderGeometry(.35, .35, .06, 16)), '#FFFFFF', false), IX + 3.5, 2.75, IZ - HZ + .15); clock.rotation.x = Math.PI / 2;
+  // логотип на стіні рецепції
+  const logo = signPlane('ТОВ «СИНЕРГІЯ»', '#FF6BD6', 3.4, .6, 'rgba(46,35,70,.9)'); logo.position.set(IX - HX + .14, 1.9, IZ + 8.4); logo.rotation.y = Math.PI / 2; g.add(logo);
+  // табличка «БОС» і розсувні скляні двері кабінету
+  const bs = signPlane('👔 БОС', '#FF5C7A', 1.6, .5, 'rgba(46,35,70,.9)'); bs.position.set(DOOR.x, 2.85, DOOR.z + .14); g.add(bs);
+  V.door = put(scene, mesh(new THREE.BoxGeometry(1.7, 2.1, .06), mat('#BFE9FF', { transparent: true, opacity: .45 }), false), DOOR.x, 1.05, DOOR.z + .12); A.dynamic(V.door);
+  // стійки старту й вибору ролі в рецепції
   for (const [p, t, c] of [[BOARD, '▶ СТАРТ', '#7FE08A'], [ROLE, '🎭 РОЛЬ', '#FFD27A']]) {
     put(g, mesh(new THREE.BoxGeometry(.08, 1.4, .08), '#4E4A6E'), p.x, .7, p.z);
     const sp = signPlane(t, c, 1.5, .5, 'rgba(46,35,70,.92)'); sp.position.set(p.x, 1.55, p.z + .05); g.add(sp);
@@ -520,15 +702,13 @@ function buildFloor() {
   for (const f of FURN) { const m = furnMesh(f.t); m.position.set(f.x, 0, f.z); m.rotation.y = f.rot; g.add(m); }
   return g;
 }
-/* ---------- Тверді меблі й стіни (і на сервері, і в гравців) ---------- */
+/* ---------- Тверді стіни й меблі (і на сервері, і в гравців) ---------- */
 A.on('world', () => {
-  for (let x = IX - HX; x <= IX + HX + .01; x += .7) { addStatic(x, IZ - HZ - .1, .35, 2.5); addStatic(x, IZ + HZ + .1, .35, 2.5); }
-  for (let z = IZ - HZ; z <= IZ + HZ + .01; z += .7) { addStatic(IX - HX - .1, z, .35, 2.5); addStatic(IX + HX + .1, z, .35, 2.5); }
-  const gx0 = OFF.x0 - .45, gz1 = OFF.z1 + .45;
-  for (let z = IZ - HZ; z <= gz1 + .01; z += .55) addStatic(gx0, z, .28, 2.5);
-  for (let x = gx0; x <= IX + HX + .01; x += .55) if (Math.abs(x - DOOR.x) > .75) addStatic(x, gz1, .28, 2.5);
+  for (const w of WALLS) {
+    const horiz = w.z1 === w.z2;
+    for (const [a, b] of w.shut ? wallParts(Object.assign({}, w, { doors: [] })) : wallParts(w)) for (let t = a; t <= b + .01; t += .5) addStatic(horiz ? t : w.x1, horiz ? w.z1 : t, .3, 2.5);
+  }
   for (const p of [BOARD, ROLE]) addStatic(p.x, p.z, .25, 1.4);
-  addStatic(IX + 10.4, IZ + 1.6, .5, .6);
   for (const f of FURN) for (const c of circles(f)) addStatic(c.x, c.z, c.r, FT[f.t].h);
 });
 
@@ -804,8 +984,8 @@ getInteract = function () {
 const PLACES = [
   { id: 'start', p: BOARD, y: 2.3, t: () => '▶ СТАРТ (F)', on: () => !ST.on },
   { id: 'role', p: ROLE, y: 2.3, t: () => V.pref === 'boss' ? '🎭 Роль: 👔 бос' : '🎭 Роль: 🙈 офісник', on: () => !ST.on },
-  { id: 'office', p: W(11.3, -7.8), y: 2.9, t: () => '🏢 Кабінет боса' },
-  { id: 'kitchen', p: W(10.4, 4.5), y: 2.2, t: () => '☕ Кухня' },
+  // підписи кімнат (центр кімнати, над меблями)
+  ...ROOMS.filter(r => r.id !== 'hall').map(r => ({ id: 'room:' + r.id, p: W((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2), y: 2.4, room: 1, t: () => r.n })),
 ];
 function nearestF(filter) { let b = null, bd = 1e9; for (const f of FURN) if (filter(f)) { const d = dist2(pl.x, pl.z, f.x, f.z); if (d < bd) { bd = d; b = f; } } return b; }
 function goal() {
@@ -818,8 +998,8 @@ function goal() {
   }
   if (e.c) return { txt: '😵 Ти попався. Стоїш на килимі в боса — дивись, як ховаються інші.' };
   if (V.work) return { txt: `💻 Працюю ${Math.round(V.work.t / WORK_T * 100)}% — стій біля комп’ютера! Тебе видно.` };
-  if (e.pr < 30 && ST.ph === 'hunt') { const d = nearestF(f => f.t === 'desk'); return { id: 'desk', tg: workSpot(d), txt: `📉 Продуктивність ${Math.round(e.pr)}%! Біжи до <b>💻 комп’ютера</b> і натисни F (3 с). ${e.pr <= 0 ? '<b style="color:#C2335A">Маскування блимає!</b>' : ''}` }; }
-  if (!e.p) { const f = nearestF(f => FT[f.t].dis && !inOffice(f.x, f.z)); return { id: 'hide', tg: f, txt: `${ST.ph === 'meet' ? `Бос на нараді ще <b>${Math.ceil(left())} с</b>! ` : ''}Підійди до меблів і натисни <b>F</b> — замаскуйся (крісло, фікус, кулер, коробка…).` }; }
+  if (e.pr < 30 && ST.ph === 'hunt') { const d = nearestF(f => f.t === 'desk'); return { id: 'desk', tg: workSpot(d), txt: `📉 Продуктивність ${Math.round(e.pr)}%! Біжи до <b>💻 комп’ютера</b> (${roomAt(d.x, d.z).n}) і натисни F (3 с). ${e.pr <= 0 ? '<b style="color:#C2335A">Маскування блимає!</b>' : ''}` }; }
+  if (!e.p) { const f = nearestF(f => FT[f.t].dis && !inOffice(f.x, f.z)); return { id: 'hide', tg: f, txt: `${ST.ph === 'meet' ? `Бос на нараді ще <b>${Math.ceil(left())} с</b>! ` : ''}${f ? `Найближче — ${FT[f.t].ic} у кімнаті «${roomAt(f.x, f.z).n}». ` : ''}Підійди до меблів і натисни <b>F</b> — замаскуйся (крісло, фікус, кулер, коробка…).` }; }
   return { txt: `Ти — ${FT[e.p].ic} <b>${FT[e.p].n.toLowerCase()}</b>. Не рухайся — рух видно! ${e.dc ? '' : '<b>R</b> — фейковий звіт (1 раз). '}Продуктивність ${Math.round(e.pr)}%.` };
 }
 function guide() {
@@ -829,9 +1009,10 @@ function guide() {
     css.textContent = `.hb-lbl{position:absolute;left:0;top:0;padding:3px 9px;border-radius:10px;background:rgba(46,35,70,.78);color:#fff;font:700 12px/1.3 system-ui,sans-serif;white-space:nowrap;transform:translate(-50%,-100%);transition:opacity .2s}
       .hb-lbl.goal{background:#FFE066;color:#2E2346;font-size:14px;box-shadow:0 0 0 3px rgba(255,224,102,.35),0 6px 16px rgba(0,0,0,.3);animation:hbB .8s ease-in-out infinite alternate}
       .hb-lbl.boss{background:#C2335A}
+      .hb-lbl.room{background:rgba(255,255,255,.8);color:#4E3A7C;font-size:11px;padding:2px 8px}
       @keyframes hbB{to{margin-top:-6px}}`;
     document.head.appendChild(css); document.body.appendChild(V.lbl);
-    for (const P of PLACES) { P.el = document.createElement('div'); P.el.className = 'hb-lbl'; V.lbl.appendChild(P.el); }
+    for (const P of PLACES) { P.el = document.createElement('div'); P.el.className = 'hb-lbl' + (P.room ? ' room' : ''); V.lbl.appendChild(P.el); }
     V.glbl = document.createElement('div'); V.glbl.className = 'hb-lbl goal'; V.lbl.appendChild(V.glbl);
     V.gArrow = new THREE.Group(); const sh = mesh(new THREE.ConeGeometry(.28, .7, 3), bulb('#FFE066'), false); sh.rotation.z = -Math.PI / 2; sh.position.x = 1.25; V.gArrow.add(sh); scene.add(V.gArrow);
     V.gMark = new THREE.Mesh(new THREE.TorusGeometry(.6, .07, 6, 24), new THREE.MeshBasicMaterial({ color: '#FFE066', transparent: true, opacity: .9, depthWrite: false })); V.gMark.rotation.x = Math.PI / 2; scene.add(V.gMark);
@@ -844,7 +1025,7 @@ function guide() {
   const pos = (el, x, y, z) => { const q = screenPos(x, y, z); el.style.display = q.vis ? '' : 'none'; el.style.transform = `translate(${Math.round(q.x)}px,${Math.round(q.y)}px) translate(-50%,-100%)`; };
   for (const P of PLACES) {
     const on = (!P.on || P.on()) && P.id !== g.id;
-    P.el.style.opacity = on ? (dist2(pl.x, pl.z, P.p.x, P.p.z) < 8 ? 1 : .6) : 0;
+    P.el.style.opacity = on ? (P.room ? .85 : dist2(pl.x, pl.z, P.p.x, P.p.z) < 8 ? 1 : .6) : 0;
     if (on) { const t = P.t(); if (P.el.textContent !== t) P.el.textContent = t; pos(P.el, P.p.x, P.y, P.p.z); }
   }
   // підписи ботів і боса (замаскованих — не видно)
@@ -979,4 +1160,4 @@ if (!SIMSIDE && typeof document !== 'undefined') {
   }
 }
 A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(goHide, 700); });
-if (window.__ADDON_TEST) window.__hideboss = { ST, AU, V, FURN, FT, DESKS, BOARD, ROLE, SPAWN, OFF, CARPET, BOSS_SPOT, MEET, DUR, req, goal, intro, me, bossE, alive, hiders, bossTarget, bossClick, fdist, workSpot, hideSpots, route, endRound, inOffice };
+if (window.__ADDON_TEST) window.__hideboss = { NAV, navFree, ROOMS, WALLS, cellOf, ST, AU, V, FURN, FT, DESKS, BOARD, ROLE, SPAWN, OFF, CARPET, BOSS_SPOT, MEET, DUR, req, goal, intro, me, bossE, alive, hiders, bossTarget, bossClick, fdist, workSpot, hideSpots, route, endRound, inOffice };

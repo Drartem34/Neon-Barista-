@@ -35,10 +35,33 @@ assert(Math.hypot(T.pl.x - N.SPAWN.x, T.pl.z - N.SPAWN.z) < .8, 'Esc → «Ні�
 assert(N.goal().id === 'clock' && w.document.getElementById('ns-intro'), 'до старту: інструкція й підказка до табельного');
 w.document.querySelector('#ns-intro button').click(); assert(!w.document.getElementById('ns-intro') && T.P.addons.nightshift.intro === 1, 'інструкцію закрив — більше не показується');
 step(.1); assert(/табельн/.test(w.document.getElementById('ns-goal').textContent), 'у HUD рядок «👉 що робити зараз»');
-// стіни: на північ із вестибюля не пройдеш крізь рецепцію/стіну щитової
-{ go(N.SPAWN); for (let k = 0; k < 40; k++) { T.pl.x -= .2; step(.02); } assert(T.pl.x > N.SPAWN.x - 6 - .1, `стіна між вестибюлем і щитовою не пускає (${(T.pl.x - 100).toFixed(2)})`); }
+// стіни: із вестибюля на захід — диван і стіна
+{ go(N.SPAWN); for (let k = 0; k < 40; k++) { T.pl.x -= .2; step(.02); } assert(T.pl.x > N.SPAWN.x - 5.1, `стіна вестибюля не пускає на захід (${(T.pl.x - 100).toFixed(2)})`); }
 // сітка шляху: усі точки блукання досяжні
 { const g = N.grid(); const bad = N.WAYS.filter(p => g[N.cellOf(p.x, p.z)]); assert(!bad.length, 'точки блукання не в стінах'); }
+// план офісу: прямокутна будівля на острові, кімнати, двері, усе потрібне досяжне
+{
+  assert(N.ROOMS.length >= 14 && ['Опенспейс', 'Переговорна', 'Кабінет начальника', 'Кухня', 'Лаунж', 'Електрощитова', 'Архів', 'Вестибюль', 'Туалети', 'Серверна', 'Копі-центр'].every(n => N.ROOMS.some(r => r.n.includes(n))), `кімнат: ${N.ROOMS.length} (опенспейс, переговорна, кабінет, кухня, лаунж, щитова, архів, туалети…)`);
+  const far = Math.max(...N.WALLS.map(r => Math.max(...[[r.x0, r.z0], [r.x1, r.z0], [r.x0, r.z1], [r.x1, r.z1]].map(([x, z]) => Math.hypot(x - 100, z - 150)))));
+  assert(far < 28, `будівля вміщається на острові (найдальший кут ${far.toFixed(1)} < 28)`);
+  assert(N.WALLS.some(w => w.glass) && N.DOORS.filter(d => d.n).length >= 12, `скляні стіни є, табличок на дверях: ${N.DOORS.filter(d => d.n).length}`);
+  const desks = N.FURN_L.filter(f => f[0] === 'desk').length; assert(desks >= 24, `столів із ПК: ${desks}`);
+  const reach = () => { const g = N.grid(), NC = 80, seen = new Uint8Array(g.length), s0 = N.cellOf(N.SPAWN.x, N.SPAWN.z), q = [s0]; seen[s0] = 1; for (let h = 0; h < q.length; h++) { const c = q[h], i = c % NC, j = Math.floor(c / NC); for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= NC || jj * NC >= g.length) continue; const n = jj * NC + ii; if (!g[n] && !seen[n]) { seen[n] = 1; q.push(n); } } } return p => seen[N.cellOf(p.x, p.z)] === 1; };
+  let ok = reach();
+  const pts = [['табельний', N.CLOCK], ['вихід', N.EXIT], ['щитова', N.ELEC], ...N.CARD_SPOTS.map(c => ['картка: ' + c.n, c]), ...N.NOTE_SPOTS.map(c => ['стікер: ' + c.n, c]), ...N.BAT_SPOTS.map((c, i) => ['батарейка ' + i, c]), ...N.CABS.map((c, i) => ['схованка ' + i, c.s]), ...N.WAYS.map((c, i) => ['точка ' + i, c]), ...N.EN_SPAWN.map((c, i) => ['поява ' + i, c])];
+  const bad = pts.filter(([, p]) => !ok(p)).map(([n]) => n); assert(!bad.length, 'усі важливі місця досяжні з вестибюля' + (bad.length ? ': ' + bad.join(', ') : ''));
+  assert(!ok({ x: N.BREAKERS[0].x, z: N.BREAKERS[0].z }), 'до рубильників без картки не дійти (щитова зачинена)');
+  N.ST.edoor = 1; ok = reach(); assert(N.BREAKERS.every(b => ok(b)), 'щитову відчинили — рубильники досяжні'); N.ST.edoor = 0; N.grid();
+  const near = (p, r) => N.FURN.concat(N.WALLS).some(q => p.x > q.x0 - r && p.x < q.x1 + r && p.z > q.z0 - r && p.z < q.z1 + r);
+  const tight = pts.filter(([, p]) => near(p, .38)).map(([n]) => n); assert(!tight.length, 'точки взаємодії не впираються в меблі' + (tight.length ? ': ' + tight.join(', ') : ''));
+  // крізь стіну не пройдеш, крізь двері — так
+  const walk = (x, z, dx, dz, n) => { T.pl.x = x; T.pl.z = z; N.V.lastP = null; step(.05); for (let k = 0; k < n; k++) { T.pl.x += dx; T.pl.z += dz; step(.02); } return { x: T.pl.x, z: T.pl.z }; };
+  let p = walk(100 - 11, 150, 0, -.2, 30); assert(p.z > 150 - 2, `стіна коридору не пускає в опенспейс (${(p.z - 150).toFixed(2)})`);
+  p = walk(100 - 16, 150, 0, -.2, 30); assert(p.z < 150 - 4, `а через двері опенспейсу проходиш (${(p.z - 150).toFixed(2)})`);
+  p = walk(100 + 1.5, 150, 0, -.2, 30); assert(p.z < 150 - 4, `через скляні двері в переговорну — теж (${(p.z - 150).toFixed(2)})`);
+  p = walk(100 + 4, 150, 0, -.2, 30); assert(p.z > 150 - 2, `а крізь скло — ні (${(p.z - 150).toFixed(2)})`);
+  go(N.SPAWN);
+}
 
 /* ---------- 1. Ліхтарик: розряд і батарейка ---------- */
 startNight();

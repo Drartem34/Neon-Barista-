@@ -14,7 +14,7 @@ const A = Addon.info({ name: 'Нічна зміна', version: '1.0', desc: 'К�
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);
-const BX = 100, BZ = 150, ISL_R = 22, HX = 15, HZ = 12, WH = 1.5;   // центр будівлі, половини розмірів, висота стін
+const BX = 100, BZ = 150, ISL_R = 28, HX = 20, HZ = 16, WH = 1.3;   // центр будівлі, половини розмірів (40×32 м), висота стін (низькі — камера бачить кімнати)
 const DUR = 330, LIGHT_R = 9.5, LIGHT_A = .42, DRAIN = .9;           // ніч 5,5 хв; ліхтарик: дальність, пів-кута, розряд %/с
 const L = (x, z) => ({ x: BX + x, z: BZ + z });
 const R = (x0, z0, x1, z1) => ({ x0: BX + Math.min(x0, x1), x1: BX + Math.max(x0, x1), z0: BZ + Math.min(z0, z1), z1: BZ + Math.max(z0, z1) });
@@ -22,53 +22,128 @@ const inB = (x, z) => Math.abs(x - BX) < HX && Math.abs(z - BZ) < HZ;
 const inIsl = (x, z) => dist2(x, z, BX, BZ) < ISL_R + 1;
 const wrapA = a => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
 
-/* ---------- План поверху: стіни (прямокутники) з отворами під двері ---------- */
-const WALLS = [];
-function hw(z, x0, x1, gaps = []) { let a = x0; for (const [g0, g1] of [...gaps, [x1, x1]]) { if (g0 > a) WALLS.push(R(a, z - .15, g0, z + .15)); a = g1; } }
-function vw(x, z0, z1, gaps = []) { let a = z0; for (const [g0, g1] of [...gaps, [z1, z1]]) { if (g0 > a) WALLS.push(R(x - .15, a, x + .15, g0)); a = g1; } }
-hw(-12, -15, 15); hw(12, -15, 15, [[-1.6, 1.6]]); vw(-15, -12, 12); vw(15, -12, 12);
-hw(-1, -15, 15, [[-10, -8.4], [-.8, .8], [8.4, 10]]);                 // північна стіна коридору
-hw(3, -15, 15, [[-11, -9.4], [-3, 3], [9.4, 11]]);                    // південна стіна коридору
-vw(-4, -12, -1, [[-7.4, -5.8]]); vw(4, -12, -1, [[-7.4, -5.8]]);       // опенспейс | кухня | кабінет
-vw(-6, 3, 12); vw(6, 3, 12, [[7.6, 9.2]]);                             // щитова | вестибюль | архів
-const ELEC_D = R(-11, 2.85, -9.4, 3.15), EXIT_D = R(-1.6, 11.85, 1.6, 12.15);
+/* ---------- План поверху (локальні координати від центру; північ = −z, вхід — на півдні) ----------
+   ┌──────────────┬────────┬──────────────┐
+   │              │Перего- │  Кабінет     │
+   │  Опенспейс   │ворна   ├─────┬────────┤   z −16…−2
+   │              │(скло)  │Копі │Приймал.│
+   ├──────────────┴────────┴─────┴────────┤
+   │               К О Р И Д О Р     ліфт │   z −2…2
+   ├─────┬────────┬────────┬─────┬────────┤
+   │Щито-│ Кухня  │        │Туа- │ Склад  │
+   │ва   ├────────┤Вестибю-│лети ├───┬────┤   z 2…16
+   │Архів│ Лаунж  │ль      │ IT-відділ│Сер-│
+   └─────┴────────┴──EXIT──┴──────────┴вер┘ */
+const WALLS = [], DOORS = [];
+// стіна вздовж x (на висоті z) або вздовж z (на x); двері — центр або [центр, ширина, табличка]
+function wall(horiz, at, a0, a1, doors = [], o = {}) {
+  const ds = doors.map(d => Array.isArray(d) ? { c: d[0], w: d[1] || 1.8, n: d[2] || '' } : { c: d, w: 1.8, n: '' }).sort((p, q) => p.c - q.c);
+  let a = a0;
+  for (const d of [...ds, { c: a1, w: 0 }]) {
+    const g0 = d.c - d.w / 2; if (g0 > a + .01) WALLS.push(Object.assign(horiz ? R(a, at - .15, g0, at + .15) : R(at - .15, a, at + .15, g0), o));
+    a = d.c + d.w / 2;
+    if (d.w) DOORS.push({ x: BX + (horiz ? d.c : at), z: BZ + (horiz ? at : d.c), h: horiz, w: d.w, n: d.n });
+  }
+}
+const hw = (z, x0, x1, d, o) => wall(true, z, x0, x1, d, o), vw = (x, z0, z1, d, o) => wall(false, x, z0, z1, d, o);
+hw(-16, -20, 20, [], { out: 1 }); hw(16, -20, 20, [[0, 3.2, '🚪 ВИХІД']], { out: 1 }); vw(-20, -16, 16, [], { out: 1 }); vw(20, -16, 16, [], { out: 1 });
+hw(-2, -20, -3, [[-16, 1.8, '💻 Опенспейс'], [-7, 1.8, '💻 Опенспейс']]);
+hw(-2, -3, 6, [[1.5, 1.8, '📊 Переговорна']], { glass: 1 });
+hw(-2, 6, 20, [[9, 1.8, '🖨️ Копі-центр'], [16, 1.8, '📞 Приймальня']]);
+hw(2, -20, 20, [[-17, 1.8, '⚡ Щитова'], [-9.5, 1.8, '☕ Кухня'], [0, 5], [8, 1.8, '🚻 WC'], [15.5, 1.8, '📦 Склад']]);
+vw(-3, -16, -2); vw(6, -16, -2); vw(12, -9, -2);
+hw(-9, 6, 12); hw(-9, 12, 20, [[16, 1.8, '👔 Начальник']], { glass: 1 });
+vw(-14, 2, 16, [[12, 1.8, '🗄️ Архів']]); hw(8, -20, -14); hw(9, -14, -5, [[-9.5, 1.8, '🛋️ Лаунж']]);
+vw(-5, 2, 16, [[10.5, 1.8, '🛋️ Лаунж']]); vw(5, 2, 16, [[10.5, 1.8, '🧑‍💻 IT']]);
+hw(9, 5, 20, [[17, 1.8, '🖥️ Серверна']]); vw(11, 2, 9); vw(13, 9, 16);
+const ELEC_D = R(-17.9, 1.85, -16.1, 2.15), EXIT_D = R(-1.6, 15.85, 1.6, 16.15);   // зачинені двері: щитова (картка) й вихід (струм)
 const ROOMS = [
-  { n: 'Опенспейс', x0: -15, x1: -4, z0: -12, z1: -1 }, { n: 'Кухня', x0: -4, x1: 4, z0: -12, z1: -1 }, { n: 'Кабінет начальника', x0: 4, x1: 15, z0: -12, z1: -1 },
-  { n: 'Коридор', x0: -15, x1: 15, z0: -1, z1: 3 }, { n: 'Електрощитова', x0: -15, x1: -6, z0: 3, z1: 12 }, { n: 'Вестибюль', x0: -6, x1: 6, z0: 3, z1: 12 }, { n: 'Архів', x0: 6, x1: 15, z0: 3, z1: 12 },
+  { n: '💻 Опенспейс', x0: -20, x1: -3, z0: -16, z1: -2 }, { n: '📊 Переговорна', x0: -3, x1: 6, z0: -16, z1: -2 }, { n: '👔 Кабінет начальника', x0: 6, x1: 20, z0: -16, z1: -9 },
+  { n: '🖨️ Копі-центр', x0: 6, x1: 12, z0: -9, z1: -2 }, { n: '📞 Приймальня', x0: 12, x1: 20, z0: -9, z1: -2 }, { n: '🚶 Коридор', x0: -20, x1: 20, z0: -2, z1: 2 },
+  { n: '⚡ Електрощитова', x0: -20, x1: -14, z0: 2, z1: 8 }, { n: '🗄️ Архів', x0: -20, x1: -14, z0: 8, z1: 16 }, { n: '☕ Кухня', x0: -14, x1: -5, z0: 2, z1: 9 },
+  { n: '🛋️ Лаунж', x0: -14, x1: -5, z0: 9, z1: 16 }, { n: '🛎️ Вестибюль', x0: -5, x1: 5, z0: 2, z1: 16 }, { n: '🚻 Туалети', x0: 5, x1: 11, z0: 2, z1: 9 },
+  { n: '📦 Склад', x0: 11, x1: 20, z0: 2, z1: 9 }, { n: '🧑‍💻 IT-відділ', x0: 5, x1: 13, z0: 9, z1: 16 }, { n: '🖥️ Серверна', x0: 13, x1: 20, z0: 9, z1: 16 },
 ];
 const roomAt = (x, z) => ROOMS.find(r => x - BX >= r.x0 && x - BX < r.x1 && z - BZ >= r.z0 && z - BZ < r.z1);
-/* меблі: заважають ходити, але не світлу */
-const DESKS = [[-12.2, -9], [-8, -9], [-12.2, -5], [-8, -5]];
-const FURN = [
-  ...DESKS.map(([x, z]) => R(x - 1.2, z - .55, x + 1.2, z + .55)),
-  R(-14.5, -11.85, -13.5, -11.25), R(13.5, -11.85, 14.5, -11.25), R(14.25, 10.5, 14.85, 11.5), R(-14.85, 10.8, -14.25, 11.8),   // шафи
-  R(2.8, -11.9, 3.8, -10.9), R(-3.6, -11.9, 2.4, -11.2), R(-1.2, -7.3, 1.2, -5.7),                                             // холодильник, стільниця, стіл
-  R(8.5, -8.7, 11.5, -7.3),                                                                                                     // стіл начальника
-  R(8.2, 4.5, 8.8, 10), R(11.2, 4.5, 11.8, 10), R(13.3, 3.3, 14.5, 4.5),                                                        // стелажі, принтер
-  R(-14.85, .6, -14.2, 1.4), R(-2, 6.5, 2, 7.3), R(3.5, 10.8, 5.5, 11.6), R(-9, 9.5, -7, 11.5), R(-15, 4.4, -14.5, 9.6),       // кулер, рецепція, диван, генератор, щиток
-];
+const HIDE_N = { cab: 'у шафі', wc: 'у кабінці туалету', desk: 'під столом' };
+const roomN = p => { const r = p && roomAt(p.x, p.z); return r ? r.n : ''; };
+
+/* меблі за планом: [тип, x, z, поворот, довжина]; поворот 0 — «обличчям» на +z (на південь) */
+const P2 = Math.PI / 2, PI = Math.PI;
+const FURN_T = { desk: [1.6, .8], bdesk: [2.6, 1.1], mtable: [7, 1.6], ktable: [1.8, 1], sofa: [2.4, .9], ctable: [1.2, .6], shelf: [1.8, .45], locker: [1, .6], counter: [4, .7],
+  fridge: [.8, .7], cooler: [.5, .5], plant: [.6, .6], copier: [1.2, .9], rack: [.8, 1], recep: [4.4, .8], panel: [3.6, .4], gen: [1.6, 1.2], part: [.1, 1.8], wc: [.5, .55], crate: [.8, .8], pallet: [1.6, 1.2], sdesk: [1.6, .8] };
+const FURN_SOFT = { chair: 1, tv: 1, board: 1, bean: 1, lamp: 1 };   // крізь це ходять (або воно на стіні)
+const FURN_L = [];
+const F = (t, x, z, rot = 0, len = 0) => FURN_L.push([t, x, z, rot, len]);
+// опенспейс: два ряди «островів» по 6 столів (спина до спини), шафки, кулер
+const OS_X = [-18, -16.4, -14.8, -11, -9.4, -7.8], OS_ROW = [-13, -7.5];
+for (const rz of OS_ROW) for (const x of OS_X) { F('desk', x, rz + .4, 0); F('desk', x, rz - .4, PI); }
+F('locker', -3.45, -14.6, -P2); F('locker', -3.45, -13.4, -P2); F('locker', -3.45, -12.2, -P2);
+F('cooler', -19.45, -3, 0); F('plant', -19.4, -15.4); F('plant', -3.6, -2.6); F('plant', -12.9, -15.4); F('board', -12.9, -15.8, 0, 2.4); F('shelf', -19.6, -9.6, P2, 2.4);
+// переговорна: довгий стіл, крісла, телевізор, дошка
+F('mtable', 1.5, -9.5, P2, 7); for (let z = -12.4; z <= -6.6; z += 1.45) { F('chair', -.05, z, P2); F('chair', 3.05, z, -P2); } F('chair', 1.5, -13.7, 0);
+F('tv', 1.5, -15.8, 0, 2.6); F('board', -2.85, -9.5, P2, 2.4); F('plant', 5.4, -15.4); F('plant', -2.4, -15.4); F('plant', 5.4, -2.6, 0);
+// кабінет начальника: великий стіл, шкіряне крісло, полиця, диван, кавовий столик, шафа
+F('bdesk', 14, -13, PI); F('shelf', 14, -15.6, 0, 3); F('sofa', 8.7, -12.5, -P2, 2.4); F('ctable', 7.3, -12.5, P2); F('locker', 19.45, -11.8, -P2);
+F('plant', 6.7, -15.3); F('plant', 19.3, -15.3); F('plant', 11.5, -9.7); F('tv', 6.2, -12.5, P2, 1.8);
+// копі-центр і приймальня
+F('copier', 9, -8.2, 0); F('shelf', 6.4, -5.5, P2, 2); F('crate', 11.4, -8.4); F('plant', 11.5, -2.7);
+F('sdesk', 18.2, -5.5, -P2); F('chair', 19.1, -5.5, -P2); F('sofa', 13.2, -5.5, P2, 2.4); F('cooler', 12.6, -8.5); F('plant', 19.4, -8.4);
+// коридор
+F('plant', -19.4, -1.4); F('plant', 19.4, 1.55); F('plant', -2.9, -1.5); F('plant', 6.1, 1.5);
+// електрощитова: шафа з рубильниками й генератор
+F('panel', -19.8, 5.2, P2); F('gen', -15.2, 6.9, 0);
+// архів: стелажі з теками, шафа
+F('shelf', -19.6, 12, P2, 6); F('shelf', -17, 12.4, P2, 5); F('shelf', -16.55, 12.4, -P2, 5); F('locker', -14.45, 15, -P2); F('crate', -15, 9);
+// кухня: стільниця з кавоваркою, холодильник, стіл, кулер
+F('counter', -13.5, 4.85, P2, 4.5); F('fridge', -13.45, 8.2, P2); F('ktable', -9, 5.5, 0);
+for (const x of [-9.5, -8.5]) { F('chair', x, 4.45, 0); F('chair', x, 6.55, PI); } F('cooler', -5.5, 2.6); F('plant', -5.5, 8.4);
+// лаунж: диван перед телевізором, столик, крісла-мішки
+F('sofa', -9.5, 12.6, 0, 2.6); F('ctable', -9.5, 14, 0); F('tv', -9.5, 15.8, PI, 2.4); F('sofa', -13.4, 14.4, P2, 2); F('bean', -6.4, 13.2); F('bean', -6.6, 14.8); F('plant', -5.6, 15.4); F('plant', -13.4, 9.6); F('lamp', -12.5, 15.4);
+// вестибюль: рецепція, диван для гостей, рослини
+F('recep', 0, 8, 0); F('chair', 0, 7.2, PI); F('sofa', -4.4, 13.5, P2, 2.4); F('plant', -4.4, 15.4); F('plant', 4.4, 15.4); F('plant', -4.4, 2.6); F('plant', 4.4, 2.6);
+// туалети: кабінки й умивальники
+for (const x of [6.8, 8.6, 10.4]) F('part', x, 7.95); for (const x of [5.95, 7.7, 9.5]) F('wc', x, 8.5); F('counter', 10.5, 4.4, -P2, 2.4);
+// склад: стелажі, коробки, палета, шафа прибиральника
+F('shelf', 19.6, 5, -P2, 4); F('crate', 12, 3); F('crate', 12.9, 3); F('crate', 12, 8.3); F('pallet', 14, 6.2); F('locker', 11.45, 6.3, P2);
+// серверна: два ряди стійок
+for (let x = 14.4; x <= 18.5; x += .8) { F('rack', x, 11.6); F('rack', x, 14.2); }
+// IT-відділ: острів із 6 столів
+for (const x of [8, 9.6, 11.2]) { F('desk', x, 13.7, 0); F('desk', x, 12.9, PI); } F('plant', 5.6, 15.4); F('plant', 12.4, 9.6);
+/* прямокутник меблів (для ходіння, навігації й «сховатися за шафою»); поворот кратний 90° */
+function furnRect([t, x, z, rot, len]) {
+  const d = FURN_T[t]; if (!d) return null;
+  let w = len || d[0], dd = d[1]; if (Math.abs(Math.sin(rot)) > .5) [w, dd] = [dd, w];
+  return R(x - w / 2, z - dd / 2, x + w / 2, z + dd / 2);
+}
+const FURN = FURN_L.filter(f => !FURN_SOFT[f[0]]).map(furnRect).filter(Boolean);
 
 /* ---------- Місця ---------- */
-const SPAWN = L(0, 9.5), CLOCK = L(-5, 5), EXIT = L(0, 11.2), ELEC = L(-10.2, 2.1);
-const BREAKERS = [5, 7, 9].map((z, i) => Object.assign(L(-13.8, z), { c: ['#FF5C7A', '#7FE08A', '#6BB8FF'][i], ic: ['🔴', '🟢', '🔵'][i], n: ['червоний', 'зелений', 'синій'][i] }));
+const SPAWN = L(0, 13.5), CLOCK = L(4.3, 13.5), EXIT = L(0, 15.2), ELEC = L(-17, 1.2);
+const PANEL_X = BX - 19.6;   // лицьова площина щитка
+const BREAKERS = [4, 5.2, 6.4].map((z, i) => Object.assign(L(-19.05, z), { c: ['#FF5C7A', '#7FE08A', '#6BB8FF'][i], ic: ['🔴', '🟢', '🔵'][i], n: ['червоний', 'зелений', 'синій'][i] }));
 const CARD_SPOTS = [
-  Object.assign(L(10, -6.5), { n: 'стіл начальника', ic: '💼' }), Object.assign(L(3.3, -10.2), { n: 'холодильник', ic: '🧊' }),
-  Object.assign(L(-12.2, -3.8), { n: 'шухляда в опенспейсі', ic: '🗄️' }), Object.assign(L(10, 7), { n: 'полиця в архіві', ic: '📚' }),
-  Object.assign(L(-13.5, 1), { n: 'кулер', ic: '🚰' }),
+  Object.assign(L(14, -11.6), { n: 'стіл начальника', ic: '💼' }), Object.assign(L(-12.5, 8.2), { n: 'холодильник', ic: '🧊' }),
+  Object.assign(L(-9.4, -5.9), { n: 'шухляда в опенспейсі', ic: '🗄️' }), Object.assign(L(-18.3, 12), { n: 'полиця в архіві', ic: '📚' }),
+  Object.assign(L(0, 6.9), { n: 'стійка рецепції', ic: '🛎️' }), Object.assign(L(8, 11.6), { n: 'стіл айтішника', ic: '🧑‍💻' }),
 ];
 const NOTE_SPOTS = [
-  Object.assign(L(-8, -7.8), { n: 'монітор в опенспейсі', m: L(-8, -9.05), y: 1.25 }), Object.assign(L(0, -4.9), { n: 'кухонний стіл', m: L(0, -6.2), y: .82 }),
-  Object.assign(L(6.5, -10.8), { n: 'дошка в кабінеті', m: L(6.5, -11.78), y: 1.3 }),
+  Object.assign(L(-16.4, -11.5), { n: 'моніторі в опенспейсі', m: L(-16.4, -12.75), y: 1.18 }), Object.assign(L(-2, -9.5), { n: 'дошці в переговорній', m: L(-2.78, -9.5), y: 1.3, r: P2 }),
+  Object.assign(L(9, -7.2), { n: 'ксероксі в копі-центрі', m: L(9, -7.85), y: 1.02 }),
 ];
-const BAT_SPOTS = [[-5, -11], [-3, -2], [5, -11], [5, 1], [-8, 5], [4.5, 5], [7, 11], [-6, 2]].map(([x, z]) => L(x, z));
+const BAT_SPOTS = [[-12.9, -10], [-5, -5], [4.5, -4], [10.8, -3.2], [17.5, -10.5], [-11.5, 3.4], [-7, 15.2], [-18.3, 9.2], [3.6, 4.2], [7.7, 5.5], [16.5, 4], [16.5, 10.2], [7, 15.3], [-19, 0], [18.8, -1.2]].map(([x, z]) => L(x, z));
+// схованки: шафи, кабінка в туалеті, під столом (s — де стати, b — де сидиш)
 const CABS = [
-  { s: L(-14, -10.6), b: L(-14, -11.55), r: 0 }, { s: L(14, -10.6), b: L(14, -11.55), r: 0 },
-  { s: L(13.6, 11), b: L(14.55, 11), r: -1 }, { s: L(-13.6, 11.3), b: L(-14.55, 11.3), r: 1 },
+  { s: L(-4.5, -14.6), b: L(-3.45, -14.6), k: 'cab' }, { s: L(18.4, -11.8), b: L(19.45, -11.8), k: 'cab' }, { s: L(7.7, 6.6), b: L(7.7, 7.8), k: 'wc' },
+  { s: L(-15.5, 15), b: L(-14.45, 15), k: 'cab' }, { s: L(12.5, 6.3), b: L(11.45, 6.3), k: 'cab' }, { s: L(11.2, 11.6), b: L(11.2, 12.9), k: 'desk' },
+  { s: L(-14.8, -10.6), b: L(-14.8, -12.6), k: 'desk' },
 ];
-const MONITORS = DESKS.map(([x, z]) => L(x, z - .25));
-const PRINTER = L(13.9, 3.9), PHONE = L(10.7, -8), ELEV = L(14.6, 1);
-const EN_SPAWN = [L(-10, -7), L(0, -9), L(12, -4), L(10, 10.5), L(12, 1), L(-13, -3)];
-const WAYS = [L(-9.5, -6.6), L(0, -9), L(0, -3.5), L(10, -4), L(12, -10), L(-10, 1), L(0, 1), L(10, 1), L(0, 10), L(10, 7), L(13, 9), L(-12, -3), L(3, 9)];
+const MON_DESKS = [[-16.4, -12.6, 0], [-9.4, -12.6, 0], [-14.8, -7.9, PI], [-7.8, -7.1, 0], [9.6, 13.7, 0], [-18, -7.1, 0]];
+const MONITORS = MON_DESKS.map(([x, z, r]) => L(x, z - Math.cos(r) * .22));
+const PRINTER = L(9, -8.2), PHONE = L(14.8, -12.8), ELEV = L(19.3, 0);
+const EN_SPAWN = [L(-13, -10), L(-5.5, -9), L(4.5, -14), L(10, -11.5), L(16, 5.5), L(16.5, 12.9), L(9, -5), L(-18.3, 10)];
+const WAYS = [L(-13, -10), L(-5, -10), L(-17, -5), L(4.5, -10), L(-1.5, -14), L(9, -5), L(15, -3.5), L(10, -11), L(17.5, -14), L(-15, 0), L(-5, 0), L(5, 0), L(15, 0),
+  L(-11, 3.6), L(-9.5, 10.5), L(-7, 15), L(-18.3, 10), L(-3.5, 5), L(3.5, 5), L(0, 11), L(7.7, 5), L(15, 4.5), L(16.5, 10.2), L(16.5, 12.9), L(8, 10.5), L(9, 15.2)];
 
 /* ---------- Стан ночі ---------- */
 const ST = { on: false, t: 0, dur: DUR, en: [], pl: {}, card: '', cs: CARD_SPOTS.map(() => 0), note: 0, noteAt: 0, ord: null, edoor: 0, fz: 0, power: 0, exit: 0, bats: [] };
@@ -135,15 +210,15 @@ function segHit(x0, z0, x1, z1, r) {
   }
   return true;
 }
-function los(x0, z0, x1, z1, furn) {
-  for (const r of solids()) if (segHit(x0, z0, x1, z1, r)) return false;
+function los(x0, z0, x1, z1, furn, solid) {   // скло пропускає погляд і світло, але не пропускає тіло (solid)
+  for (const r of solids()) if ((solid || !r.glass) && segHit(x0, z0, x1, z1, r)) return false;
   if (furn) for (const r of FURN) if (segHit(x0, z0, x1, z1, r)) return false;
   return true;
 }
 /* крок ворога до цілі: впритул і на видноті — напряму, інакше — по хвилі */
 function stepTo(e, tx, tz, spd, dt) {
   let gx = tx, gz = tz;
-  if (!(dist2(e.x, e.z, tx, tz) < 3 && los(e.x, e.z, tx, tz, true))) {
+  if (!(dist2(e.x, e.z, tx, tz) < 3 && los(e.x, e.z, tx, tz, true, true))) {
     const g = grid(); const tc = freeNear(cellOf(tx, tz)); let c = cellOf(e.x, e.z); if (tc < 0 || c < 0) return false;
     if (g[c]) { const f = freeNear(c); if (f < 0) return false; gx = cxOf(f); gz = czOf(f); }
     else {
@@ -271,8 +346,8 @@ function authTick(dt) {
   if (AU.calm > 0) AU.calm -= dt;
   // ліфт привозить нових зомбі, прибиральник виходить на зміну
   AU.spawnT -= dt;
-  if (AU.spawnT <= 0) { AU.spawnT = rand(35, 55); if (ST.en.filter(e => !e.t).length < Math.min(8, 4 + c.length)) { addEnemy(0, L(13.5, 1)); emit({ k: 'scare', what: 'elev', spawn: 1 }); } }
-  if (ST.t >= AU.cleanAt && !ST.en.some(e => e.t)) { addEnemy(1, L(13.6, 8)); emit({ k: 'msg', big: 1, txt: '🧹 Нічний прибиральник вийшов на зміну. Він чує кроки — крадься (Z) і ховайся в шафах!' }); }
+  if (AU.spawnT <= 0) { AU.spawnT = rand(35, 55); if (ST.en.filter(e => !e.t).length < Math.min(8, 4 + c.length)) { addEnemy(0, L(18.3, 0)); emit({ k: 'scare', what: 'elev', spawn: 1 }); } }
+  if (ST.t >= AU.cleanAt && !ST.en.some(e => e.t)) { addEnemy(1, L(16, 5.5)); emit({ k: 'msg', big: 1, txt: '🧹 Нічний прибиральник вийшов зі складу на зміну. Він чує кроки — крадься (Z) і ховайся: шафа, кабінка, під стіл!' }); }
   AU.scareT -= dt;
   if (AU.scareT <= 0) {
     AU.scareT = rand(18, 30); const what = pick(['mon', 'mon', 'printer', 'phone', 'elev']);
@@ -334,8 +409,19 @@ A.on('tick', dt => {
   if (!SIMSIDE) clientTick(dt);
 });
 
+/* ---------- Тверді стіни й меблі для рушія (і на сервері, і в гравця; двері щитової й виходу — окремо, бо відчиняються) ---------- */
+function rectStatics(r, h) {
+  const w = r.x1 - r.x0, d = r.z1 - r.z0, rad = clamp(Math.min(w, d) / 2, .15, .6), along = w >= d, len = along ? w : d;
+  const n = Math.max(1, Math.ceil((len - rad * 2) / (rad * 1.6)) + 1);
+  for (let k = 0; k < n; k++) { const t = n === 1 ? .5 : k / (n - 1), p = rad + t * Math.max(0, len - rad * 2); addStatic(along ? r.x0 + p : (r.x0 + r.x1) / 2, along ? (r.z0 + r.z1) / 2 : r.z0 + p, rad, h); }
+}
+A.on('world', () => {
+  for (const w of WALLS) rectStatics(w, 2.5);
+  for (const f of FURN) rectStatics(f, 1);
+});
+
 /* ======================= ДАЛІ — ЛИШЕ В ГРАВЦЯ ======================= */
-A.island({ id: 'nightshift', n: 'Нічна зміна', sub: 'темний офіс · не вимикай ліхтарик', x: BX, z: BZ, r: ISL_R, top: '#3A3F55', rock: '#6F6A9A', biome: 'nightoffice', tier: 1, safe: true });
+A.island({ id: 'nightshift', n: 'Нічна зміна', sub: 'темний офіс · не вимикай ліхтарик', x: BX, z: BZ, r: ISL_R, top: '#4F7A57', rock: '#6F6A9A', biome: 'nightoffice', tier: 1, safe: true });
 const _buildIsland = buildIsland;
 buildIsland = function (s) { if (s.biome !== 'nightoffice') return _buildIsland.apply(this, arguments); return SIMSIDE ? new THREE.Group() : buildOfficeNight(s); };
 
@@ -345,115 +431,194 @@ const amDown = () => { const s = ST.pl[myKey()]; return !!(ST.on && s && s.d); }
 const amHid = () => { const s = ST.pl[myKey()]; return !!(ST.on && s && s.h); };
 const mySt = () => ST.pl[myKey()] || null;
 
-/* ---------- Модель: острів-парковка, офіс із меблями ---------- */
-const WALL_C = '#BDB6D8', WALL_TOP = '#8E86B0', FLOOR = '#4B4E6D';
-function screenTex(txt, bg, fg) {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 160;
-  const x = c.getContext && c.getContext('2d');
-  if (x && x.fillText) { x.fillStyle = bg; x.fillRect(0, 0, 256, 160); x.fillStyle = fg; x.font = 'bold 44px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, 128, 82); }
+/* ---------- Модель: парковка, будівля, кімнати з меблями ---------- */
+const WALL_C = '#D9D3EA', WALL_OUT = '#A9A2C6', WALL_TOP = '#8E86B0';
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext && c.getContext('2d'); if (x && x.fillText) draw(x, w, h);
   return new THREE.CanvasTexture(c);
+}
+function screenTex(txt, bg, fg) { return canvasTex(256, 160, (x) => { x.fillStyle = bg; x.fillRect(0, 0, 256, 160); x.fillStyle = fg; x.font = 'bold 44px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, 128, 82); }); }
+/* табличка над дверима (видно лише там, куди світиш) */
+function plate(txt, w = 1.5) {
+  const t = canvasTex(320, 80, (x, W, H) => { x.fillStyle = '#2E2346'; x.fillRect(0, 0, W, H); x.strokeStyle = '#FFE066'; x.lineWidth = 6; x.strokeRect(3, 3, W - 6, H - 6); x.fillStyle = '#FFFFFF'; x.font = 'bold 34px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, W / 2, H / 2 + 2); });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: t, side: THREE.DoubleSide })); m.rotation.x = -.45; return m;
+}
+function neonSign(txt, col, w, h) {
+  const t = canvasTex(512, Math.round(512 * h / w), (x, W, H) => { x.strokeStyle = col; x.lineWidth = 10; x.shadowColor = col; x.shadowBlur = 24; x.strokeRect(10, 10, W - 20, H - 20); x.font = `bold ${Math.round(H * .55)}px sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#E8FFFF'; x.fillText(txt, W / 2, H / 2 + 4); });
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false }));
+}
+/* набір офісних меблів: кожен предмет — група в (x, z) з поворотом rot */
+function officeKit(g) {
+  const at = (o, x, z, rot) => { o.position.set(x, 0, z); o.rotation.y = rot || 0; g.add(o); return o; };
+  const box = (o, w, h, d, c, x, y, z, cast = true) => put(o, mesh(new THREE.BoxGeometry(w, h, d), c, cast), x, y, z);
+  const K = {
+    // стіл із монітором, клавіатурою, системником і кріслом; сидять із боку +z, монітор на −z
+    desk(x, z, rot, o2 = {}) {
+      const o = new THREE.Group();
+      box(o, 1.6, .07, .8, o2.top || '#E8DCC8', 0, .76, 0);
+      for (const sx of [-.74, .74]) box(o, .06, .74, .74, '#9C8C78', sx, .37, 0);
+      box(o, 1.5, .4, .04, '#C9BBA2', 0, .5, -.36);
+      box(o, .72, .44, .05, '#2E2346', 0, 1.1, -.22); box(o, .64, .36, .02, '#26304A', 0, 1.1, -.19, false);
+      box(o, .08, .16, .08, '#2E2346', 0, .87, -.22);
+      box(o, .5, .03, .16, '#4E4A6E', 0, .8, .08, false); box(o, .1, .03, .14, '#4E4A6E', .38, .8, .1, false);
+      box(o, .22, .44, .46, '#3E3A5C', .6, .22, -.1);
+      if (wr() < .5) put(o, mesh(flat(new THREE.CylinderGeometry(.06, .05, .12, 8)), ['#FFFFFF', '#FF6BD6', '#FFE066'][Math.floor(wr() * 3)]), -.5, .85, .1);
+      if (wr() < .4) box(o, .3, .06, .22, '#FFFFFF', -.25, .82, -.05, false);
+      if (o2.chair !== false) { const ch = bodyMesh('chair'); ch.position.set((wr() - .5) * .2, 0, .75); ch.rotation.y = PI + (wr() - .5) * .5; o.add(ch); }
+      return at(o, x, z, rot);
+    },
+    chair(x, z, rot) { return at(bodyMesh('chair'), x, z, rot); },
+    table(x, z, rot, w, d, col = '#C4956A', h = .75) { const o = new THREE.Group(); box(o, w, .08, d, col, 0, h, 0); for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(o, .08, h - .03, .08, '#4E4A6E', a * (w / 2 - .12), (h - .03) / 2, b * (d / 2 - .12)); return at(o, x, z, rot); },
+    sofa(x, z, rot, len = 2.4, col = '#8F7BD6', cush = '#B7A6EA') {
+      const o = new THREE.Group();
+      box(o, len, .42, .9, col, 0, .21, 0); box(o, len, .55, .25, col, 0, .55, -.33);
+      for (const s of [-1, 1]) box(o, .22, .6, .9, col, s * (len / 2 - .11), .3, 0);
+      const n = Math.max(1, Math.round((len - .44) / .75)); for (let k = 0; k < n; k++) box(o, (len - .5) / n - .05, .12, .6, cush, -len / 2 + .25 + (k + .5) * (len - .5) / n, .47, .05, false);
+      return at(o, x, z, rot);
+    },
+    plant(x, z, big) { const o = new THREE.Group(); put(o, mesh(flat(new THREE.CylinderGeometry(.28, .22, .45, 8)), '#C4956A'), 0, .22, 0); put(o, mesh(flat(new THREE.IcosahedronGeometry(big ? .7 : .5, 0)), '#5FAF6B'), 0, big ? 1.05 : .8, 0); if (big) put(o, mesh(flat(new THREE.IcosahedronGeometry(.45, 0)), '#4F9F5B'), .15, 1.55, .1); return at(o, x, z, 0); },
+    cooler(x, z) { const o = new THREE.Group(); box(o, .5, 1, .5, '#E9E2FA', 0, .5, 0); put(o, mesh(flat(new THREE.CylinderGeometry(.22, .22, .5, 10)), mat('#8FD3FF', { transparent: true, opacity: .8 })), 0, 1.25, 0); return at(o, x, z, 0); },
+    shelf(x, z, rot, w = 1.8, h = 1.8) {
+      const o = new THREE.Group(); box(o, w, h, .45, '#9C8C78', 0, h / 2, 0);
+      const cols = ['#E0607E', '#6BB8FF', '#FFE066', '#7FE08A', '#B07CF0', '#F2A65A', '#FFFFFF'], n = Math.max(2, Math.round(w / .36));
+      for (let y = 0; y < Math.floor(h / .45); y++) for (let k = 0; k < n; k++) if (wr() < .85) box(o, w / n - .05, .32, .36, cols[Math.floor(wr() * cols.length)], -w / 2 + (k + .5) * w / n, .25 + y * .43, .06, false);
+      return at(o, x, z, rot);
+    },
+    locker(x, z, rot) { const o = new THREE.Group(); box(o, 1, 2, .6, '#7E77A0', 0, 1, 0); box(o, .03, 1.8, .02, '#4E4A6E', 0, 1, .31, false); for (const sx of [-.12, .12]) box(o, .05, .2, .04, '#FFD27A', sx, 1.05, .32, false); for (const sx of [-.3, .3]) for (const y of [1.7, 1.6]) box(o, .25, .02, .02, '#4E4A6E', sx, y, .31, false); return at(o, x, z, rot); },
+    counter(x, z, rot, w = 4, sink = true) {
+      const o = new THREE.Group();
+      box(o, w, .9, .7, '#FFFFFF', 0, .45, 0); box(o, w + .05, .06, .75, '#4E4A6E', 0, .92, 0);
+      for (let k = 0; k < Math.floor(w / .6); k++) box(o, .02, .7, .02, '#C9CDD9', -w / 2 + .6 * (k + 1), .45, .36, false);
+      if (sink) put(o, mesh(new THREE.BoxGeometry(.6, .05, .4), '#8FD3FF', false), 0, .95, 0);
+      return at(o, x, z, rot);
+    },
+    fridge(x, z, rot) { const o = new THREE.Group(); box(o, .8, 1.9, .7, '#E9E2FA', 0, .95, 0); box(o, .78, .02, .02, '#8E86B0', 0, 1.3, .36, false); box(o, .05, .5, .05, '#8E86B0', .3, 1.6, .37, false); box(o, .05, .4, .05, '#8E86B0', .3, .9, .37, false); return at(o, x, z, rot); },
+    tv(x, z, rot, w = 2) { const o = new THREE.Group(); box(o, w, 1.1, .08, '#2E2346', 0, 1.5, 0); box(o, w - .15, .95, .02, '#1A2238', 0, 1.5, .05, false); return at(o, x, z, rot); },
+    board(x, z, rot, w = 2) { const o = new THREE.Group(); box(o, w, 1.1, .06, '#FFFFFF', 0, 1.4, 0); const c = ['#E0607E', '#6BB8FF', '#2E2346']; for (let k = 0; k < 4; k++) box(o, .4 + wr() * (w - .9), .04, .02, c[k % 3], (wr() - .5) * .5, 1.2 + k * .15, .04, false); box(o, w, .05, .1, '#9C8C78', 0, .86, .05, false); return at(o, x, z, rot); },
+    bossDesk(x, z, rot) {
+      const o = new THREE.Group();
+      box(o, 2.6, .1, 1.1, '#6B4A3A', 0, .78, 0); box(o, 2.5, .72, 1, '#7E5A46', 0, .38, 0);
+      box(o, .8, .5, .05, '#2E2346', .5, 1.1, -.3); box(o, .72, .42, .02, '#26304A', .5, 1.1, -.27, false);
+      box(o, .3, .25, .2, '#FFE066', -.8, .95, -.2);   // кубок «Найкращий бос»
+      const ch = new THREE.Group(); box(ch, .8, .15, .75, '#2E2346', 0, .55, 0); box(ch, .8, 1.1, .15, '#2E2346', 0, 1.1, -.32); put(ch, mesh(flat(new THREE.CylinderGeometry(.06, .06, .45, 6)), '#4E4A6E'), 0, .27, 0); ch.position.set(0, 0, .9); ch.rotation.y = PI; o.add(ch);
+      return at(o, x, z, rot);
+    },
+    floor(x0, z0, x1, z1, col, y = .012) { const m = mesh(new THREE.BoxGeometry(x1 - x0, .02, z1 - z0), col, false, true); m.position.set((x0 + x1) / 2, y, (z0 + z1) / 2); g.add(m); return m; },
+    tiles(x0, z0, x1, z1, a, b, s = 1) { K.floor(x0, z0, x1, z1, a); for (let x = x0; x < x1 - .01; x += s) for (let z = z0; z < z1 - .01; z += s) if ((Math.round((x - x0) / s) + Math.round((z - z0) / s)) % 2) K.floor(x, z, Math.min(x1, x + s), Math.min(z1, z + s), b, .018); },
+  };
+  return K;
 }
 function boxAt(g, r, h, c, y = 0) { return put(g, mesh(new THREE.BoxGeometry(r.x1 - r.x0, h, r.z1 - r.z0), c, false, true), (r.x0 + r.x1) / 2, y + h / 2, (r.z0 + r.z1) / 2); }
 function buildOfficeNight(s) {
   const g = new THREE.Group(); scene.add(g);
-  // острів: асфальт парковки й скеля під ним
-  put(g, mesh(flat(new THREE.CylinderGeometry(ISL_R, ISL_R * .96, 1.2, 40)), s.top, false, true), BX, -.6, BZ);
-  const cone = new THREE.ConeGeometry(ISL_R * .95, ISL_R * 1.1, 24, 3); cone.rotateX(Math.PI); put(g, mesh(flat(cone), s.rock, false), BX, -1.2 - ISL_R * .55, BZ);
-  for (let k = -3; k <= 3; k++) put(g, mesh(new THREE.BoxGeometry(.15, .02, 2.6), '#E9E2FA', false), BX + k * 3, .01, BZ + 15.5);   // розмітка
-  const car = new THREE.Group(); car.position.set(BX + 7, 0, BZ + 16.5); g.add(car);
-  put(car, mesh(new THREE.BoxGeometry(3.6, .8, 1.7), '#C2335A'), 0, .55, 0); put(car, mesh(new THREE.BoxGeometry(2, .6, 1.5), '#2E2346'), -.2, 1.2, 0);
-  for (const [x, z] of [[-1.2, -.85], [1.2, -.85], [-1.2, .85], [1.2, .85]]) put(car, mesh(flat(new THREE.CylinderGeometry(.35, .35, .25, 10)), '#1A1030'), x, .35, z).rotation.x = Math.PI / 2;
-  for (const x of [-12, 12]) { put(g, mesh(new THREE.BoxGeometry(.15, 3, .15), '#4E4A6E'), BX + x, 1.5, BZ + 14); put(g, mesh(new THREE.BoxGeometry(.6, .15, .3), bulb('#FFE9A8'), false), BX + x, 3, BZ + 14); }
-  // підлога: килим у кімнатах, плитка в коридорі й вестибюлі
-  put(g, mesh(new THREE.BoxGeometry(HX * 2, .1, HZ * 2), FLOOR, false, true), BX, .02, BZ);
-  put(g, mesh(new THREE.BoxGeometry(HX * 2 - .3, .02, 4), '#6E6A8E', false, true), BX, .08, BZ + 1);
-  put(g, mesh(new THREE.BoxGeometry(12, .02, 9), '#7C7AA0', false, true), BX, .08, BZ + 7.5);
-  for (let k = -6; k <= 6; k++) put(g, mesh(new THREE.BoxGeometry(.04, .025, 4), '#5E5A7E', false), BX + k * 2.3, .09, BZ + 1);
-  // стіни з кантом зверху
-  for (const w of WALLS) { boxAt(g, w, WH, WALL_C); put(g, mesh(new THREE.BoxGeometry(w.x1 - w.x0 + .04, .08, w.z1 - w.z0 + .04), WALL_TOP, false), (w.x0 + w.x1) / 2, WH + .04, (w.z0 + w.z1) / 2); }
-  // лампи на стінах: гаснуть уночі
-  for (const [x, z] of [[-9, -11.8], [0, -11.8], [9, -11.8], [-14.8, 1], [0, -1.2], [-10, 11.8], [4, 11.8], [10, 11.8], [14.8, -6]]) {
-    const m = put(g, mesh(new THREE.BoxGeometry(Math.abs(x) > 14 ? .08 : 1.2, .12, Math.abs(x) > 14 ? 1.2 : .08), mat('#FFF4D6', { emissive: '#FFF4D6', emissiveIntensity: 1 }), false), BX + x, WH - .25, BZ + z);
-    g.remove(m); scene.add(A.dynamic(m)); V.lamps.push(m);
+  const dyn = m => { if (m.parent) m.parent.remove(m); scene.add(A.dynamic(m)); return m; };
+  // острів: газон, асфальт парковки, скеля під ним
+  put(g, mesh(flat(new THREE.CylinderGeometry(ISL_R, ISL_R * .96, 1.2, 48)), '#4F7A57', false, true), BX, -.6, BZ);
+  const cone = new THREE.ConeGeometry(ISL_R * .95, ISL_R * 1.1, 28, 3); cone.rotateX(PI); put(g, mesh(flat(cone), s.rock, false), BX, -1.2 - ISL_R * .55, BZ);
+  const K = officeKit(g), FL = (x0, z0, x1, z1, c, y) => K.floor(BX + x0, BZ + z0, BX + x1, BZ + z1, c, y);
+  FL(-21, -17, 21, 17.2, '#8C8AA0', .005);                                     // тротуар навколо будівлі
+  FL(-12, 17.2, 12, 25.5, '#3A3F55', .006);                                    // парковка
+  for (let k = -5; k <= 5; k++) FL(k * 2.2 - .06, 19, k * 2.2 + .06, 22, '#E9E2FA', .009);
+  FL(-1.6, 16, 1.6, 17.6, '#5E5A7E', .01);                                     // ґанок
+  const car = (x, z, c) => { const o = new THREE.Group(); o.position.set(BX + x, 0, BZ + z); o.rotation.y = P2; g.add(o); put(o, mesh(new THREE.BoxGeometry(3.6, .8, 1.7), c), 0, .55, 0); put(o, mesh(new THREE.BoxGeometry(2, .6, 1.5), '#2E2346'), -.2, 1.2, 0); for (const [a, b] of [[-1.2, -.85], [1.2, -.85], [-1.2, .85], [1.2, .85]]) put(o, mesh(flat(new THREE.CylinderGeometry(.35, .35, .25, 10)), '#1A1030'), a, .35, b).rotation.x = P2; };
+  car(-5.5, 20.5, '#C2335A'); car(7.7, 20.5, '#3E6AB8');
+  for (const x of [-11, 11]) { put(g, mesh(new THREE.BoxGeometry(.15, 3, .15), '#4E4A6E'), BX + x, 1.5, BZ + 18); put(g, mesh(new THREE.BoxGeometry(.6, .15, .3), bulb('#FFE9A8'), false), BX + x, 3, BZ + 18); }
+  for (const [x, z] of [[-17, 20], [17, 20], [-23, 4], [23, -4], [-22, -12], [22, 12], [0, -21], [-12, -20], [12, -20]]) { put(g, mesh(flat(new THREE.CylinderGeometry(.15, .2, 1.2, 6)), '#7A5A44'), BX + x, .6, BZ + z); put(g, mesh(flat(new THREE.IcosahedronGeometry(1.1, 0)), '#4F9F5B'), BX + x, 1.8, BZ + z); }
+  // підлоги: ковролін в офісах, плитка на кухні й у туалетах, паркет у начальника й лаунжі, бетон у технічних
+  FL(-20, -16, 20, 16, '#A9ADBD');
+  FL(-20, -16, -3, -2, '#4F5D9A'); FL(-3, -16, 6, -2, '#6F5FA8'); FL(6, -16, 20, -9, '#7A4E36'); FL(6, -9, 12, -2, '#BFC3D1'); FL(12, -9, 20, -2, '#B9A27E');
+  FL(-20, 2, -14, 8, '#6E7280'); FL(-20, 8, -14, 16, '#8C8577'); FL(-14, 9, -5, 16, '#B98A5E'); FL(5, 9, 13, 16, '#3E6A6A'); FL(11, 2, 20, 9, '#7E7A70');
+  K.tiles(BX - 14, BZ + 2, BX - 5, BZ + 9, '#F2F0F6', '#CFCADE'); K.tiles(BX - 5, BZ + 2, BX + 5, BZ + 16, '#DCD5C4', '#C8C0AE', 2); K.tiles(BX + 5, BZ + 2, BX + 11, BZ + 9, '#E4F0F6', '#BFD6E2', .75);
+  K.tiles(BX + 13, BZ + 9, BX + 20, BZ + 16, '#6E7486', '#5E6372', .6);
+  for (let x = -18; x <= 18; x += 4) FL(x - .5, -.06, x + .5, .06, '#8E86B0', .02);   // смуга в коридорі
+  for (let x = -12.6; x <= -8.4; x += .7) FL(x, 15.3, x + .35, 15.85, '#6B4A3A', .02);  // килимок у лаунжі
+  // стіни (низькі, з кантом), стовпчики дверей і таблички
+  for (const w of WALLS) {
+    const h = w.glass ? WH + .3 : w.out ? WH + .25 : WH, c = w.glass ? mat('#BFE6FF', { transparent: true, opacity: .35 }) : w.out ? WALL_OUT : WALL_C;
+    put(g, mesh(new THREE.BoxGeometry(w.x1 - w.x0, h, w.z1 - w.z0), c, !w.glass, true), (w.x0 + w.x1) / 2, h / 2, (w.z0 + w.z1) / 2);
+    put(g, mesh(new THREE.BoxGeometry(w.x1 - w.x0 + .06, .07, w.z1 - w.z0 + .06), w.glass ? '#8E86B0' : WALL_TOP, false), (w.x0 + w.x1) / 2, h + .035, (w.z0 + w.z1) / 2);
   }
-  // опенспейс: столи, монітори, крісла
-  for (const [i, [x, z]] of DESKS.entries()) {
-    const w = L(x, z);
-    put(g, mesh(new THREE.BoxGeometry(2.4, .08, 1.1), '#E8E3F0'), w.x, .76, w.z);
-    for (const sx of [-1.1, 1.1]) put(g, mesh(new THREE.BoxGeometry(.08, .74, 1), '#8E86B0'), w.x + sx, .37, w.z);
-    put(g, mesh(new THREE.BoxGeometry(.9, .55, .06), '#2E2346'), w.x, 1.13, w.z - .3);
-    const scr = new THREE.Mesh(new THREE.PlaneGeometry(.8, .45), new THREE.MeshBasicMaterial({ color: '#1A1030' })); scr.position.set(w.x, 1.13, w.z - .265); scene.add(A.dynamic(scr)); V.mons[i] = scr;
-    put(g, mesh(new THREE.BoxGeometry(.6, .03, .2), '#4E4A6E'), w.x, .81, w.z + .1);
-    put(g, mesh(new THREE.BoxGeometry(.6, .5, .6), '#5E6FD8'), w.x + .5, .25, w.z + .95);
+  for (const d of DOORS) {
+    if (d.w > 3.5) continue;
+    for (const sd of [-1, 1]) put(g, mesh(new THREE.BoxGeometry(d.h ? .14 : .36, WH + .45, d.h ? .36 : .14), '#6E5E96', false), d.x + (d.h ? sd * (d.w / 2 + .07) : 0), (WH + .45) / 2, d.z + (d.h ? 0 : sd * (d.w / 2 + .07)));
+    if (d.h) put(g, mesh(new THREE.BoxGeometry(d.w + .28, .12, .36), '#6E5E96', false), d.x, WH + .45, d.z);
+    if (d.n) { const p = plate(d.n); p.position.set(d.x, WH + .85, d.z); g.add(p); }
+  }
+  // лампи на стінах: гаснуть уночі
+  for (const r of ROOMS) {
+    if (r.n.includes('Коридор')) { for (let x = -16; x <= 16; x += 8) { const m = put(g, mesh(new THREE.BoxGeometry(1.4, .08, .12), mat('#FFF4D6', { emissive: '#FFF4D6', emissiveIntensity: 1 }), false), BX + x, WH + .1, BZ - 2); V.lamps.push(dyn(m)); } continue; }
+    const m = put(g, mesh(new THREE.BoxGeometry(Math.min(2, r.x1 - r.x0 - 1), .08, .12), mat('#FFF4D6', { emissive: '#FFF4D6', emissiveIntensity: 1 }), false), BX + (r.x0 + r.x1) / 2, WH + .1, BZ + r.z0); V.lamps.push(dyn(m));
+  }
+  // меблі за планом
+  for (const [t, x, z, rot, len] of FURN_L) {
+    const X = BX + x, Z = BZ + z;
+    if (t === 'desk') {
+      const mon = MON_DESKS.findIndex(d => Math.abs(d[0] - x) < .01 && Math.abs(d[1] - z) < .01), o = K.desk(X, Z, rot, { top: x > 0 ? '#D6E4E4' : '#E8DCC8' });
+      if (mon >= 0) { const sc = new THREE.Mesh(new THREE.PlaneGeometry(.64, .36), new THREE.MeshBasicMaterial({ color: '#1A1030' })); sc.position.set(0, 1.1, -.175); o.add(sc); o.updateMatrixWorld(true); const wp = new THREE.Vector3(); sc.getWorldPosition(wp); o.remove(sc); sc.position.copy(wp); sc.rotation.y = rot; scene.add(A.dynamic(sc)); V.mons[mon] = sc; }
+    }
+    else if (t === 'sdesk') K.desk(X, Z, rot, { chair: false, top: '#C9B8A0' });
+    else if (t === 'chair') K.chair(X, Z, rot);
+    else if (t === 'mtable') { K.table(X, Z, rot, len, 1.6, '#4E3A7C'); const o = new THREE.Group(); o.position.set(X, 0, Z); o.rotation.y = rot; g.add(o); for (let k = 0; k < 4; k++) put(o, mesh(new THREE.BoxGeometry(.3, .02, .22), '#FFFFFF', false), -len / 2 + 1 + k * 1.7, .8, (k % 2 ? -.4 : .4)); put(o, mesh(flat(new THREE.CylinderGeometry(.25, .25, .06, 10)), '#2E2346', false), 0, .82, 0); }
+    else if (t === 'ktable') K.table(X, Z, rot, 1.8, 1, '#E8DCC8');
+    else if (t === 'ctable') { const o = K.table(X, Z, rot, 1.2, .6, '#6B4A3A', .42); put(o, mesh(new THREE.BoxGeometry(.3, .03, .22), '#FFE066', false), .2, .48, 0); }
+    else if (t === 'sofa') { const boss = x > 6 && z < -9, lob = Math.abs(x) < 5; K.sofa(X, Z, rot, len || 2.4, boss ? '#3A2A24' : lob ? '#3E6AB8' : '#8F7BD6', boss ? '#5A4034' : lob ? '#6B8FD8' : '#B7A6EA'); }
+    else if (t === 'plant') K.plant(X, Z, z < -14 || z > 15);
+    else if (t === 'cooler') K.cooler(X, Z);
+    else if (t === 'tv') K.tv(X, Z, rot, len || 2);
+    else if (t === 'board') K.board(X, Z, rot, len || 2);
+    else if (t === 'shelf') K.shelf(X, Z, rot, len || 1.8, x < -14 ? 2 : 1.6);
+    else if (t === 'locker') K.locker(X, Z, rot);
+    else if (t === 'counter') { const o = K.counter(X, Z, rot, len || 4, true); if (x < 0) { put(o, mesh(new THREE.BoxGeometry(.5, .55, .45), '#2E2346'), -1.4, 1.22, 0); put(o, mesh(new THREE.BoxGeometry(.2, .1, .04), bulb('#FF6BD6'), false), -1.4, 1.3, .23); put(o, mesh(new THREE.BoxGeometry(.6, .35, .4), '#C9CDD9'), 1.4, 1.13, 0); } else for (let k = -1; k <= 1; k++) put(o, mesh(new THREE.BoxGeometry(.6, .5, .03), mat('#CFE8F6', { metalness: .4, roughness: .2 }), false), k * .75, 1.5, -.33); }
+    else if (t === 'fridge') K.fridge(X, Z, rot);
+    else if (t === 'bdesk') K.bossDesk(X, Z, rot);
+    else if (t === 'copier') { V.printer = put(g, mesh(new THREE.BoxGeometry(1.2, 1, .9), '#E8E3F0'), X, .5, Z); put(V.printer, mesh(new THREE.BoxGeometry(.8, .04, .35), '#FFFFFF', false), 0, .52, .3); put(V.printer, mesh(new THREE.BoxGeometry(.25, .06, .15), bulb('#7FE08A'), false), .4, .52, -.25); dyn(V.printer); }
+    else if (t === 'crate') { put(g, mesh(new THREE.BoxGeometry(.8, .7, .8), '#C4956A'), X, .35, Z).rotation.y = rot; put(g, mesh(new THREE.BoxGeometry(.82, .08, .2), '#E8DCC8', false), X, .66, Z); }
+    else if (t === 'pallet') { put(g, mesh(new THREE.BoxGeometry(1.6, .15, 1.2), '#9C7A54'), X, .08, Z); for (const [a, b, h] of [[-.4, -.3, .6], [.4, -.3, .6], [-.4, .3, .6], [.4, .3, .9], [0, 0, 1.4]]) put(g, mesh(new THREE.BoxGeometry(.7, .55, .55), '#C4956A'), X + a, .15 + h - .3, Z + b); }
+    else if (t === 'rack') { const o = put(g, mesh(new THREE.BoxGeometry(.76, 2, .95), '#2A2E3E'), X, 1, Z); for (let k = 0; k < 6; k++) { const led = mesh(new THREE.BoxGeometry(.05, .04, .02), bulb(['#7FE08A', '#6BB8FF', '#FFD27A'][k % 3]), false); put(o, led, -.25 + (k % 3) * .2, -.6 + Math.floor(k / 3) * .9, .48); } for (const sd of [-1, 1]) put(o, mesh(new THREE.BoxGeometry(.6, .04, .02), '#4E4A6E', false), 0, .3 * sd, -.48 * -1); }
+    else if (t === 'recep') { put(g, mesh(new THREE.BoxGeometry(4.4, 1.1, .8), '#6E5E96'), X, .55, Z); put(g, mesh(new THREE.BoxGeometry(4.5, .08, .95), '#E8DCC8'), X, 1.14, Z); put(g, mesh(new THREE.BoxGeometry(4.42, .06, .06), bulb('#6BE7FF'), false), X, .9, Z + .41); const sg = neonSign('ГУЩА', '#6BE7FF', 1.6, .45); sg.position.set(X, .55, Z + .42); g.add(sg); put(g, mesh(new THREE.BoxGeometry(.6, .38, .05), '#2E2346'), X - 1.2, 1.38, Z - .15); put(g, mesh(new THREE.BoxGeometry(.3, .2, .2), '#C2335A'), X + 1.3, 1.25, Z - .2); }
+    else if (t === 'panel') { put(g, mesh(new THREE.BoxGeometry(.4, 1.8, 3.6), '#5E5A7E'), X, .9, Z); put(g, mesh(new THREE.BoxGeometry(.03, .3, .3), bulb('#FFE066'), false), X + .21, 1.65, Z - 1.4); }
+    else if (t === 'gen') { put(g, mesh(new THREE.BoxGeometry(1.6, 1.1, 1.2), '#4E4A6E'), X, .55, Z); put(g, mesh(new THREE.BoxGeometry(.6, .3, .05), bulb('#FFE066'), false), X, .8, Z - .62); for (let k = -2; k <= 2; k++) put(g, mesh(new THREE.BoxGeometry(.05, .5, 1), '#3A3656', false), X + k * .25, .55, Z + .05).position.y = 1.12; }
+    else if (t === 'part') { put(g, mesh(new THREE.BoxGeometry(.08, 1.5, 1.8), '#8FB8D8'), X, .85, Z); }
+    else if (t === 'wc') { put(g, mesh(new THREE.BoxGeometry(.42, .42, .5), '#FFFFFF'), X, .21, Z); put(g, mesh(new THREE.BoxGeometry(.42, .5, .15), '#FFFFFF'), X, .55, Z + .25); }
+    else if (t === 'bean') { const b = put(g, mesh(flat(new THREE.IcosahedronGeometry(.45, 1)), pick(['#FF6BD6', '#FFB04A', '#6BE7FF'])), X, .32, Z); b.scale.y = .65; }
+    else if (t === 'lamp') { put(g, mesh(flat(new THREE.CylinderGeometry(.04, .04, 1.6, 6)), '#4E4A6E'), X, .8, Z); put(g, mesh(flat(new THREE.ConeGeometry(.3, .3, 10)), '#FFE9A8'), X, 1.7, Z); }
   }
   V.monTex = screenTex('ДЕДЛАЙН', '#3A0010', '#FF3B5C');
-  // шафи (у них можна сховатись)
-  for (const c of CABS) {
-    const cg = new THREE.Group(); cg.position.set(c.b.x, 0, c.b.z); cg.rotation.y = c.r * Math.PI / 2; g.add(cg);
-    put(cg, mesh(new THREE.BoxGeometry(1, 2, .6), '#7E77A0'), 0, 1, 0);
-    put(cg, mesh(new THREE.BoxGeometry(.03, 1.8, .02), '#4E4A6E', false), 0, 1, .31);
-    for (const sx of [-.12, .12]) put(cg, mesh(new THREE.BoxGeometry(.05, .2, .04), '#FFD27A', false), sx, 1.05, .32);
-  }
-  // кухня: стільниця, кавоварка, холодильник, стіл
-  boxAt(g, R(-3.6, -11.9, 2.4, -11.2), .9, '#6B5A4E');
-  put(g, mesh(new THREE.BoxGeometry(.5, .5, .4), '#2E2346'), BX - 1.5, 1.15, BZ - 11.55);
-  put(g, mesh(new THREE.BoxGeometry(.2, .06, .02), bulb('#FF6B6B'), false), BX - 1.5, 1.25, BZ - 11.34);
-  put(g, mesh(new THREE.BoxGeometry(.7, .4, .4), '#E8E3F0'), BX + 1.2, 1.1, BZ - 11.55);
-  boxAt(g, R(2.8, -11.9, 3.8, -10.9), 2, '#E8E3F0');
-  put(g, mesh(new THREE.BoxGeometry(.05, .5, .04), '#8E86B0', false), BX + 3.6, 1.3, BZ - 10.88);
-  put(g, mesh(new THREE.BoxGeometry(2.4, .08, 1.6), '#C4956A'), BX, .76, BZ - 6.5);
-  for (const sx of [-1, 1]) for (const sz of [-.6, .6]) put(g, mesh(new THREE.BoxGeometry(.08, .74, .08), '#6B5A4E'), BX + sx, .37, BZ - 6.5 + sz);
-  // кабінет начальника: великий стіл, крісло, телефон, дошка
-  put(g, mesh(new THREE.BoxGeometry(3, .9, 1.4), '#5B3A2E'), BX + 10, .45, BZ - 8);
-  put(g, mesh(new THREE.BoxGeometry(.8, 1.4, .7), '#2E2346'), BX + 10, .7, BZ - 9.3);
-  V.phone = put(g, mesh(new THREE.BoxGeometry(.35, .14, .25), '#C2335A'), PHONE.x, .97, PHONE.z); g.remove(V.phone); scene.add(A.dynamic(V.phone));
-  put(g, mesh(new THREE.BoxGeometry(2.4, 1.2, .05), '#F7F4FF', false), BX + 6.5, 1.3, BZ - 11.82);
-  put(g, mesh(new THREE.BoxGeometry(1.2, .04, .02), '#E0607E', false), BX + 6.3, 1.55, BZ - 11.79);
-  // щитова: три рубильники й генератор
-  boxAt(g, R(-15, 4.4, -14.5, 9.6), 1.8, '#5E5A7E');
+  // туалет: дзеркало й табличка на кабінках
+  // кабінет начальника: телефон
+  V.phone = dyn(put(g, mesh(new THREE.BoxGeometry(.35, .14, .25), '#C2335A'), PHONE.x, .9, PHONE.z));
+  // щитова: три рубильники з лампочками
   for (const [i, b] of BREAKERS.entries()) {
-    put(g, mesh(new THREE.BoxGeometry(.12, .5, .5), b.c, false), b.x - .6, 1.1, b.z);
-    const lv = put(g, mesh(new THREE.BoxGeometry(.3, .08, .08), '#E8E3F0', false), b.x - .4, 1.2, b.z); g.remove(lv); scene.add(A.dynamic(lv));
-    const led = put(g, mesh(new THREE.BoxGeometry(.06, .08, .08), mat('#333344', { emissive: '#000000' }).clone(), false), b.x - .52, 1.45, b.z); g.remove(led); scene.add(A.dynamic(led));
+    put(g, mesh(new THREE.BoxGeometry(.12, .5, .5), b.c, false), PANEL_X + .06, 1.1, b.z);
+    const lv = dyn(put(g, mesh(new THREE.BoxGeometry(.3, .08, .08), '#E8E3F0', false), PANEL_X + .26, 1.2, b.z));
+    const led = dyn(put(g, mesh(new THREE.BoxGeometry(.06, .08, .08), mat('#333344', { emissive: '#000000' }).clone(), false), PANEL_X + .14, 1.45, b.z));
     V.brk[i] = { lv, led };
   }
-  boxAt(g, R(-9, 9.5, -7, 11.5), 1.3, '#4E4A6E');
-  put(g, mesh(new THREE.BoxGeometry(.6, .3, .05), bulb('#FFE066'), false), BX - 8, 1, BZ + 9.47);
-  V.edoorM = put(g, mesh(new THREE.BoxGeometry(1.6, WH - .05, .14), '#8E86B0', false), BX - 10.2, (WH - .05) / 2, BZ + 3); g.remove(V.edoorM); scene.add(A.dynamic(V.edoorM));
-  put(V.edoorM, mesh(new THREE.BoxGeometry(.5, .2, .03), bulb('#FFE066'), false), 0, .35, .08);
-  // вестибюль: рецепція, табельний апарат, диван, рослини, вихідні двері
-  put(g, mesh(new THREE.BoxGeometry(4, 1.05, .8), '#6E5E96'), BX, .52, BZ + 6.9);
-  put(g, mesh(new THREE.BoxGeometry(4.04, .06, .84), bulb('#6BE7FF'), false), BX, 1.07, BZ + 6.9);
-  put(g, mesh(new THREE.BoxGeometry(.25, .7, .45), '#E8E3F0'), CLOCK.x - .7, 1.1, CLOCK.z);
-  put(g, mesh(new THREE.BoxGeometry(.03, .2, .25), bulb('#7FE08A'), false), CLOCK.x - .56, 1.25, CLOCK.z);
-  boxAt(g, R(3.5, 10.8, 5.5, 11.6), .6, '#5E6FD8');
-  for (const [x, z] of [[-5.3, 11.3], [5.4, 3.7], [-3.4, -11]]) { put(g, mesh(flat(new THREE.CylinderGeometry(.25, .2, .4, 8)), '#C4956A'), BX + x, .2, BZ + z); put(g, mesh(new THREE.IcosahedronGeometry(.45, 0), '#4FA36B'), BX + x, .75, BZ + z); }
-  for (const s2 of [-1, 1]) { const d = put(g, mesh(new THREE.BoxGeometry(1.6, WH - .05, .1), mat('#9FE6FF', { transparent: true, opacity: .55 }), false), BX + s2 * .8, (WH - .05) / 2, BZ + 12); g.remove(d); scene.add(A.dynamic(d)); V.exitM.push({ m: d, s: s2 }); }
-  const ex = neonSign('EXIT', '#7FE08A', 1.2, .4); ex.position.set(BX, WH + .35, BZ + 12.1); g.add(ex);
-  // архів: стелажі з теками, принтер
-  for (const x of [8.5, 11.5]) { boxAt(g, R(x - .3, 4.5, x + .3, 10), 1.6, '#8C84A8'); for (let k = 0; k < 8; k++) put(g, mesh(new THREE.BoxGeometry(.5, .35, .25), pick(['#F2A65A', '#6BB8FF', '#E0607E', '#7FE08A']), false), BX + x, .5 + (k % 3) * .45, BZ + 5 + k * .62); }
-  V.printer = put(g, mesh(new THREE.BoxGeometry(1.1, .8, .9), '#E8E3F0'), PRINTER.x, .4, PRINTER.z); g.remove(V.printer); scene.add(A.dynamic(V.printer));
-  put(V.printer, mesh(new THREE.BoxGeometry(.7, .04, .3), '#FFFFFF', false), 0, .42, .3);
-  // коридор: кулер, ліфт
-  put(g, mesh(new THREE.BoxGeometry(.5, 1, .5), '#E8E3F0'), BX - 14.5, .5, BZ + 1); put(g, mesh(flat(new THREE.CylinderGeometry(.22, .22, .5, 10)), mat('#9FE6FF', { transparent: true, opacity: .7 }), false), BX - 14.5, 1.25, BZ + 1);
-  put(g, mesh(new THREE.BoxGeometry(.3, WH + .4, 2.6), '#4E4A6E'), BX + 14.9, (WH + .4) / 2, BZ + 1);
-  for (const s2 of [-1, 1]) { const d = put(g, mesh(new THREE.BoxGeometry(.06, WH, .9), '#C9CDD9', false), BX + 14.72, WH / 2, BZ + 1 + s2 * .45); g.remove(d); scene.add(A.dynamic(d)); V.elev.push({ m: d, s: s2 }); }
-  put(g, mesh(new THREE.BoxGeometry(.04, .14, .14), bulb('#FFD27A'), false), BX + 14.7, WH + .1, BZ + 1);
+  const ec = { x: (ELEC_D.x0 + ELEC_D.x1) / 2, z: (ELEC_D.z0 + ELEC_D.z1) / 2 };
+  V.edoorM = dyn(put(g, mesh(new THREE.BoxGeometry(1.8, WH + .3, .12), '#8E86B0', false), ec.x, (WH + .3) / 2, ec.z)); V.edoorX = ec.x;
+  put(V.edoorM, mesh(new THREE.BoxGeometry(.5, .25, .03), bulb('#FFE066'), false), 0, .3, -.08);
+  put(V.edoorM, mesh(new THREE.BoxGeometry(.12, .18, .05), bulb('#FF5C7A'), false), .6, 0, -.08);
+  // вестибюль: табельний апарат на стіні, скляні вихідні двері, EXIT
+  put(g, mesh(new THREE.BoxGeometry(.25, .7, .45), '#E8E3F0'), CLOCK.x + .5, 1.1, CLOCK.z);
+  put(g, mesh(new THREE.BoxGeometry(.03, .2, .25), bulb('#7FE08A'), false), CLOCK.x + .36, 1.25, CLOCK.z);
+  for (const s2 of [-1, 1]) { const d = dyn(put(g, mesh(new THREE.BoxGeometry(1.6, WH + .2, .1), mat('#9FE6FF', { transparent: true, opacity: .55 }), false), BX + s2 * .8, (WH + .2) / 2, BZ + HZ)); V.exitM.push({ m: d, s: s2 }); }
+  const ex = neonSign('EXIT', '#7FE08A', 1.2, .4); ex.position.set(BX, WH + .9, BZ + HZ + .05); g.add(ex);
+  const logo = neonSign('ГУЩА · офіс', '#FF6BD6', 4, .8); logo.position.set(BX - 6, WH + .8, BZ + HZ + .2); g.add(logo);
+  // коридор: ліфт у східному торці
+  put(g, mesh(new THREE.BoxGeometry(.25, WH + .9, 2.6), '#4E4A6E'), ELEV.x + .55, (WH + .9) / 2, ELEV.z);
+  for (const s2 of [-1, 1]) { const d = dyn(put(g, mesh(new THREE.BoxGeometry(.06, WH + .5, .9), '#C9CDD9', false), ELEV.x + .4, (WH + .5) / 2, ELEV.z + s2 * .45)); V.elev.push({ m: d, s: s2 }); }
+  put(g, mesh(new THREE.BoxGeometry(.04, .14, .14), bulb('#FFD27A'), false), ELEV.x + .4, WH + .7, ELEV.z);
+  const lift = plate('🛗 Ліфт', 1); lift.position.set(ELEV.x + .3, WH + 1.15, ELEV.z); g.add(lift);
   // батарейки й стікер (видно за станом)
   for (const b of BAT_SPOTS) {
     const m = new THREE.Group(); m.position.set(b.x, .15, b.z); scene.add(A.dynamic(m));
-    put(m, mesh(flat(new THREE.CylinderGeometry(.11, .11, .32, 10)), bulb('#FFE066'), false), 0, 0, 0).rotation.z = Math.PI / 2;
-    put(m, mesh(flat(new THREE.CylinderGeometry(.115, .115, .1, 10)), '#2E2346', false), -.11, 0, 0).rotation.z = Math.PI / 2;
+    put(m, mesh(flat(new THREE.CylinderGeometry(.11, .11, .32, 10)), bulb('#FFE066'), false), 0, 0, 0).rotation.z = P2;
+    put(m, mesh(flat(new THREE.CylinderGeometry(.115, .115, .1, 10)), '#2E2346', false), -.11, 0, 0).rotation.z = P2;
     m.visible = false; V.bats.push(m);
   }
-  V.note = put(g, mesh(new THREE.BoxGeometry(.3, .3, .02), bulb('#FFE066'), false), 0, 0, 0); g.remove(V.note); scene.add(A.dynamic(V.note)); V.note.visible = false;
+  V.note = dyn(put(g, mesh(new THREE.BoxGeometry(.3, .3, .02), bulb('#FFE066'), false), 0, 0, 0)); V.note.visible = false;
   return g;
-}
-function neonSign(txt, col, w, h) {
-  const c = document.createElement('canvas'); c.width = 512; c.height = Math.round(512 * h / w);
-  const x = c.getContext && c.getContext('2d');
-  if (x && x.fillText) { x.strokeStyle = col; x.lineWidth = 10; x.shadowColor = col; x.shadowBlur = 24; x.strokeRect(10, 10, c.width - 20, c.height - 20); x.font = `bold ${Math.round(c.height * .55)}px sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#E8FFFF'; x.fillText(txt, c.width / 2, c.height / 2 + 4); }
-  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
 }
 /* моделі ворогів: зомбі-офісник і прибиральник зі шваброю */
 function enemyModel(t) {
@@ -492,7 +657,7 @@ function onEvent(e) {
     else toast(`🆘 ${nameOf(e.who)} лежить! Підійди й натисни F, щоб підняти (3 с).`);
   }
   else if (e.k === 'revived') { if (here) { toast(`💪 ${nameOf(e.by)} підняв ${e.who === myKey() ? 'тебе' : nameOf(e.who)}!`); sfx('level'); } }
-  else if (e.k === 'hid') { if (here && e.who === myKey()) { toast('🫥 Ти в шафі. Тебе не бачать і не чують. F — вийти.'); sfx('whoosh'); } }
+  else if (e.k === 'hid') { if (here && e.who === myKey()) { toast(`🫥 Ти ${HIDE_N[(CABS[e.i] || {}).k] || 'в схованці'}. Тебе не бачать і не чують. F — вийти.`); sfx('whoosh'); } }
   else if (e.k === 'bat') { if (here) { const b = BAT_SPOTS[e.i]; if (b) burst(b.x, .5, b.z, '#FFE066', 8, 2, .5, 2); if (e.who === myKey()) { ftext(pl.x, 2.4, pl.z, '🔋 +60%', 'gold'); sfx('equip'); } } }
   else if (e.k === 'card') { if (here) { const c = CARD_SPOTS[e.i]; banner(`🔑 ${nameOf(e.who)} знайшов картку доступу! (${c.ic} ${c.n})`); sfx('chest'); burst(c.x, 1.2, c.z, '#FFD27A', 16, 3, .7, 3); } }
   else if (e.k === 'empty') { if (here) { const c = CARD_SPOTS[e.i]; if (e.who === myKey()) ftext(c.x, 2.2, c.z, pick(['Пусто…', 'Лише крихти від печива', 'Тут тільки степлер', 'Чиясь заначка цукерок']), 'calm'); sfx('dig', c.x, c.z); } }
@@ -542,13 +707,13 @@ function clientTick(dt) {
   if (V.printT > 0) { V.printT -= dt; if (V.printer) { V.printer.position.y = .4 + Math.abs(Math.sin(t * 30)) * .03; if (Math.random() < dt * 6) burst(PRINTER.x, 1, PRINTER.z + .6, '#FFFFFF', 1, 1.5, 1, 1.5, 1.6); } }
   if (V.phoneT > 0) { V.phoneT -= dt; if (V.phone) V.phone.rotation.z = Math.sin(t * 50) * .15; } else if (V.phone) V.phone.rotation.z = 0;
   if (V.elevT > 0) V.elevT -= dt;
-  for (const d of V.elev) d.m.position.z = lerp(d.m.position.z, BZ + 1 + d.s * (V.elevT > 0 ? 1.2 : .45), Math.min(1, dt * 5));
+  for (const d of V.elev) d.m.position.z = lerp(d.m.position.z, ELEV.z + d.s * (V.elevT > 0 ? 1.2 : .45), Math.min(1, dt * 5));
   for (const d of V.exitM) d.m.position.x = lerp(d.m.position.x, BX + d.s * (ST.exit ? 2.3 : .8), Math.min(1, dt * 5));
-  if (V.edoorM) V.edoorM.position.x = lerp(V.edoorM.position.x, BX - 10.2 + (ST.edoor ? -1.5 : 0), Math.min(1, dt * 5));
+  if (V.edoorM) V.edoorM.position.x = lerp(V.edoorM.position.x, V.edoorX + (ST.edoor ? -1.7 : 0), Math.min(1, dt * 5));
   for (const [i, b] of V.brk.entries()) { const on = ST.power || (ST.ord && ST.fz > ST.ord.indexOf(i)); b.lv.rotation.z = lerp(b.lv.rotation.z, on ? .9 : -.6, Math.min(1, dt * 8)); b.led.material.emissive.set(on ? BREAKERS[i].c : '#000000'); }
   const lampsOn = !ST.on || ST.power; for (const m of V.lamps) m.visible = lampsOn || Math.random() < .002;
   V.bats.forEach((m, i) => { m.visible = ST.on && ST.bats.includes(i); if (m.visible) { m.rotation.y += dt * 2; m.position.y = .2 + Math.sin(t * 3 + i) * .05; } });
-  if (V.note) { const n = NOTE_SPOTS[ST.noteAt]; V.note.visible = ST.on && !ST.note; if (n) V.note.position.set(n.m.x, n.y, n.m.z); }
+  if (V.note) { const n = NOTE_SPOTS[ST.noteAt]; V.note.visible = ST.on && !ST.note; if (n) { V.note.position.set(n.m.x, n.y, n.m.z); V.note.rotation.y = n.r || 0; } }
   updEnemies(dt);
   // друзі: лежать / сховались
   if (NET.on) for (const id in NET.players) { const r = NET.players[id], s = ST.on && ST.pl[r.name]; r.h.root.visible = !(s && s.h); if (s && s.d) { r.h.body.rotation.x = 1.4; r.h.body.position.y = -.55; } }
@@ -568,7 +733,7 @@ function clientTick(dt) {
   V.wasDown = amDown();
   if (amDown()) { pl.dashT = 0; if (hero) { hero.body.rotation.x = 1.4; hero.body.position.y = -.55; } if (Math.random() < dt * .3) ftext(pl.x, 2, pl.z, pick(['Допоможіть!', 'Кенти, сюди!', 'Я ще живий!']), 'bad'); }
   // стіни й меблі
-  if (V.lastP && dist2(V.lastP.x, V.lastP.z, pl.x, pl.z) < 2 && !los(V.lastP.x, V.lastP.z, pl.x, pl.z)) { pl.x = V.lastP.x; pl.z = V.lastP.z; }
+  if (V.lastP && dist2(V.lastP.x, V.lastP.z, pl.x, pl.z) < 2 && !los(V.lastP.x, V.lastP.z, pl.x, pl.z, false, true)) { pl.x = V.lastP.x; pl.z = V.lastP.z; }
   pushOut(pl, .35);
   V.lastP = { x: pl.x, z: pl.z };
   if (hero) hero.root.position.set(pl.x, pl.y, pl.z);
@@ -701,7 +866,7 @@ getInteract = function () {
       if (!ST.edoor && near(ELEC, 1.6)) return ST.card === myKey() ? { l: '🔑 Відчинити електрощитову карткою', fn: () => req('edoor') } : { l: ST.card ? `🔒 Щитова — картка в ${escapeHTML(ST.card)}` : '🔒 Щитова зачинена — потрібна 🔑 картка', fn: () => req('edoor') };
       if (ST.edoor && !ST.power) for (const [i, b] of BREAKERS.entries()) if (near(b, 1)) return { l: `${b.ic} Увімкнути ${b.n} рубильник (1 с)`, fn: () => startAct({ what: 'fuse', i, need: 1 }) };
       if (!ST.exit && near(EXIT, 1.8)) return ST.power ? { l: '🚪 Відчинити вихідні двері — ТІКАЄМО!', fn: () => req('exit') } : { l: '🔒 Вихід знеструмлено — спершу щиток ⚡', fn: () => toast('Двері на електрозамку. Увімкни щиток в електрощитовій (потрібна 🔑 картка й порядок зі 📝 стікера).') };
-      for (const [i, c] of CABS.entries()) if (near(c.s, 1.2)) return { l: '🫥 Сховатися в шафі', fn: () => req('hide', { i }) };
+      for (const [i, c] of CABS.entries()) if (near(c.s, 1.2)) return { l: c.k === 'desk' ? '🫥 Сховатися під столом' : c.k === 'wc' ? '🚽 Сховатися в кабінці' : '🫥 Сховатися в шафі', fn: () => req('hide', { i }) };
     }
   }
   return _getInteract.apply(this, arguments);
@@ -723,31 +888,31 @@ const PLACES = [
   { id: 'elec', p: ELEC, y: 2.2, t: () => ST.edoor ? '⚡ Електрощитова' : '🔒 Електрощитова' },
   ...BREAKERS.map((b, i) => ({ id: 'brk' + i, p: b, y: 2, t: `${b.ic} Рубильник`, on: () => ST.on && ST.edoor && !ST.power })),
   ...CARD_SPOTS.map((c, i) => ({ id: 'card' + i, p: c, y: 2, t: () => ST.cs[i] ? `${c.ic} порожньо` : `${c.ic} ${c.n}`, on: () => ST.on && !ST.card })),
-  ...CABS.map((c, i) => ({ id: 'cab' + i, p: c.s, y: 2.4, t: '🫥 Шафа', on: () => ST.on })),
+  ...CABS.map((c, i) => ({ id: 'cab' + i, p: c.s, y: 2.4, t: c.k === 'desk' ? '🫥 Під стіл' : c.k === 'wc' ? '🚽 Кабінка' : '🫥 Шафа', on: () => ST.on })),
   ...BAT_SPOTS.map((b, i) => ({ id: 'bat' + i, p: b, y: 1, t: '🔋', on: () => ST.on && ST.bats.includes(i) })),
   { id: 'note', p: { get x() { return NOTE_SPOTS[ST.noteAt].x; }, get z() { return NOTE_SPOTS[ST.noteAt].z; } }, y: 1.9, t: '📝 Стікер', on: () => ST.on && !ST.note },
 ];
 function goal() {
   const d = o => dist2(pl.x, pl.z, o.x, o.z), s = mySt();
-  if (!ST.on) return { id: 'clock', tg: CLOCK, txt: 'Підійди до <b>🌙 табельного апарата</b> (вестибюль, ліва стіна) і натисни <b>F</b> — починається нічна зміна.' };
-  if (amHid()) return { txt: '🫥 Ти в шафі: тебе не бачать і не чують. <b>F</b> — вийти, коли стихне.' };
+  if (!ST.on) return { id: 'clock', tg: CLOCK, txt: 'Підійди до <b>🌙 табельного апарата</b> (🛎️ вестибюль, права стіна біля входу) і натисни <b>F</b> — починається нічна зміна.' };
+  if (amHid()) return { txt: `🫥 Ти ${HIDE_N[(CABS[mySt().h - 1] || {}).k] || 'в схованці'}: тебе не бачать і не чують. <b>F</b> — вийти, коли стихне.` };
   if (amDown()) return { txt: '🆘 Тебе схопили! Лежиш і кличеш кентів — хай підійдуть і потримають <b>F</b> поруч.' };
   if (V.act) return { txt: `${V.act.what === 'revive' ? '💪 Піднімаю друга' : V.act.what === 'fuse' ? '⚡ Вмикаю рубильник' : '🔍 Обшукую'} ${Math.round(V.act.t / V.act.need * 100)}% — не відходь!` };
   const mates = downedMates(); if (mates.length) { const m = mates.reduce((a, b) => d(a) < d(b) ? a : b); return { id: 'mate', tg: m, txt: `🆘 <b>${escapeHTML(m.k)}</b> лежить! Біжи, натисни <b>F</b> поруч і тримайся 3 с.` }; }
   if (s && s.b < 25 && ST.bats.length) { const i = ST.bats.reduce((a, b) => d(BAT_SPOTS[a]) < d(BAT_SPOTS[b]) ? a : b); return { id: 'bat' + i, tg: BAT_SPOTS[i], txt: `🔦 Батарейка ${Math.round(s.b)}%! Біжи по <b>🔋</b> (F).` }; }
-  if (ST.power) return ST.exit ? { id: 'exit', tg: { x: BX, z: BZ + 13.5 }, txt: '🏃 Двері відчинені — <b>вибігай надвір!</b>' } : { id: 'exit', tg: EXIT, txt: '💡 Світло є! Біжи до <b>🚪 EXIT</b> у вестибюлі й натисни <b>F</b>.' };
+  if (ST.power) return ST.exit ? { id: 'exit', tg: { x: BX, z: BZ + 13.5 }, txt: '🏃 Двері відчинені — <b>вибігай надвір!</b>' } : { id: 'exit', tg: EXIT, txt: '💡 Світло є! Біжи до <b>🚪 EXIT</b> (🛎️ вестибюль, південь) й натисни <b>F</b>.' };
   if (!ST.card) {
     let best = -1; CARD_SPOTS.forEach((c, i) => { if (!ST.cs[i] && (best < 0 || d(c) < d(CARD_SPOTS[best]))) best = i; });
-    if (best >= 0) return { id: 'card' + best, tg: CARD_SPOTS[best], txt: `🔑 Шукай <b>картку доступу</b>: обшукай ${CARD_SPOTS[best].ic} ${CARD_SPOTS[best].n} (<b>F</b>). Світи на зомбі — вони завмирають. Або просто доживи до 06:00.` };
+    if (best >= 0) return { id: 'card' + best, tg: CARD_SPOTS[best], txt: `🔑 Шукай <b>картку доступу</b>: обшукай ${CARD_SPOTS[best].ic} ${CARD_SPOTS[best].n} — ${roomN(CARD_SPOTS[best])} (<b>F</b>). Світи на зомбі — вони завмирають. Або просто доживи до 06:00.` };
   }
   if (!ST.note) {
     const n = NOTE_SPOTS[ST.noteAt]; if (d(n) < 5) V.seenNote.add(ST.noteAt);
     const cand = NOTE_SPOTS.map((q, i) => i).filter(i => !V.seenNote.has(i) || i === ST.noteAt);
     for (const i of cand) if (i !== ST.noteAt && d(NOTE_SPOTS[i]) < 2.5) V.seenNote.add(i);
     const i = cand.reduce((a, b) => d(NOTE_SPOTS[a]) < d(NOTE_SPOTS[b]) ? a : b);
-    return { id: i === ST.noteAt && V.seenNote.has(i) ? 'note' : 'notec', tg: NOTE_SPOTS[i], txt: `📝 Знайди <b>жовтий стікер</b> з порядком рубильників — подивись: ${NOTE_SPOTS[i].n}.` };
+    return { id: i === ST.noteAt && V.seenNote.has(i) ? 'note' : 'notec', tg: NOTE_SPOTS[i], txt: `📝 Знайди <b>жовтий стікер</b> з порядком рубильників — подивись на ${NOTE_SPOTS[i].n}.` };
   }
-  if (!ST.edoor) return ST.card === myKey() ? { id: 'elec', tg: ELEC, txt: '🔑 Картка в тебе! Відчини <b>електрощитову</b> (коридор, ліворуч) — F біля дверей.' } : { id: 'elec', tg: ELEC, txt: `🔑 Картка в <b>${escapeHTML(ST.card)}</b> — прикривай ліхтариком, поки відчиняє щитову.` };
+  if (!ST.edoor) return ST.card === myKey() ? { id: 'elec', tg: ELEC, txt: '🔑 Картка в тебе! Відчини <b>електрощитову</b> (⚡ коридор, західний край) — F біля дверей.' } : { id: 'elec', tg: ELEC, txt: `🔑 Картка в <b>${escapeHTML(ST.card)}</b> — прикривай ліхтариком, поки відчиняє щитову.` };
   if (ST.ord) { const i = ST.ord[ST.fz]; return { id: 'brk' + i, tg: BREAKERS[i], txt: `⚡ Рубильники по черзі: ${ordTxt(ST.ord)}. Зараз — <b>${BREAKERS[i].ic} ${BREAKERS[i].n}</b> (F, 1 с).` }; }
   return { id: 'brk0', tg: BREAKERS[0], txt: '⚡ Порядку не знаєш — можна вгадувати, але помилка ГУЧНА.' };
 }
@@ -757,8 +922,10 @@ function guide() {
     const css = document.createElement('style');
     css.textContent = `.ns-lbl{position:absolute;left:0;top:0;padding:3px 9px;border-radius:10px;background:rgba(26,16,48,.82);color:#E9E2FA;font:700 12px/1.3 system-ui,sans-serif;white-space:nowrap;transform:translate(-50%,-100%);transition:opacity .2s}
       .ns-lbl.goal{background:#FFE066;color:#2E2346;font-size:14px;box-shadow:0 0 0 3px rgba(255,224,102,.35),0 6px 16px rgba(0,0,0,.4);animation:nsB .8s ease-in-out infinite alternate}
+      .ns-lbl.room{background:rgba(233,226,250,.8);color:#2E2346;font:800 11px/1.2 system-ui,sans-serif;padding:2px 8px;border-radius:7px}
       @keyframes nsB{to{margin-top:-6px}}`;
     document.head.appendChild(css); document.body.appendChild(V.lbl);
+    V.rooms = ROOMS.filter(r => !/Коридор/.test(r.n)).map(r => { const e = document.createElement('div'); e.className = 'ns-lbl room'; e.textContent = r.n; V.lbl.appendChild(e); return { r, e, c: L((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2) }; });
     for (const P of PLACES) { P.el = document.createElement('div'); P.el.className = 'ns-lbl'; V.lbl.appendChild(P.el); }
     V.glbl = document.createElement('div'); V.glbl.className = 'ns-lbl goal'; V.lbl.appendChild(V.glbl);
     V.gArrow = new THREE.Group(); const sh = mesh(new THREE.ConeGeometry(.28, .7, 3), bulb('#FFE066'), false); sh.rotation.z = -Math.PI / 2; sh.position.x = 1.25; V.gArrow.add(sh); scene.add(V.gArrow);
@@ -772,6 +939,9 @@ function guide() {
   const pos = (el, x, y, z) => { const q = screenPos(x, y, z); el.style.display = q.vis ? '' : 'none'; el.style.transform = `translate(${Math.round(q.x)}px,${Math.round(q.y)}px) translate(-50%,-100%)`; };
   const s = mySt(), lightOn = s && s.l && s.b > 0 && !s.d && !s.h;
   const seen = o => { const dd = dist2(pl.x, pl.z, o.x, o.z); if (!ST.on || ST.power || dd < 4) return true; return lightOn && dd < LIGHT_R && Math.abs(wrapA(Math.atan2(o.x - pl.x, o.z - pl.z) - V.fa)) < LIGHT_A + .2 && los(pl.x, pl.z, o.x, o.z); };
+  // назви кімнат: видно при світлі, у самій кімнаті або коли туди світиш
+  const myRoom = roomAt(pl.x, pl.z);
+  for (const q of V.rooms) { const on = !ST.on || ST.power || q.r === myRoom || seen(q.c); q.e.style.opacity = on ? 1 : 0; if (on) pos(q.e, q.c.x, 1.5, q.c.z); }
   for (const P of PLACES) {
     const on = (!P.on || P.on()) && P.id !== g.id && (P.always || seen(P.p));
     P.el.style.opacity = on ? 1 : 0;
@@ -888,7 +1058,7 @@ A.tab('nightshift', '🔦 Нічна зміна', () => {
       <div>🧟 <b>Зомбі-офісники</b> рухаються лише в темряві. На світлі — завмирають; довго світиш — тікають.</div>
       <div>🧹 <b>Нічний прибиральник</b> чує кроки й ривки. <b>Z</b> — крастися. Шафа (<b>F</b>) — сховатися, тебе не знайдуть.</div>
       <div>🆘 <b>Схопили</b> — лежиш, друзі піднімають (<b>F</b> поруч, 3 с). Усіх схопили — зміну провалено.</div>
-      <div>🏃 <b>Втеча</b>: 🔑 картка (в одному з 5 місць) → 📝 стікер з порядком → 🚪 щитова → ⚡ три рубильники → 🚪 EXIT.</div>
+      <div>🏃 <b>Втеча</b>: 🔑 картка (в одному з 6 місць) → 📝 стікер з порядком → 🚪 щитова → ⚡ три рубильники → 🚪 EXIT.</div>
       <div>👻 Монітори з «ДЕДЛАЙН», принтер, що друкує сам, дзвінок у кабінеті, ліфт — це просто офіс уночі. Мабуть.</div>
     </div>
     <p class="muted" style="font-size:12px;margin-top:10px">Змін: ${d.nights || 0} · вижили: ${d.wins || 0} · втеч: ${d.escapes || 0} · найпізніше: ${clockTxt((d.best || 0) / 360 * DUR)}</p>`;
@@ -912,4 +1082,4 @@ if (!SIMSIDE && typeof document !== 'undefined') {
   }
 }
 A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(goNight, 700); });
-if (window.__ADDON_TEST) window.__nightshift = { ST, AU, V, SPAWN, CLOCK, EXIT, ELEC, BREAKERS, CARD_SPOTS, NOTE_SPOTS, BAT_SPOTS, CABS, WAYS, EN_SPAWN, goal, intro, req, onReq, litBy, los, inB, grid, cellOf, freeNear, addEnemy, startNight, endNight, myKey, solids, FURN, WALLS };
+if (window.__ADDON_TEST) window.__nightshift = { ST, AU, V, SPAWN, CLOCK, EXIT, ELEC, BREAKERS, CARD_SPOTS, NOTE_SPOTS, BAT_SPOTS, CABS, WAYS, EN_SPAWN, goal, intro, req, onReq, litBy, los, inB, grid, cellOf, freeNear, addEnemy, startNight, endNight, myKey, solids, FURN, FURN_L, WALLS, DOORS, ROOMS, roomAt, MONITORS };

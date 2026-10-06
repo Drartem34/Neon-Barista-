@@ -66,8 +66,8 @@ const tp = (T, p, dx = 0, dz = 0) => { T.pl.x = p.x + dx; T.pl.z = p.z + dz; T.p
   }
   // Батарейка ховається, Ліхтар вимикає ліхтарик і йде до зомбі
   const cab = G.CABS[2]; tp(b, cab.s); await tick(AB, .4);
-  it = b.getInteract(); assert(it && /Сховатися/.test(it.l), 'Батарейка біля шафи'); it.fn(); await tick(AB, .6);
-  assert(F.ST.pl[b.name] && F.ST.pl[b.name].h === 3, 'Ліхтар бачить: Батарейка в шафі');
+  it = b.getInteract(); assert(it && /Сховатися/.test(it.l), 'Батарейка біля схованки (кабінка в туалеті)'); it.fn(); await tick(AB, .6);
+  assert(F.ST.pl[b.name] && F.ST.pl[b.name].h === 3, 'Ліхтар бачить: Батарейка сховалась');
   for (let k = 0; k < 60 && F.ST.t < 10.5; k++) await tick(AB, .25);   // перші 10 с зомбі «прокидаються»
   a.keydown('KeyL'); await tick(AB, .5); assert(G.ST.pl[a.name].l === 0, 'Ліхтар вимкнув ліхтарик (бачить і Батарейка)');
   let downed = false;

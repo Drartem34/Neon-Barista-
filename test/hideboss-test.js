@@ -31,7 +31,7 @@ w.document.querySelector('#hb-intro button').click(); assert(!w.document.getElem
 step(.1); assert(/СТАРТ/.test(w.document.getElementById('hideboss-goal').textContent) && /Сховайся від боса/.test(w.document.getElementById('hideboss-hud').textContent), 'HUD і рядок «👉 що робити зараз»');
 assert(H.FURN.length > 60 && ['chair', 'cooler', 'ficus', 'copier', 'cabinet', 'box', 'trash', 'coffee', 'sofa', 'desk'].every(t => H.FURN.some(f => f.t === t)), `офіс заставлений меблями (${H.FURN.length})`);
 // стіни офісу не випускають
-T.pl.x = 0; T.pl.z = -120 + 9.3; step(.05); for (let k = 0; k < 30; k++) { T.pl.z += .1; step(.02); } assert(T.pl.z < -120 + 11.2, 'з офісу не вийдеш крізь стіну');
+T.pl.x = 4.4; T.pl.z = -120 + 10; step(.05); for (let k = 0; k < 40; k++) { T.pl.z += .1; step(.02); } assert(T.pl.z < -120 + 12.8, 'з офісу не вийдеш крізь стіну');
 
 const hideAt = t => { const h = H.hideSpots().find(s => s.f.t === t && !H.DESKS.some(d => Math.hypot(d.x - s.x, d.z - s.z) < 2.6)); T.pl.x = h.x; T.pl.z = h.z; step(.05); return h; };
 const toBoard = () => { T.pl.x = H.BOARD.x; T.pl.z = H.BOARD.z - 1.2; step(.1); };

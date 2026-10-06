@@ -485,6 +485,15 @@ function buildLevel(s) {
   const sign = (txt, col, x, z, w) => { w = w || Math.max(1.6, txt.length * .19 + .5); const n = neonSign(txt, col, w, .48); n.position.set(OX + x, 1.85, OZ + z); g.add(n); for (const sx of [-w / 2 + .15, w / 2 - .15]) B(x + sx, 1.45, z - .02, .05, .5, .05, '#4E4A6E'); };
   for (const r of ROOMS) if (r.dx != null) sign(r.n, r.c, r.dx, r.dz + .15, r.w);
   sign('ОПЕНСПЕЙС', '#5CC8FF', -9.25, CZ + .15); sign('ЗОНА ВІДПОЧИНКУ', '#FF8A7A', 5, 11); sign('СКЛАД', '#B8B2C8', 12.5, 11); 
+  // назви кімнат, намальовані на підлозі біля входу (видно згори)
+  const floorTxt = (txt, col, x, z, w) => {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 96; const x2 = c.getContext && c.getContext('2d');
+    if (x2 && x2.fillText) { x2.font = 'bold 60px sans-serif'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.lineWidth = 10; x2.strokeStyle = 'rgba(46,35,70,.55)'; x2.strokeText(txt, 256, 50); x2.fillStyle = col; x2.fillText(txt, 256, 50); }
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 96 / 512), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: .85, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.position.set(OX + x, .075, OZ + z); m.renderOrder = 1; g.add(m);
+  };
+  for (const r of ROOMS) if (r.dx != null) floorTxt(r.n, r.c, r.dx, r.dz < 0 ? r.dz - 1.05 : r.dz + .95, Math.min(3.6, r.x1 - r.x0 - .6));
+  floorTxt('РЕСЕПШН', '#FFD27A', 0, 4.2, 3.4); floorTxt('ЗОНА ВІДПОЧИНКУ', '#FF8A7A', 9.4, 9.3, 3.6); floorTxt('СКЛАД', '#B8B2C8', 16.8, 8.9, 2.4);
   const big = neonSign('ДЕДЛАЙН · 18:00', '#FF5C7A', 6, 1); big.position.set(OX, 2.6, OZ + HZ + .15); g.add(big);
   for (const sx of [-2.8, 2.8]) B(sx, 2, HZ + .15, .08, 1.4, .08, '#4E4A6E');
 
@@ -524,7 +533,7 @@ function buildLevel(s) {
   B(PANEL.l.x, .9, PANEL.l.z, .25, 1, .8, '#8E86B0'); put(g, mesh(new THREE.BoxGeometry(.05, .3, .3), bulb('#FFE066'), false), PANEL.o.x - .14, 1, PANEL.o.z);
   C(-19.6, .35, 1.4, .12, .12, .7, '#E8505B'); plant(-19.3, -1.3, .8); plant(11, 1.3, .8);
   {
-    const c = new THREE.Group(); c.position.set(CLOCK.x, 2.45, CLOCK.z + .14); scene.add(A.dynamic(c));
+    const c = new THREE.Group(); c.position.set(CLOCK.x, 2.2, CLOCK.z + .14); c.scale.setScalar(.72); V.clockK = .72; scene.add(A.dynamic(c));
     put(c, mesh(flat(new THREE.CylinderGeometry(1.15, 1.15, .14, 28)), '#FFFFFF', false), 0, 0, 0).rotation.x = Math.PI / 2;
     put(c, mesh(new THREE.TorusGeometry(1.15, .09, 6, 28), '#2E2346', false), 0, 0, .02);
     for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; put(c, mesh(new THREE.BoxGeometry(k % 3 ? .05 : .1, k % 3 ? .14 : .24, .03), '#2E2346', false), Math.sin(a) * .95, Math.cos(a) * .95, .08).rotation.z = -a; }
@@ -752,7 +761,7 @@ function clientTick(dt) {
   if (V.clock) {
     const s = 17 * 3600 + 55 * 60 + (ST.on ? ST.t : 0), sec = s % 60, min = (s / 60) % 60, hr = (s / 3600) % 12;
     V.clock.s.rotation.z = -sec / 60 * Math.PI * 2; V.clock.m.rotation.z = -min / 60 * Math.PI * 2; V.clock.h.rotation.z = -hr / 12 * Math.PI * 2;
-    const left = ST.dur - ST.t; V.clock.g.scale.setScalar(ST.on && left < 30 ? 1 + Math.abs(Math.sin(t * 6)) * .06 : 1);
+    const left = ST.dur - ST.t; V.clock.g.scale.setScalar(V.clockK * (ST.on && left < 30 ? 1 + Math.abs(Math.sin(t * 6)) * .06 : 1));
   }
   // принтер, сервер, кавоварка, спринклери
   if (V.prLight) { V.prLight.material.color.set(ST.jam ? '#FF5C7A' : '#7FE08A'); V.prLight.material.emissive.set(ST.jam ? (Math.sin(t * 12) > 0 ? '#FF5C7A' : '#400010') : '#7FE08A'); if (ST.jam && Math.random() < dt * 6) burst(PRINTER.o.x, 1.4, PRINTER.o.z, pick(['#FFFFFF', '#857C99']), 1, 1, .8, 1.5); }

@@ -543,7 +543,7 @@ function buildOfficeNight(s) {
     if (d.w > 3.5) continue;
     for (const sd of [-1, 1]) put(g, mesh(new THREE.BoxGeometry(d.h ? .14 : .36, WH + .45, d.h ? .36 : .14), '#6E5E96', false), d.x + (d.h ? sd * (d.w / 2 + .07) : 0), (WH + .45) / 2, d.z + (d.h ? 0 : sd * (d.w / 2 + .07)));
     if (d.h) put(g, mesh(new THREE.BoxGeometry(d.w + .28, .12, .36), '#6E5E96', false), d.x, WH + .45, d.z);
-    if (d.n) { const p = plate(d.n); p.position.set(d.x, WH + .85, d.z); g.add(p); }
+    if (d.n) { const p = plate(d.n); p.position.set(d.x, WH + .85, d.z); scene.add(A.dynamic(p)); }   // dynamic — щоб оптимізатор не з’їв текстуру
   }
   // лампи на стінах: гаснуть уночі
   for (const r of ROOMS) {
@@ -576,7 +576,7 @@ function buildOfficeNight(s) {
     else if (t === 'crate') { put(g, mesh(new THREE.BoxGeometry(.8, .7, .8), '#C4956A'), X, .35, Z).rotation.y = rot; put(g, mesh(new THREE.BoxGeometry(.82, .08, .2), '#E8DCC8', false), X, .66, Z); }
     else if (t === 'pallet') { put(g, mesh(new THREE.BoxGeometry(1.6, .15, 1.2), '#9C7A54'), X, .08, Z); for (const [a, b, h] of [[-.4, -.3, .6], [.4, -.3, .6], [-.4, .3, .6], [.4, .3, .9], [0, 0, 1.4]]) put(g, mesh(new THREE.BoxGeometry(.7, .55, .55), '#C4956A'), X + a, .15 + h - .3, Z + b); }
     else if (t === 'rack') { const o = put(g, mesh(new THREE.BoxGeometry(.76, 2, .95), '#2A2E3E'), X, 1, Z); for (let k = 0; k < 6; k++) { const led = mesh(new THREE.BoxGeometry(.05, .04, .02), bulb(['#7FE08A', '#6BB8FF', '#FFD27A'][k % 3]), false); put(o, led, -.25 + (k % 3) * .2, -.6 + Math.floor(k / 3) * .9, .48); } for (const sd of [-1, 1]) put(o, mesh(new THREE.BoxGeometry(.6, .04, .02), '#4E4A6E', false), 0, .3 * sd, -.48 * -1); }
-    else if (t === 'recep') { put(g, mesh(new THREE.BoxGeometry(4.4, 1.1, .8), '#6E5E96'), X, .55, Z); put(g, mesh(new THREE.BoxGeometry(4.5, .08, .95), '#E8DCC8'), X, 1.14, Z); put(g, mesh(new THREE.BoxGeometry(4.42, .06, .06), bulb('#6BE7FF'), false), X, .9, Z + .41); const sg = neonSign('ГУЩА', '#6BE7FF', 1.6, .45); sg.position.set(X, .55, Z + .42); g.add(sg); put(g, mesh(new THREE.BoxGeometry(.6, .38, .05), '#2E2346'), X - 1.2, 1.38, Z - .15); put(g, mesh(new THREE.BoxGeometry(.3, .2, .2), '#C2335A'), X + 1.3, 1.25, Z - .2); }
+    else if (t === 'recep') { put(g, mesh(new THREE.BoxGeometry(4.4, 1.1, .8), '#6E5E96'), X, .55, Z); put(g, mesh(new THREE.BoxGeometry(4.5, .08, .95), '#E8DCC8'), X, 1.14, Z); put(g, mesh(new THREE.BoxGeometry(4.42, .06, .06), bulb('#6BE7FF'), false), X, .9, Z + .41); const sg = neonSign('ГУЩА', '#6BE7FF', 1.6, .45); sg.position.set(X, .55, Z + .42); scene.add(A.dynamic(sg)); put(g, mesh(new THREE.BoxGeometry(.6, .38, .05), '#2E2346'), X - 1.2, 1.38, Z - .15); put(g, mesh(new THREE.BoxGeometry(.3, .2, .2), '#C2335A'), X + 1.3, 1.25, Z - .2); }
     else if (t === 'panel') { put(g, mesh(new THREE.BoxGeometry(.4, 1.8, 3.6), '#5E5A7E'), X, .9, Z); put(g, mesh(new THREE.BoxGeometry(.03, .3, .3), bulb('#FFE066'), false), X + .21, 1.65, Z - 1.4); }
     else if (t === 'gen') { put(g, mesh(new THREE.BoxGeometry(1.6, 1.1, 1.2), '#4E4A6E'), X, .55, Z); put(g, mesh(new THREE.BoxGeometry(.6, .3, .05), bulb('#FFE066'), false), X, .8, Z - .62); for (let k = -2; k <= 2; k++) put(g, mesh(new THREE.BoxGeometry(.05, .5, 1), '#3A3656', false), X + k * .25, .55, Z + .05).position.y = 1.12; }
     else if (t === 'part') { put(g, mesh(new THREE.BoxGeometry(.08, 1.5, 1.8), '#8FB8D8'), X, .85, Z); }
@@ -603,13 +603,13 @@ function buildOfficeNight(s) {
   put(g, mesh(new THREE.BoxGeometry(.25, .7, .45), '#E8E3F0'), CLOCK.x + .5, 1.1, CLOCK.z);
   put(g, mesh(new THREE.BoxGeometry(.03, .2, .25), bulb('#7FE08A'), false), CLOCK.x + .36, 1.25, CLOCK.z);
   for (const s2 of [-1, 1]) { const d = dyn(put(g, mesh(new THREE.BoxGeometry(1.6, WH + .2, .1), mat('#9FE6FF', { transparent: true, opacity: .55 }), false), BX + s2 * .8, (WH + .2) / 2, BZ + HZ)); V.exitM.push({ m: d, s: s2 }); }
-  const ex = neonSign('EXIT', '#7FE08A', 1.2, .4); ex.position.set(BX, WH + .9, BZ + HZ + .05); g.add(ex);
-  const logo = neonSign('ГУЩА · офіс', '#FF6BD6', 4, .8); logo.position.set(BX - 6, WH + .8, BZ + HZ + .2); g.add(logo);
+  const ex = neonSign('EXIT', '#7FE08A', 1.4, .45); ex.position.set(BX, WH + .95, BZ + HZ + .05); ex.rotation.x = -.45; scene.add(A.dynamic(ex));
+  const logo = neonSign('ГУЩА · офіс', '#FF6BD6', 4, .8); logo.position.set(BX - 6, WH + .8, BZ + HZ + .2); logo.rotation.x = -.45; scene.add(A.dynamic(logo));
   // коридор: ліфт у східному торці
   put(g, mesh(new THREE.BoxGeometry(.25, WH + .9, 2.6), '#4E4A6E'), ELEV.x + .55, (WH + .9) / 2, ELEV.z);
   for (const s2 of [-1, 1]) { const d = dyn(put(g, mesh(new THREE.BoxGeometry(.06, WH + .5, .9), '#C9CDD9', false), ELEV.x + .4, (WH + .5) / 2, ELEV.z + s2 * .45)); V.elev.push({ m: d, s: s2 }); }
   put(g, mesh(new THREE.BoxGeometry(.04, .14, .14), bulb('#FFD27A'), false), ELEV.x + .4, WH + .7, ELEV.z);
-  const lift = plate('🛗 Ліфт', 1); lift.position.set(ELEV.x + .3, WH + 1.15, ELEV.z); g.add(lift);
+  const lift = plate('🛗 Ліфт', 1); lift.position.set(ELEV.x + .3, WH + 1.15, ELEV.z); scene.add(A.dynamic(lift));
   // батарейки й стікер (видно за станом)
   for (const b of BAT_SPOTS) {
     const m = new THREE.Group(); m.position.set(b.x, .15, b.z); scene.add(A.dynamic(m));

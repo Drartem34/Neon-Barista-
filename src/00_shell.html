@@ -211,6 +211,11 @@ body.jamwob #cv{animation:jamwob 1.6s ease-in-out infinite}
 .slot .dur i{display:block;height:100%;border-radius:2px;background:var(--mint)}
 .slot .sec{position:absolute;right:-6px;top:-6px;width:26px;height:26px;border-radius:9px;background:rgba(46,35,70,.9);font-size:14px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2)}
 #drinks{display:flex;gap:6px}
+#modebar{display:flex;gap:8px}
+#modebar .slot{width:60px;height:60px;font-size:28px;color:#fff;cursor:pointer}
+#modebar .slot.sel{border-color:#FFE066;box-shadow:0 0 0 2px rgba(255,224,102,.45)}
+#modebar .slot.off{opacity:.45}
+#modebar .slot .lbl{position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:700;white-space:nowrap;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}
 #brew{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:200px;height:18px;background:rgba(46,35,70,.65);border-radius:9px;overflow:hidden}
 #brew i{position:absolute;inset:0;background:var(--accent);transform-origin:left}
 #brew span{position:relative;font-size:11px;font-weight:700;display:block;text-align:center;line-height:18px;color:#fff}
@@ -474,6 +479,7 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
   <div id="hotbar">
     <button id="weapon" class="slot big" title="Основний предмет (ЛКМ). X — змінити руку"></button>
     <div id="drinks"></div>
+    <div id="modebar" hidden></div>
     <div id="brew" hidden><i id="brewb"></i><span id="brewt"></span></div>
   </div>
   <div id="touch" hidden>

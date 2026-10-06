@@ -239,7 +239,8 @@ addEventListener('keydown', e => {
   if (e.repeat) return;
   if (c === 'Space') { e.preventDefault(); jumpPress(); }
   if (c === 'ShiftLeft' || c === 'ShiftRight') dash();
-  if (c === 'KeyQ') useDrink();
+  if (MODEBAR && /^Digit[1-8]$/.test(c)) { modeBarUse(+c.slice(5) - 1); return; }
+  if (c === 'KeyQ' && !MODEBAR) useDrink();
   if (c === 'KeyF') interact();
   if (c === 'KeyX') swapHands();
   if (/^Digit[1-8]$/.test(c)) { const k = knownDrinks()[+c.slice(5) - 1]; if (k) { selDrink = k; refreshHUD(); } }
@@ -256,7 +257,7 @@ cv.addEventListener('pointerdown', e => {
   if (!running || e.pointerType === 'touch') return;
   cv.focus();
   if (e.button === 0) atkDown();
-  if (e.button === 2) useDrink();
+  if (e.button === 2 && !MODEBAR) useDrink();
 });
 addEventListener('pointerup', e => { if (e.pointerType !== 'touch' && e.button === 0) atkUp(); });
 cv.addEventListener('contextmenu', e => e.preventDefault());
@@ -311,7 +312,22 @@ function refreshWeapon() {
   $('#weapon').className = 'slot big ' + (it ? 'r' + it.r : '') + (it && it.broken ? ' off' : '');
   $('#weapon').innerHTML = `${ic}${it ? `<span class="dur"><i style="width:${dur * 100}%;background:${dur < .25 ? '#FF7A8A' : ''}"></i></span>` : ''}${it2 ? `<span class="sec">${BASE[it2.b].ic}</span>` : ''}`;
 }
+/* ---------- Набір режиму: аддон тимчасово підміняє хотбар своїми слотами (напр. лише 💣 і 🪠).
+   modeBar({ slots: [{ id, ic, n, count: () => k, use: () => … }], sel }) — увімкнути; modeBar(null) — повернути звичайний.
+   Поки набір увімкнено: зброя й напої сховані, 1…N — використати слот, Q і ПКМ напої не п'ють. Справжній інвентар не чіпаємо. */
+let MODEBAR = null, modeBarHTML = '';
+function modeBar(def) { MODEBAR = def && def.slots && def.slots.length ? Object.assign({ sel: 0 }, def) : null; modeBarHTML = ''; renderModeBar(); }
+function modeBarUse(i) { const m = MODEBAR, s = m && m.slots[i]; if (!s) return false; m.sel = i; if (s.use) s.use(); renderModeBar(); return true; }
+function renderModeBar() {
+  const el = $('#modebar'); if (!el) return;
+  const on = !!MODEBAR; el.hidden = !on; $('#weapon').hidden = on; $('#drinks').hidden = on;
+  if (!on) return;
+  const h = MODEBAR.slots.map((s, i) => { const n = s.count ? s.count() : null; return `<button class="slot${i === MODEBAR.sel ? ' sel' : ''}${n === 0 ? ' off' : ''}" data-ms="${i}" title="${s.n || ''}"><span class="k">${i + 1}</span>${s.ic}${n != null ? `<span class="n">${n}</span>` : ''}${s.n ? `<span class="lbl">${s.n}</span>` : ''}</button>`; }).join('');
+  if (h !== modeBarHTML) { modeBarHTML = h; el.innerHTML = h; }
+}
+$('#modebar').addEventListener('click', e => { const b = e.target.closest('[data-ms]'); if (b) modeBarUse(+b.dataset.ms); });
 function updHUDFrame() {
+  if (MODEBAR) renderModeBar();
   $('#hpb').style.transform = `scaleX(${clamp(pl.hp / S.maxHP, 0, 1)})`;
   $('#hpt').textContent = Math.max(0, Math.ceil(pl.hp)) + ' / ' + S.maxHP;
   $('#stb').style.transform = `scaleX(${clamp(pl.st / S.maxSt, 0, 1)})`;

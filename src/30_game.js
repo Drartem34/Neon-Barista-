@@ -851,6 +851,7 @@ function swapHands() {
 /* ---------- Напої ---------- */
 function knownDrinks() { return DRINK_ORDER.filter(d => P.known[d]); }
 function useDrink() {
+  if (typeof MODEBAR !== 'undefined' && MODEBAR) return;   // у режимі з власним набором напої не п'ються
   if (pl.dead || paused || panel || pl.jump || pl.falling) return;
   const id = selDrink, D = DRINK[id];
   if (!P.drinks[id]) {

@@ -100,6 +100,14 @@
 }
 .mm-card:not(.mm-locked):hover .mm-desc { opacity:1;transform:translateY(0); }
 .mm-card.mm-locked { cursor:not-allowed;background:#e0e0e0; }
+#mm-pvp-pick { position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(20,12,40,.6);padding:16px }
+#mm-pvp-pick .pk { background:#2E2346;color:#fff;border-radius:20px;padding:18px;max-width:560px;width:100%;font-family:system-ui,sans-serif;box-shadow:0 14px 40px rgba(0,0,0,.4) }
+#mm-pvp-pick h3 { margin:0 0 12px;font-size:22px }
+#mm-pvp-pick .pkl { display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px }
+#mm-pvp-pick button.pm { display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;font:inherit;color:#fff;background:#4E3A7C;border:2px solid transparent;border-radius:14px;padding:12px;cursor:pointer }
+#mm-pvp-pick button.pm:hover { border-color:#FFE066;transform:translateY(-2px) }
+#mm-pvp-pick button.pm b { font-size:16px } #mm-pvp-pick button.pm span { font-size:12px;opacity:.8 } #mm-pvp-pick .ic { font-size:30px }
+#mm-pvp-pick .x { margin-top:12px;background:none;border:0;color:#fff;opacity:.7;cursor:pointer;font:inherit }
 .mm-card.mm-locked .mm-card-img { filter:grayscale(.8) blur(2px) brightness(.6); }
 .mm-card.mm-locked .mm-card-body h2,
 .mm-card.mm-locked .mm-subtitle { color:#888; }
@@ -496,7 +504,7 @@ body.touch #chatbox{bottom:calc(env(safe-area-inset-bottom,0px) + 340px)}
     </div>
   </div>
   <div class="mm-container">
-    <div class="mm-card mm-locked">
+    <div class="mm-card mm-locked" id="mm-pvp">
       <div class="mm-locked-badge">🔒 В РОЗРОБЦІ</div>
       <div class="mm-img-wrap">
         <div class="mm-card-img" style="background-image:url('menu/pvp-bg.jpg')"></div>
@@ -5551,14 +5559,38 @@ function renderQuestPanel() {
   <h3 style="margin-top:16px">Твоя зміна</h3><div class="chips"><span class="chip">Заспокоєно: ${P.calmed}</span><span class="chip">Рейдів пройдено: ${P.bossWins}</span><span class="chip">Відвідувачів у «Гущі»: ${CROWD.length}</span></div>`;
 }
 /* ---------- Пауза (Esc): режими й міні-ігри ---------- */
-const MODES = [];   // аддони додають режими через Addon.mode({ id, ic, n, sub, go, here, leave })
+const MODES = [];   // аддони додають режими через Addon.mode({ id, ic, n, sub, go, here, leave, group }); group: 'pvp' — у кнопці PVP
+const pvpModes = () => MODES.filter(m => m.group === 'pvp');
+/* головне меню: запустити режим одразу після входу в гру */
+let mmGo = null;
+function mmLaunch(fn) {
+  const mm = $('#main-menu'); if (mm) { mm.classList.add('mm-hide'); mm.addEventListener('transitionend', () => mm.remove(), { once: true }); }
+  if (running) fn(); else mmGo = fn;
+}
+/* кнопка PVP у головному меню відкривається, щойно аддон додав PVP-режим */
+function mmPvp() {
+  const c = $('#mm-pvp'); if (!c || !pvpModes().length) return;
+  if (c.classList.contains('mm-locked')) {
+    c.classList.remove('mm-locked'); const b = c.querySelector('.mm-locked-badge'); if (b) b.remove();
+    const d = document.createElement('div'); d.className = 'mm-desc'; c.querySelector('.mm-card-body').appendChild(d);
+    c.addEventListener('click', () => {
+      if ($('#mm-pvp-pick')) return;
+      const o = document.createElement('div'); o.id = 'mm-pvp-pick';
+      o.innerHTML = `<div class="pk"><h3>🥊 PVP — обери режим</h3><div class="pkl">${pvpModes().map(m => `<button class="pm" data-pm="${m.id}"><span class="ic">${m.ic || '🎮'}</span><b>${m.n}</b><span>${m.sub || ''}</span></button>`).join('')}</div><button class="x">✕ Назад</button></div>`;
+      o.addEventListener('click', e => { const b = e.target.closest('[data-pm]'); if (b) { const m = MODES.find(q => q.id === b.dataset.pm); o.remove(); if (m) mmLaunch(() => m.go()); } else if (e.target === o || e.target.closest('.x')) o.remove(); });
+      document.body.appendChild(o);
+    });
+  }
+  c.querySelector('.mm-desc').textContent = pvpModes().map(m => m.n).join(' · ');
+}
 function curMode() { return MODES.find(m => { try { return m.here && m.here(); } catch (e) { return false; } }) || null; }
 function renderPause() {
   const cur = curMode();
   const card = (id, ic, n, sub, on, locked) => `<button class="mode${on ? ' on' : ''}" data-mode="${id}" ${locked ? 'disabled' : ''}><span class="mic">${ic}</span><b>${n}</b><span class="msub">${sub}</span>${on ? '<i>ти тут</i>' : locked ? '<i>🔒 скоро</i>' : ''}</button>`;
   return `<h3>⏸️ Пауза</h3><div class="btns"><button class="btn" data-pause="go">▶ Продовжити</button></div>
     <h3 style="margin-top:14px">🎮 Режими й міні-ігри</h3>
-    <div class="modes">${card('world', '🌍', 'Відкритий світ', 'острови, квести, рейди, «Гуща»', !cur)}${MODES.map(m => card(m.id, m.ic || '🎮', m.n, m.sub || '', cur === m)).join('')}${card('pvp', '🥊', 'PVP', 'Каво-махалово', false, true)}${card('event', '🎪', 'Івент', 'Рейд на Боса', false, true)}</div>
+    <div class="modes">${card('world', '🌍', 'Відкритий світ', 'острови, квести, рейди, «Гуща»', !cur)}${MODES.filter(m => m.group !== 'pvp').map(m => card(m.id, m.ic || '🎮', m.n, m.sub || '', cur === m)).join('')}${pvpModes().length ? '' : card('pvp', '🥊', 'PVP', 'Каво-махалово', false, true)}${card('event', '🎪', 'Івент', 'Рейд на Боса', false, true)}</div>
+    ${pvpModes().length ? `<h3 style="margin-top:14px">🥊 PVP</h3><div class="modes">${pvpModes().map(m => card(m.id, m.ic || '🎮', m.n, m.sub || '', cur === m)).join('')}</div>` : ''}
     <p class="muted" style="font-size:12px;margin-top:8px">Інвентар, монети й прогрес — спільні для всіх режимів.</p>
     <div class="btns" style="margin-top:12px"><button class="btn alt" data-pause="help">❔ Довідка</button><button class="btn alt" data-pause="sound">⚙️ Налаштування</button><button class="btn alt" data-menu="1">🏠 Головне меню</button></div>`;
 }
@@ -7373,7 +7405,7 @@ const Addon = {
   /** Позначити об'єкт, що рухається / змінює колір (інакше оптимізатор «заморозить» його у статиці). */
   dynamic(obj) { ADDONS.dyn.push(obj); return obj; },
   /** Режим / міні-гра в меню паузи (Esc): { id, ic, n, sub, go() — перенести туди, here() — чи гравець зараз там, leave() — вийти (false — лишитись) }. */
-  mode(def) { if (def && def.id && !MODES.some(m => m.id === def.id)) MODES.push(Object.assign({}, def)); },
+  mode(def) { if (def && def.id && !MODES.some(m => m.id === def.id)) { MODES.push(Object.assign({}, def)); if (def.group === 'pvp' && !window.__SIM && typeof mmPvp === 'function') mmPvp(); } },
   /** Сховище аддона в прогресі гравця (зберігається разом з акаунтом). */
   data() { const id = addonRec().id; P.addons = P.addons || {}; return P.addons[id] = P.addons[id] || {}; },
 };
@@ -7468,6 +7500,7 @@ function startGame(fresh) {
   addEventListener('beforeunload', save);
   document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
   addonEmit('start');
+  if (mmGo) { const f = mmGo; mmGo = null; setTimeout(f, 700); }   // режим, обраний у головному меню
 }
 function bootWorld() {
   if (worldReady) return;

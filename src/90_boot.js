@@ -40,6 +40,7 @@ function startGame(fresh) {
   addEventListener('beforeunload', save);
   document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
   addonEmit('start');
+  if (mmGo) { const f = mmGo; mmGo = null; setTimeout(f, 700); }   // режим, обраний у головному меню
 }
 function bootWorld() {
   if (worldReady) return;

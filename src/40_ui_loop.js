@@ -540,14 +540,38 @@ function renderQuestPanel() {
   <h3 style="margin-top:16px">Твоя зміна</h3><div class="chips"><span class="chip">Заспокоєно: ${P.calmed}</span><span class="chip">Рейдів пройдено: ${P.bossWins}</span><span class="chip">Відвідувачів у «Гущі»: ${CROWD.length}</span></div>`;
 }
 /* ---------- Пауза (Esc): режими й міні-ігри ---------- */
-const MODES = [];   // аддони додають режими через Addon.mode({ id, ic, n, sub, go, here, leave })
+const MODES = [];   // аддони додають режими через Addon.mode({ id, ic, n, sub, go, here, leave, group }); group: 'pvp' — у кнопці PVP
+const pvpModes = () => MODES.filter(m => m.group === 'pvp');
+/* головне меню: запустити режим одразу після входу в гру */
+let mmGo = null;
+function mmLaunch(fn) {
+  const mm = $('#main-menu'); if (mm) { mm.classList.add('mm-hide'); mm.addEventListener('transitionend', () => mm.remove(), { once: true }); }
+  if (running) fn(); else mmGo = fn;
+}
+/* кнопка PVP у головному меню відкривається, щойно аддон додав PVP-режим */
+function mmPvp() {
+  const c = $('#mm-pvp'); if (!c || !pvpModes().length) return;
+  if (c.classList.contains('mm-locked')) {
+    c.classList.remove('mm-locked'); const b = c.querySelector('.mm-locked-badge'); if (b) b.remove();
+    const d = document.createElement('div'); d.className = 'mm-desc'; c.querySelector('.mm-card-body').appendChild(d);
+    c.addEventListener('click', () => {
+      if ($('#mm-pvp-pick')) return;
+      const o = document.createElement('div'); o.id = 'mm-pvp-pick';
+      o.innerHTML = `<div class="pk"><h3>🥊 PVP — обери режим</h3><div class="pkl">${pvpModes().map(m => `<button class="pm" data-pm="${m.id}"><span class="ic">${m.ic || '🎮'}</span><b>${m.n}</b><span>${m.sub || ''}</span></button>`).join('')}</div><button class="x">✕ Назад</button></div>`;
+      o.addEventListener('click', e => { const b = e.target.closest('[data-pm]'); if (b) { const m = MODES.find(q => q.id === b.dataset.pm); o.remove(); if (m) mmLaunch(() => m.go()); } else if (e.target === o || e.target.closest('.x')) o.remove(); });
+      document.body.appendChild(o);
+    });
+  }
+  c.querySelector('.mm-desc').textContent = pvpModes().map(m => m.n).join(' · ');
+}
 function curMode() { return MODES.find(m => { try { return m.here && m.here(); } catch (e) { return false; } }) || null; }
 function renderPause() {
   const cur = curMode();
   const card = (id, ic, n, sub, on, locked) => `<button class="mode${on ? ' on' : ''}" data-mode="${id}" ${locked ? 'disabled' : ''}><span class="mic">${ic}</span><b>${n}</b><span class="msub">${sub}</span>${on ? '<i>ти тут</i>' : locked ? '<i>🔒 скоро</i>' : ''}</button>`;
   return `<h3>⏸️ Пауза</h3><div class="btns"><button class="btn" data-pause="go">▶ Продовжити</button></div>
     <h3 style="margin-top:14px">🎮 Режими й міні-ігри</h3>
-    <div class="modes">${card('world', '🌍', 'Відкритий світ', 'острови, квести, рейди, «Гуща»', !cur)}${MODES.map(m => card(m.id, m.ic || '🎮', m.n, m.sub || '', cur === m)).join('')}${card('pvp', '🥊', 'PVP', 'Каво-махалово', false, true)}${card('event', '🎪', 'Івент', 'Рейд на Боса', false, true)}</div>
+    <div class="modes">${card('world', '🌍', 'Відкритий світ', 'острови, квести, рейди, «Гуща»', !cur)}${MODES.filter(m => m.group !== 'pvp').map(m => card(m.id, m.ic || '🎮', m.n, m.sub || '', cur === m)).join('')}${pvpModes().length ? '' : card('pvp', '🥊', 'PVP', 'Каво-махалово', false, true)}${card('event', '🎪', 'Івент', 'Рейд на Боса', false, true)}</div>
+    ${pvpModes().length ? `<h3 style="margin-top:14px">🥊 PVP</h3><div class="modes">${pvpModes().map(m => card(m.id, m.ic || '🎮', m.n, m.sub || '', cur === m)).join('')}</div>` : ''}
     <p class="muted" style="font-size:12px;margin-top:8px">Інвентар, монети й прогрес — спільні для всіх режимів.</p>
     <div class="btns" style="margin-top:12px"><button class="btn alt" data-pause="help">❔ Довідка</button><button class="btn alt" data-pause="sound">⚙️ Налаштування</button><button class="btn alt" data-menu="1">🏠 Головне меню</button></div>`;
 }

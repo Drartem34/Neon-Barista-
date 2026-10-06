@@ -179,6 +179,7 @@ const cellOf = (x, z) => [clamp(Math.floor((x - NAV.x0) / NAV.cell), 0, NAV.nx -
 const navFree = (x, z) => { if (!NAV.block) navBuild(); const [i, j] = cellOf(x, z); return !NAV.block[i + j * NAV.nx]; };
 function route(x, z, tx, tz) {
   if (!NAV.block) navBuild();
+  if (!isFinite(x + z + tx + tz)) return [];
   const [si, sj] = cellOf(x, z), [ti, tj] = cellOf(tx, tz), nx = NAV.nx, start = si + sj * nx, goal = ti + tj * nx;
   const prev = new Int32Array(nx * NAV.nz).fill(-1), q = [start]; prev[start] = start;
   for (let h = 0; h < q.length && prev[goal] < 0; h++) {   // BFS (8 сусідів) — для такої сітки досить
@@ -191,7 +192,7 @@ function route(x, z, tx, tz) {
     }
   }
   if (prev[goal] < 0) return [{ x: tx, z: tz }];
-  const pts = []; for (let c = goal; c !== start; c = prev[c]) pts.push({ x: NAV.x0 + (c % nx + .5) * NAV.cell, z: NAV.z0 + (((c / nx) | 0) + .5) * NAV.cell });
+  const pts = []; for (let c = goal, n = 0; c !== start && n < 4000; c = prev[c], n++) pts.push({ x: NAV.x0 + (c % nx + .5) * NAV.cell, z: NAV.z0 + (((c / nx) | 0) + .5) * NAV.cell });
   pts.reverse(); const out = pts.filter((p, k) => k % 2 === 1 || k === pts.length - 1); if (!out.length) return [{ x: tx, z: tz }]; out[out.length - 1] = { x: tx, z: tz }; return out;
 }
 /* сховки для ботів: поруч із меблями, на вільній клітинці, не в кабінеті боса */
@@ -400,7 +401,7 @@ function hiderBot(e, dt) {
   if (s.mode === 'go') {
     if (!s.spot) {
       const taken = new Set(ST.ro.filter(q => q !== e && AU.bot[q.k] && AU.bot[q.k].spot).map(q => AU.bot[q.k].spot));
-      const free = hideSpots().filter(h => !taken.has(h) && dist2(h.x, h.z, e.x, e.z) < 16);
+      const free = hideSpots().filter(h => !taken.has(h) && dist2(h.x, h.z, e.x, e.z) < 22);
       s.spot = pick(free.length ? free : hideSpots()); goTo(e, s, s.spot.x, s.spot.z);
     }
     if (walk(e, s, dt, 2.9)) { e.p = s.spot.f.t; e.r = s.spot.f.rot; s.mode = 'hide'; checkReady(); pushState(); }
@@ -439,9 +440,9 @@ function bossBot(e, dt) {
     if (tg) { s.tg = tg; if (!s.path.length || dist2(s.path[s.path.length - 1].x, s.path[s.path.length - 1].z, tg.x, tg.z) > .8) goTo(e, s, tg.x, tg.z); }
     else if (s.mode !== 'wander' || !s.path.length) {
       s.mode = 'wander';
-      const f = pick(FURN.filter(q => !inOffice(q.x, q.z) && dist2(q.x, q.z, e.x, e.z) < 12)) || pick(FURN);
-      s.tg = { f: f.i, x: f.x, z: f.z }; const a = Math.random() * 6.28, ext = (f.t === 'sofa' ? 1.1 : FT[f.t].r) + .7;
-      goTo(e, s, f.x + Math.sin(a) * ext, f.z + Math.cos(a) * ext);
+      // обходить меблі (вільні місця біля предметів, під які можна замаскуватись)
+      const hs = hideSpots().filter(h => dist2(h.x, h.z, e.x, e.z) < 12), h = pick(hs.length ? hs : hideSpots());
+      s.tg = { f: h.f.i, x: h.f.x, z: h.f.z }; goTo(e, s, h.x, h.z);
     }
     // «Перевірка»
     if (ST.cd <= 0 && s.mode !== 'chase' && Math.random() < .12) { doCheck(e, e.x, e.z); say(e, 'Перевірка! Хто тут не працює?'); }

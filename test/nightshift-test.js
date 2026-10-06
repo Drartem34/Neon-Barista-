@@ -54,6 +54,8 @@ step(.1); assert(/табельн/.test(w.document.getElementById('ns-goal').text
   N.ST.edoor = 1; ok = reach(); assert(N.BREAKERS.every(b => ok(b)), 'щитову відчинили — рубильники досяжні'); N.ST.edoor = 0; N.grid();
   const near = (p, r) => N.FURN.concat(N.WALLS).some(q => p.x > q.x0 - r && p.x < q.x1 + r && p.z > q.z0 - r && p.z < q.z1 + r);
   const tight = pts.filter(([, p]) => near(p, .38)).map(([n]) => n); assert(!tight.length, 'точки взаємодії не впираються в меблі' + (tight.length ? ': ' + tight.join(', ') : ''));
+  const acts = [['табельний', N.CLOCK], ['вихід', N.EXIT], ['щитова', N.ELEC], ...N.CARD_SPOTS.map(c => [c.n, c]), ...N.NOTE_SPOTS.map(c => [c.n, c]), ...N.CABS.map((c, i) => ['схованка ' + i, c.s]), ...N.BREAKERS.map(c => [c.n, c])];
+  const clash = acts.filter(([, p]) => N.BAT_SPOTS.some(b => Math.hypot(b.x - p.x, b.z - p.z) < 1.8)).map(([n]) => n); assert(!clash.length, 'батарейки не заступають інші дії (F)' + (clash.length ? ': ' + clash.join(', ') : ''));
   // крізь стіну не пройдеш, крізь двері — так
   const walk = (x, z, dx, dz, n) => { T.pl.x = x; T.pl.z = z; N.V.lastP = null; step(.05); for (let k = 0; k < n; k++) { T.pl.x += dx; T.pl.z += dz; step(.02); } return { x: T.pl.x, z: T.pl.z }; };
   let p = walk(100 - 11, 150, 0, -.2, 30); assert(p.z > 150 - 2, `стіна коридору не пускає в опенспейс (${(p.z - 150).toFixed(2)})`);

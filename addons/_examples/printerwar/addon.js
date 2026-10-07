@@ -1018,7 +1018,7 @@ function labels(vh) {
   for (const { r, e } of V.roomLbl) at(e, Dh.cx + (r[1] + r[3]) / 2, 1.6, Dh.cz + (r[2] + r[4]) / 2);
   V.boardLbl.style.visibility = amIn() ? 'hidden' : ''; at(V.boardLbl, Dh.board.x, 2.8, Dh.board.z);
   const voting = ST.ph === 'idle' || ST.ph === 'lobby', cnt = [0, 0, 0]; for (const k in ST.votes) cnt[ST.votes[k]]++;
-  V.padLbl.forEach((e, i) => { e.style.visibility = voting ? '' : 'hidden'; const t = `🗳️ ${VAR[i].fl} · ${VAR[i].n.split('· ')[1]}${cnt[i] ? ` (${cnt[i]})` : ''}${ST.votes[myKey()] === i ? ' ✔' : ''}`; if (e.textContent !== t) e.textContent = t; at(e, Dh.pads[i].x, .9 + (i % 2) * .5, Dh.pads[i].z); });
+  V.padLbl.forEach((e, i) => { e.style.visibility = voting ? '' : 'hidden'; const t = `🗳️ ${VAR[i].fl} · ${VAR[i].n.split('· ')[1]}${cnt[i] ? ` (${cnt[i]})` : ''}${ST.votes[myKey()] === i ? ' ✔' : ''}`; if (e.textContent !== t) e.textContent = t; at(e, Dh.pads[i].x, .9 + i * .55, Dh.pads[i].z); });
   const cur = vh === ST.v && ST.ph === 'fight', P = cur ? prnPos() : prnPos(vh);
   const pt = !cur ? '🖨️ ПРИНТЕР' : ST.ev === 'jam' ? '🖨️ ЗАЖУВАЛО — лагодь (F)' : ST.ev === 'boss' ? '👔 НЕ ПІДХОДЬ!' : ST.owner === '*' ? '⚔️ Тиснява!' : ST.owner ? `🖨️ Друкує: ${nameOf(ST.owner)}` : '🖨️ ПРИНТЕР — стань у коло сам';
   if (V.prnLbl.textContent !== pt) V.prnLbl.textContent = pt; at(V.prnLbl, P.x, 2.4, P.z);
@@ -1113,4 +1113,4 @@ A.tab('printerwar', '🖨️ Принтер', () => {
   else if (a[0] === 'v') { req('vote', { v: +a[1] }); renderPanel(); }
   else { req('join'); closePanel(); }
 });
-if (window.__ADDON_TEST) window.__printer = { ST, AU, V, VAR, get BOARD() { return VAR[lobbyV()].board; }, get PX() { return prnPos().x; }, get PZ() { return prnPos().z; }, ZONE, GOAL, DUR, SWITCH, shove, startEvent, posOf, prnPos, slimeAt, throwStack, toggleBury, req, varAt, navOf, reachable, goPrinter, actIdx, routeAt };
+if (window.__ADDON_TEST) window.__printer = { ST, AU, V, VAR, get BOARD() { return VAR[lobbyV()].board; }, get PX() { return prnPos().x; }, get PZ() { return prnPos().z; }, ZONE, GOAL, DUR, SWITCH, shove, startEvent, posOf, prnPos, slimeAt, throwStack, toggleBury, req, varAt, navOf, reachable, goPrinter, actIdx, routeAt, onEvent };

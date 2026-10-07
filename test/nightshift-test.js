@@ -1,4 +1,5 @@
-// Тест режиму «Нічна зміна» v2 у грі без сервера: три поверхи хмарочоса, голосування, набір режиму, «викрадення», шоти.
+// Тест режиму «Нічна зміна» v2 у грі без сервера: три поверхи хмарочоса, лобі-попап (голос + «Я готовий»), набір режиму, «викрадення»,
+// брикання (F/Пробіл), шоти, лікувальна кава, ліхтарик не світить крізь стіни.
 // Запуск: node test/nightshift-test.js
 const fs = require('fs'), path = require('path');
 const { JSDOM } = require('jsdom');
@@ -27,10 +28,16 @@ const body = () => w.document.querySelector('#pbody');
 const go = (p, dx = 0, dz = 0) => { T.pl.x = p.x + dx; T.pl.z = p.z + dz; N.V.lastP = null; step(.05); };
 const me = () => N.ST.pl.me;
 const hudTxt = () => w.document.getElementById('ns-hud').textContent;
+const lb = () => w.document.getElementById('mlobby');
+const card = i => lb().querySelector(`[data-lv="${i}"]`);
 const startNight = (fi) => {
-  const f = N.FLOORS[N.floorAt(T.pl.x, T.pl.z)] || N.FL; go(f.CLOCK);
-  const it = T.getInteract(); assert(it && /зміну/.test(it.l), 'біля табельного F — «почати нічну зміну»'); it.fn(); step(.1);
-  assert(N.ST.on && (fi == null || N.ST.v === fi), 'ніч почалась' + (fi != null ? ` на «${N.FLOORS[fi].n}»` : '')); N.AU.calm = 0;
+  if (N.floorAt(T.pl.x, T.pl.z) < 0) go(N.FL.SPAWN);
+  N.V.lbHide = false; N.V.lbWait = 0; step(.1);
+  assert(lb() && lb().querySelectorAll('[data-lv]').length === 3, 'у лобі відкрито попап з трьома картками поверхів');
+  if (fi != null) { card(fi).click(); step(.05); }
+  lb().querySelector('.rdy').click(); step(.1);
+  assert(N.ST.on && (fi == null || N.ST.v === fi), '«✅ Я готовий» — ніч почалась' + (fi != null ? ` на «${N.FLOORS[fi].n}»` : ''));
+  assert(!lb(), 'попап лобі закрився, коли почалась зміна'); N.AU.calm = 0;
 };
 const walk = (x, z, dx, dz, n) => { T.pl.x = x; T.pl.z = z; N.V.lastP = null; step(.05); for (let k = 0; k < n; k++) { T.pl.x += dx; T.pl.z += dz; step(.02); } return { x: T.pl.x, z: T.pl.z }; };
 
@@ -40,9 +47,10 @@ assert(N.FLOORS.length === 3 && new Set(N.FLOORS.map(f => f.n)).size === 3, 'т�
 T.startGame(true); T.P.tut = -1; T.pl.hp = 9999; step(.3);
 T.keydown('Escape'); step(.05); body().querySelector('[data-mode="nightshift"]').click(); step(.5);
 assert(Math.hypot(T.pl.x - N.FLOORS[0].SPAWN.x, T.pl.z - N.FLOORS[0].SPAWN.z) < .8 && N.CUR === 0, 'Esc → «Нічна зміна» переносить у хол «Поверх 42» (наступна зміна за замовчуванням)');
-assert(N.goal().id === 'clock' && w.document.getElementById('ns-intro'), 'до старту: інструкція й підказка до табельного');
+assert(N.goal().id === 'lobby' && w.document.getElementById('ns-intro') && lb(), 'до старту: інструкція й попап лобі відкрився сам');
+assert(lb().querySelectorAll('[data-lv]').length === 3 && /addons\/nightshift\/map2\.jpg/.test(lb().innerHTML) && /Поверх 63/.test(lb().textContent) && /Я готовий/.test(lb().textContent), 'у попапі — 3 картки з картинками (map1…3.jpg), назви поверхів і «Я готовий»');
 w.document.querySelector('#ns-intro button').click(); assert(!w.document.getElementById('ns-intro') && T.P.addons.nightshift.intro2 === 1, 'інструкцію закрив — більше не показується');
-step(.1); assert(/табельн/.test(w.document.getElementById('ns-goal').textContent) && /Поверх 42/.test(hudTxt()), 'у HUD назва поверху й рядок «👉 що робити зараз»');
+step(.1); assert(/Я готовий/.test(w.document.getElementById('ns-goal').textContent) && /Поверх 42/.test(hudTxt()), 'у HUD назва поверху й рядок «👉 що робити зараз»');
 assert(!T.MODEBAR, 'до зміни — звичайний хотбар');
 
 /* ---------- 0. Кожен поверх збудований: стіни-статики, вміщається в острів, усе досяжне ---------- */
@@ -53,16 +61,18 @@ N.FLOORS.forEach((f, k) => {
   const st = T.STATICS.filter(o => Math.abs(o.x - f.cx) <= f.hx + .7 && Math.abs(o.z - f.cz) <= f.hz + .7).length;
   assert(st > 150, `${f.n}: стіни й меблі — тверді (статиків: ${st})`);
   assert(f.ROOMS.length >= 14 && f.DOORS.filter(d => d.n).length >= 10 && f.WALLS.some(q => q.glass), `${f.n}: кімнат ${f.ROOMS.length}, табличок ${f.DOORS.filter(d => d.n).length}, є скляні стіни`);
-  assert(f.SVC.length >= 2 && f.VOTE.length === 3 && f.SENS.length >= 2, `${f.n}: куди тягнуть — ${f.SVC.map(q => q.n).join(', ')}; 3 плити голосування; датчики руху`);
+  assert(f.SVC.length >= 2 && f.COFFEE && f.SENS.length >= 2, `${f.n}: куди тягнуть — ${f.SVC.map(q => q.n).join(', ')}; кавомашина; датчики руху`);
+  assert(!f.VOTE && !N.V.places[k].some(q => /^vote|^clock/.test(q.id)) && !/плит/.test(N.goal().txt), `${f.n}: плит голосування більше нема (лише попап)`);
+  assert(N.roomAt(f.COFFEE.x, f.COFFEE.z) && /Кухня/.test(N.roomAt(f.COFFEE.x, f.COFFEE.z).n), `${f.n}: кавомашина — на кухні`);
   const reach = () => { const g = N.grid(), NC = N.NC, seen = new Uint8Array(g.length), s0 = N.cellOf(f.SPAWN.x, f.SPAWN.z), q = [s0]; seen[s0] = 1; for (let h = 0; h < q.length; h++) { const c = q[h], i = c % NC, j = Math.floor(c / NC); for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= NC || jj * NC >= g.length) continue; const n = jj * NC + ii; if (!g[n] && !seen[n]) { seen[n] = 1; q.push(n); } } } return p => seen[N.cellOf(p.x, p.z)] === 1; };
   let ok = reach();
-  const pts = [['табельний', f.CLOCK], ['вихід', f.EXIT], ['щитова', f.ELEC], ...f.VOTE.map((c, i) => ['плита ' + i, c]), ...f.CARD_SPOTS.map(c => ['картка: ' + c.n, c]), ...f.NOTE_SPOTS.map(c => ['стікер: ' + c.n, c]), ...f.ITEMS.map((c, i) => ['предмет ' + i, c]), ...f.CABS.map((c, i) => ['схованка ' + i, c.s]), ...f.WAYS.map((c, i) => ['точка ' + i, c]), ...f.EN_SPAWN.map((c, i) => ['поява ' + i, c]), ...f.SVC.map(c => [c.n, c.p])];
+  const pts = [['табельний', f.CLOCK], ['вихід', f.EXIT], ['щитова', f.ELEC], ['кавомашина', f.COFFEE], ...f.CARD_SPOTS.map(c => ['картка: ' + c.n, c]), ...f.NOTE_SPOTS.map(c => ['стікер: ' + c.n, c]), ...f.ITEMS.map((c, i) => ['предмет ' + i, c]), ...f.CABS.map((c, i) => ['схованка ' + i, c.s]), ...f.WAYS.map((c, i) => ['точка ' + i, c]), ...f.EN_SPAWN.map((c, i) => ['поява ' + i, c]), ...f.SVC.map(c => [c.n, c.p])];
   let bad = pts.filter(([, p]) => !ok(p)).map(([n]) => n); assert(!bad.length, `${f.n}: усі важливі місця досяжні з холу` + (bad.length ? ': ' + bad.join(', ') : ''));
   assert(!ok(f.BREAKERS[0]), `${f.n}: до рубильників без картки не дійти (щитова зачинена)`);
   N.ST.edoor = 1; N.ST.exit = 1; ok = reach(); assert(f.BREAKERS.every(b => ok(b)) && ok({ x: (f.ESC.x0 + f.ESC.x1) / 2, z: (f.ESC.z0 + f.ESC.z1) / 2 }), `${f.n}: щитову й вихід відчинили — рубильники й ${f.exitN} досяжні`); N.ST.edoor = 0; N.ST.exit = 0; N.grid();
   const near = (p, r) => f.FURN.concat(f.WALLS).some(q => p.x > q.x0 - r && p.x < q.x1 + r && p.z > q.z0 - r && p.z < q.z1 + r);
   const tight = pts.filter(([, p]) => near(p, .38)).map(([n]) => n); assert(!tight.length, `${f.n}: точки взаємодії не впираються в меблі` + (tight.length ? ': ' + tight.join(', ') : ''));
-  const acts = [['табельний', f.CLOCK], ['вихід', f.EXIT], ['щитова', f.ELEC], ...f.CARD_SPOTS.map(c => [c.n, c]), ...f.NOTE_SPOTS.map(c => [c.n, c]), ...f.CABS.map((c, i) => ['схованка ' + i, c.s]), ...f.BREAKERS.map(c => [c.n, c]), ...f.SVC.map(c => [c.n, c.p])];
+  const acts = [['кавомашина', f.COFFEE], ['вихід', f.EXIT], ['щитова', f.ELEC], ...f.CARD_SPOTS.map(c => [c.n, c]), ...f.NOTE_SPOTS.map(c => [c.n, c]), ...f.CABS.map((c, i) => ['схованка ' + i, c.s]), ...f.BREAKERS.map(c => [c.n, c]), ...f.SVC.map(c => [c.n, c.p])];
   const clash = acts.filter(([, p]) => f.ITEMS.some(b => Math.hypot(b.x - p.x, b.z - p.z) < 1.5)).map(([n]) => n); assert(!clash.length, `${f.n}: предмети не заступають інші дії (F)` + (clash.length ? ': ' + clash.join(', ') : ''));
   const g = N.grid(); bad = f.WAYS.filter(p => g[N.cellOf(p.x, p.z)]); assert(!bad.length, `${f.n}: точки блукання не в стінах`);
   // скляний фасад: з холу на південь / схід не вийдеш за межі хмарочоса
@@ -93,20 +103,24 @@ N.FLOORS.forEach((f, k) => {
   go(f.SPAWN); step(.1);
 }
 
-/* ---------- 1. Голосування за поверх і старт на НЕ стандартному поверсі ---------- */
+/* ---------- 1. Лобі-попап: голос за поверх, «Сховати» / F, старт на НЕ стандартному поверсі ---------- */
 {
-  for (const k in N.AU.votes) delete N.AU.votes[k]; N.tally(); N.V.myVote = -1;   // (у тесті стін ми наступали на плити)
-  const f = N.FLOORS[0]; go(f.SPAWN); assert(N.ST.nx === 0, 'без голосів наступний — 42');
-  go(f.VOTE[1]); step(.1); assert(N.ST.vt[1] === 1 && N.ST.nx === 1, 'став на плиту 57 — голос зараховано, наступний — 57');
-  let it = (go(f.VOTE[2]), T.getInteract()); assert(it && /Голосувати/.test(it.l), 'на плиті F — «Голосувати»'); step(.1);
-  assert(N.ST.vt[2] === 1 && N.ST.vt[1] === 0 && N.ST.nx === 2, 'перейшов на іншу плиту — голос переїхав (63)');
-  go(f.VOTE[1]); step(.1); assert(N.ST.nx === 1, 'повернувся — знову 57');
+  const f = N.FLOORS[0]; go(f.SPAWN); step(.1); assert(N.ST.nx === 0 && lb() && !N.ST.vt.some(v => v), 'без голосів наступний — 42; попап відкритий');
+  card(1).click(); step(.1);
+  assert(N.ST.vt[1] === 1 && N.ST.nx === 1 && /mine/.test(card(1).className) && /🗳️ 1/.test(card(1).textContent), 'клік по картці «57» — голос зараховано (лічильник 1, картка підсвічена), наступний — 57');
+  assert(/✅|⏳/.test(lb().querySelector('.who').textContent) && /Ти/.test(lb().querySelector('.who').textContent), 'у попапі список гравців з ⏳/✅');
+  card(2).click(); step(.1); assert(N.ST.vt[2] === 1 && N.ST.vt[1] === 0 && N.ST.nx === 2, 'клік по іншій картці — голос переїхав (63)');
+  lb().querySelector('.hide').click(); step(.1);
+  assert(!lb() && /F/.test(w.document.getElementById('ns-goal').textContent), '«Сховати» — попап зник, підказка: F — відкрити знову');
+  let it = T.getInteract(); assert(it && /Лобі/.test(it.l), 'F — «🗳️ Лобі»'); it.fn(); step(.1); assert(lb(), 'F — лобі знову відкрите');
+  T.keydown('Escape'); step(.05); assert(!lb(), 'відкрив меню (Esc) — попап не заважає'); T.closePanel(); step(.1); assert(lb(), 'закрив меню — попап знову тут');
+  card(1).click(); step(.1); assert(N.ST.nx === 1, 'знову 57');
   startNight(1);
   const f1 = N.FLOORS[1];
   assert(N.floorAt(T.pl.x, T.pl.z) === 1 && Math.hypot(T.pl.x - f1.SPAWN.x, T.pl.z - f1.SPAWN.z) < 1.5, 'зміна на 57-му — тебе перенесло в хол «Поверх 57»');
   assert(N.CUR === 1 && N.ST.en.length >= 3 && /Поверх 57/.test(hudTxt()) && /00:0/.test(hudTxt()), `HUD: «${N.FL.n}», годинник 00:00, зомбі: ${N.ST.en.length}`);
   assert(N.ST.en.every(e => N.floorAt(e.x, e.z) === 1), 'зомбі — на тому самому поверсі');
-  assert(T.MODEBAR && T.MODEBAR.slots.map(s => s.ic).join('') === '🔦🧪🔋📻' && w.document.getElementById('weapon').hidden, 'набір режиму замість хотбара: 🔦 🧪 🔋 📻');
+  assert(T.MODEBAR && T.MODEBAR.slots.map(s => s.ic).join('') === '🔦🧪🔋📻☕' && w.document.getElementById('weapon').hidden, 'набір режиму замість хотбара: 🔦 🧪 🔋 📻 ☕');
   N.ST.en.length = 0;
 }
 const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
@@ -163,9 +177,15 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
   const to = F.SVC[z.to].p, d0 = Math.hypot(T.pl.x - to.x, T.pl.z - to.z); step(2);
   const d1 = Math.hypot(T.pl.x - to.x, T.pl.z - to.z);
   assert(d1 < d0 - 1.2 && Math.hypot(T.pl.x - z.x, T.pl.z - z.z) < 1.4, `тебе тягнуть до «${F.SVC[z.to].n}» (${d0.toFixed(1)} → ${d1.toFixed(1)} м), ти — за ним`);
-  assert(/тягнуть/.test(N.goal().txt) && /БРИКАЙСЯ/.test(T.getInteract().l), 'підказка «тебе тягнуть», F — «Брикайся»');
-  for (let k = 0; k < 14 && me().dr; k++) { T.getInteract().fn(); step(.03); }
-  assert(!me().dr && !me().d && z.st === 'flee', 'відбрикався — зомбі відпустив і тікає');
+  const kel = w.document.getElementById('ns-kick');
+  assert(/тягнуть/.test(N.goal().txt) && /ВИРВИСЬ/.test(T.getInteract().l) && kel && kel.style.display !== 'none' && /Тисни F \/ Пробіл/.test(kel.textContent), 'тягнуть: велика шкала «Тисни F / Пробіл!», F — «Вирвись»');
+  T.keydown('Space'); step(1); T.keydown('Space'); step(1);
+  assert(me().dr && me().sg < .25, `рідко тиснеш (1 раз/с) — не вирвешся (${Math.round(me().sg * 100)}%)`);
+  let tm = 0; for (let k = 0; k < 40 && me().dr; k++) { if (k % 2) T.keydown('Space'); else T.getInteract().fn(); step(1 / 7); tm += 1 / 7; }
+  assert(!me().dr && !me().d && tm <= 3, `часто тиснеш F і Пробіл (7 разів/с) — вирвався за ${tm.toFixed(1)} с`);
+  assert(z.st === 'stun' && me().g > 1 && kel.style.display === 'none', 'зомбі оглушений, у тебе кілька секунд «пільги»; шкала зникла');
+  const zx = z.x; step(1); assert(z.st === 'stun' && Math.abs(z.x - zx) < .01 && !me().dr, 'оглушений зомбі стоїть і не хапає');
+  step(1.3); assert(z.st === 'flee', "~2 с — оговтався й тікає");
   // знову схопили — шот під ноги: кидає здобич
   N.ST.en.length = 0; me().g = 0; me().l = 0; go(P0); const z2 = N.addEnemy(0, { x: P0.x + 1.5, z: P0.z });
   for (let k = 0; k < 30 && !me().dr; k++) step(.1);
@@ -184,8 +204,7 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
 }
 /* ---------- 6. Повна втеча на 57-му: схованка, картка → стікер → щитова → рубильники → пожежні сходи ---------- */
 {
-  go(F.SPAWN); go(F.VOTE[1]); step(.1); assert(N.ST.nx === 1, 'проголосував за 57 ще раз');
-  startNight(1); N.ST.en.length = 0;
+  startNight(1);   // (проголосував за 57 ще раз у попапі) N.ST.en.length = 0;
   const c = F.CABS[0]; go(c.s);
   let it = T.getInteract(); assert(it && /Сховатися/.test(it.l), 'біля шафи F — «Сховатися в шафі»'); it.fn(); step(.1);
   assert(me().h === 1, 'сховався в шафі');
@@ -231,9 +250,41 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
 /* ---------- 8. Лякалки, посилка з ліфта, датчики руху й прибиральник (на 42-му) ---------- */
 {
   assert(N.ST.nx === 0, 'по колу — знову 42');
-  startNight(0); const f = N.FLOORS[0]; quiet = false; N.ST.en.length = 0;
+  startNight(0); const f = N.FLOORS[0]; N.ST.en.length = 0;
+  // ☕ лікувальна кава
+  assert((me().cf | 0) === 0 && T.MODEBAR.slots[4].count() === 0, 'кави на початку нема (☕ 0)');
+  go(f.COFFEE); let it = T.getInteract(); assert(it && /Зварити лікувальну каву/.test(it.l), 'на кухні біля кавомашини F — «Зварити лікувальну каву»');
+  it.fn(); step(1); assert((me().cf | 0) === 0 && N.V.act && N.V.act.what === 'brew' && N.AU.brew.me > 0, 'вариться (кавомашина гуде — шум для прибиральника)');
+  step(2.4); assert(me().cf === 1, "за 3 с — ☕ 1");
+  T.getInteract().fn(); step(3.4); assert(me().cf === 2 && T.MODEBAR.slots[4].count() === 2, '☕ 2 — лічильник у наборі режиму');
+  it = T.getInteract(); assert(it && /вдосталь/.test(it.l), 'більше двох не звариш');
+  T.pl.hp = 10; go({ x: f.cx - 9, z: f.cz }); T.keydown('Digit5'); step(.1); assert(me().cf === 1 && T.pl.hp > 10, `5 — випив: здоров'я ${T.pl.hp}`);
+  me().d = 1; me().l = 0; step(.5); assert(N.ST.on && /5/.test(N.goal().txt) && /кави/.test(T.getInteract().l), 'лежиш, але є ☕ — зміна триває, підказка «5 — підведись сам»');
+  T.keydown('Digit5'); step(.1); assert(!me().d && me().cf === 0 && me().g > 0, 'ковтнув кави — підвівся сам');
+  me().cf = 1; N.ST.pl['Кент'] = { b: 50, l: 0, d: 1, h: 0, a: 0, g: 0, dr: 0, tk: 0, sh: 0, bs: 0, sg: 0, rt: 0, cf: 0 };
+  N.onReq({ k: 'coffee', who: 'Кент' }, { id: 0, name: 'me' }); assert(!N.ST.pl['Кент'].d && me().cf === 0, 'кент лежить поруч — напоїв його кавою, підвівся');
+  delete N.ST.pl['Кент'];
+  // 🔦 ліхтарик не світить крізь стіни (скло — пропускає)
+  {
+    const P1 = { x: f.cx - 11.5, z: f.cz }, Z1 = { x: f.cx - 11.5, z: f.cz - 4 };   // коридор → опенспейс за глухою стіною
+    go(P1); T.pl.face = Math.PI; step(.05); me().l = 1; me().b = 100;
+    assert(!N.inBeam(P1.x, P1.z, Math.PI, Z1.x, Z1.z), 'точка за глухою стіною не в промені');
+    const rays = N.coneRays(P1.x, P1.z, Math.PI), mid = rays[Math.floor(rays.length / 2)];
+    assert(mid.l < 2.5 && rays.every(r => r.l <= 10.6), `конус темряви обрізано стіною (центральний промінь ${mid.l.toFixed(2)} м замість 10.5)`);
+    const z = N.addEnemy(0, Z1); step(.1); const v = N.V.en.get(z.id); delete v.litAt;
+    assert(z.lit === 0 && N.litBy(z) === '' && (!N.outlineOf(v) || N.outlineOf(v).k !== 'lit'), 'зомбі за стіною: сервер не вважає його освітленим, контур не підсвічується');
+    N.ST.en.length = 0; step(.05);
+    const P2 = { x: f.cx + 4, z: f.cz }, Z2 = { x: f.cx + 4, z: f.cz - 4 };   // коридор → переговорна за склом
+    go(P2); T.pl.face = Math.PI; step(.05);
+    assert(N.inBeam(P2.x, P2.z, Math.PI, Z2.x, Z2.z) && N.coneRays(P2.x, P2.z, Math.PI)[12].l > 9, 'крізь скляну стіну переговорної світить');
+    const z2 = N.addEnemy(0, Z2); step(.2); const v2 = N.V.en.get(z2.id);
+    assert(z2.lit === 1 && N.litBy(z2) === 'me' && N.outlineOf(v2).k === 'lit', 'зомбі за склом — освітлений і завмер, контур світиться');
+    N.ST.en.length = 0; step(.05);
+  }
+  quiet = false;
+  it = null;
   N.AU.scareT = 0; step(.1); assert(N.AU.scareT > 5, 'лякалка спрацювала (монітор / принтер / телефон / ліфт)');
-  N.ST.gift = [0, 'shot']; const sh = me().sh; go(f.SVC[0].p); let it = T.getInteract(); assert(it && /посилку/.test(it.l), 'ліфт привіз посилку — F «Забрати»'); it.fn(); step(.05);
+  N.ST.gift = [0, 'shot']; const sh = me().sh; go(f.SVC[0].p); it = T.getInteract(); assert(it && /посилку/.test(it.l), 'ліфт привіз посилку — F «Забрати»'); it.fn(); step(.05);
   assert(me().sh === sh + 2 && !N.ST.gift, 'у посилці 🧪🧪');
   // датчик руху в коридорі: рух — світло, зомбі під ним завмирає
   N.AU.ms.fill(0); N.ST.ms.fill(0); const zs = N.addEnemy(0, { x: f.cx - 6, z: f.cz + .5 }); go({ x: f.cx - 10, z: f.cz }); T.keydown('KeyL'); step(.05);
@@ -259,4 +310,5 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
   far.x = T.pl.x - bx * 6; far.z = T.pl.z - bz * 6; const g1 = NS.outlineOf(far);   // перед гравцем — у промені ліхтарика assert(g1 && g1.k === 'lit' && g1.a > .9, 'посвітив ліхтарем — контур яскраво світиться');
   far.x = T.pl.x + bx * 8; far.z = T.pl.z + bz * 8; step(NS.GLOW_T - 1); assert(NS.outlineOf(far) && NS.outlineOf(far).k === 'lit', 'контур ще світиться кілька секунд після ліхтаря');
   step(2); assert(!NS.outlineOf(far), 'через ~3 с контур згасає'); }
+step(4); assert(!lb() && !w.document.getElementById('mlobby'), 'пішов з режиму — попап лобі закритий і сам не відкривається');
 console.log('ALL OK'); process.exit(0);

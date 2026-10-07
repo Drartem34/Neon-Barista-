@@ -1262,7 +1262,7 @@ function updSpot(here) {
 
 /* ---------- Темрява: на поверсі — майже чорно (лише ліхтарики, шоти, датчики); за склом видно нічне місто ---------- */
 function darkness() {
-  if (!V.dark) { V.dark = document.createElement('canvas'); V.dark.id = 'ns-dark'; V.dark.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;transition:opacity .5s'; document.body.appendChild(V.dark); }
+  if (!V.dark) { V.dark = document.createElement('canvas'); V.dark.id = 'ns-dark'; V.dark.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity .5s'; const hd = document.getElementById('hud'); if (hd && hd.parentNode) hd.parentNode.insertBefore(V.dark, hd); else document.body.appendChild(V.dark); }   // під HUD: темно на поверсі, але кнопки й набір видно
   const on = running && ST.on && inIsl(pl.x, pl.z) && !panel;
   V.dark.style.opacity = on ? 1 : 0; V.dark.style.display = on ? '' : 'none';
   if (!on) return;
@@ -1461,9 +1461,9 @@ function guide() {
   const pos = (el, x, y, z) => { const q = screenPos(x, y, z); el.style.display = q.vis ? '' : 'none'; el.style.transform = `translate(${Math.round(q.x)}px,${Math.round(q.y)}px) translate(-50%,-100%)`; };
   const s = mySt(), lightOn = s && s.l && s.b > 0 && !s.d && !s.h;
   const seen = o => { const dd = dist2(pl.x, pl.z, o.x, o.z); if (!ST.on || ST.power || dd < 4) return true; if (lzAt(o.x, o.z)) return true; return lightOn && dd < LIGHT_R && Math.abs(wrapA(Math.atan2(o.x - pl.x, o.z - pl.z) - V.fa)) < LIGHT_A + .2 && los(pl.x, pl.z, o.x, o.z); };
-  // назви кімнат: видно при світлі, у самій кімнаті або коли туди світиш
+  // назви кімнат: видно при світлі або коли туди світиш; назва кімнати, де стоїш, ховається (плавно, .2 с)
   const myRoom = roomAt(pl.x, pl.z);
-  V.roomsL.forEach((rs, k) => { for (const q of rs) { const on = k === CUR && (!ST.on || ST.power || q.r === myRoom || seen(q.c)); q.e.style.opacity = on ? 1 : 0; if (on) pos(q.e, q.c.x, 1.5, q.c.z); } });
+  V.roomsL.forEach((rs, k) => { for (const q of rs) { const on = k === CUR && q.r !== myRoom && (!ST.on || ST.power || seen(q.c)); q.e.style.opacity = on ? 1 : 0; if (on) pos(q.e, q.c.x, 1.5, q.c.z); } });
   V.places.forEach((ps, k) => { for (const P of ps) {
     const on = k === CUR && (!P.on || P.on()) && P.id !== g.id && (P.always || seen(P.p));
     P.el.style.opacity = on ? 1 : 0;

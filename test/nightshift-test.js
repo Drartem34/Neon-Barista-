@@ -81,6 +81,18 @@ N.FLOORS.forEach((f, k) => {
   assert(N.FLOORS[2].FURN_L.filter(q => q[0] === 'stack').length >= 8, '63: архів-лабіринт стелажів');
 }
 
+/* ---------- 0б. Назва кімнати, в якій стоїш, ховається; інші — видно ---------- */
+{
+  const f = N.FLOORS[0], rs = N.V.roomsL[0], A0 = rs[0], B0 = rs.find(q => q !== A0 && q.r.n !== A0.r.n);
+  const inR = q => ({ x: f.cx + (q.r.x0 + q.r.x1) / 2, z: f.cz + (q.r.z0 + q.r.z1) / 2 });
+  go(inR(A0)); step(.1);
+  assert(A0.e.style.opacity === '0' && B0.e.style.opacity === '1', `зайшов у «${A0.r.n}» — її назва зникла, «${B0.r.n}» видно`);
+  assert(/opacity \.2s/.test(w.document.head.innerHTML), 'зникає плавно (opacity .2 с)');
+  go(inR(B0)); step(.1);
+  assert(A0.e.style.opacity === '1' && B0.e.style.opacity === '0', `перейшов у «${B0.r.n}» — назва «${A0.r.n}» повернулась, а «${B0.r.n}» сховалась`);
+  go(f.SPAWN); step(.1);
+}
+
 /* ---------- 1. Голосування за поверх і старт на НЕ стандартному поверсі ---------- */
 {
   for (const k in N.AU.votes) delete N.AU.votes[k]; N.tally(); N.V.myVote = -1;   // (у тесті стін ми наступали на плити)

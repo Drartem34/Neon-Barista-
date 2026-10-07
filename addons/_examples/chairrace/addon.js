@@ -18,7 +18,7 @@ const inR = (R, x, z, m = 0) => x > R.x0 + m && x < R.x1 - m && z > R.z0 + m && 
 const angD = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
 /* ---------- Три поверхи (локальні координати від центру; лобі — смуга на півночі, за склом) ---------- */
-// furn: [тип, x, z, поворот]; ow: стіни кабінетів {x1,z1,x2,z2,doors,glass}; floors: [x0,z0,x1,z1,колір,(плитка)]
+// rooms: {n, x, z — табличка, b: [x0,z0,x1,z1] — прямокутник кімнати}; furn: [тип, x, z, поворот]; ow: стіни кабінетів {x1,z1,x2,z2,doors,glass}; floors: [x0,z0,x1,z1,колір,(плитка)]
 const VARS = [
   {
     id: 'chairrace', n: 'Поверх 42 · Коридори', sub: 'класичне коло коридорами між кабінетами', cx: 300, cz: -300,
@@ -30,8 +30,8 @@ const VARS = [
       { x1: -19, z1: 3.5, x2: -1, z2: 3.5, doors: [-14, -5], glass: 1 }, { x1: -10, z1: 3.5, x2: -10, z2: 11, doors: [7], glass: 1 },
       { x1: -1, z1: -11, x2: -1, z2: -5, doors: [-8] }, { x1: 9, z1: -11, x2: 9, z2: -5, doors: [-8] }, { x1: 15, z1: 1, x2: 15, z2: 18, doors: [9] },
     ],
-    rooms: [{ n: '💻 Опенспейс', x: -10, z: -4 }, { n: '📊 Переговорна', x: -14.5, z: 9.6 }, { n: '👔 Кабінет боса', x: -5.5, z: 10.4 }, { n: '🛋️ Лаунж', x: 4, z: -10.6 },
-      { n: '☕ Кухня', x: 14, z: -6 }, { n: '📦 Склад', x: 10, z: 16 }, { n: '🖥️ Серверна', x: 20.5, z: 16 }],
+    rooms: [{ n: '💻 Опенспейс', x: -10, z: -4, b: [-19, -11, -1, 3.5] }, { n: '📊 Переговорна', x: -14.5, z: 9.6, b: [-19, 3.5, -10, 11] }, { n: '👔 Кабінет боса', x: -5.5, z: 10.4, b: [-10, 3.5, -1, 11] }, { n: '🛋️ Лаунж', x: 4, z: -10.6, b: [-1, -11, 9, -5] },
+      { n: '☕ Кухня', x: 14, z: -6, b: [9, -11, 19, -5] }, { n: '📦 Склад', x: 10, z: 16, b: [5, 1, 15, 18] }, { n: '🖥️ Серверна', x: 20.5, z: 16, b: [15, 1, 26, 18] }],
     floors: [[-19, -11, -1, 3.5, '#6E7FC8'], [-19, 3.5, -10, 11, '#7E6FB8'], [-10, 3.5, -1, 11, '#8C5A3C'], [-1, -11, 9, -5, '#C4956A'], [5, 1, 15, 18, '#B8BECC'], [15, 1, 26, 18, '#3E3A5C'], [9, -11, 19, -5, '#FFFFFF', '#DCD6EA']],
     crates: [[12, 5.5], [12.5, 10.5], [7, 15.5]],
     furn() {
@@ -55,7 +55,7 @@ const VARS = [
     items: [.1, .43, .6, .72], boosts: [.18, .55, .97], zomb: [{ f: .05, sp: .6 }, { f: .5, sp: .7 }, { f: .66, sp: .55 }, { f: .29, sp: .4, mop: 1 }],
     puddles: [{ f: .27, o: .6 }, { f: .8, o: -.8 }],
     ow: [{ x1: 14, z1: 3, x2: 14, z2: 18, doors: [10], glass: 1 }],
-    rooms: [{ n: '🌳 Скляний атріум', x: -14, z: -14.5 }, { n: '📚 Бібліотека', x: -10, z: 9.8 }, { n: '😴 Кімната сну', x: 10, z: -10.2 }, { n: '🏋️ Спортзал', x: 8.5, z: 16 }, { n: '🎨 Креативна агенція', x: 20, z: 16.4 }],
+    rooms: [{ n: '🌳 Скляний атріум', x: -14, z: -14.5, b: [-26, -17.2, -3, -3] }, { n: '📚 Бібліотека', x: -10, z: 9.8, b: [-17, 3, -3, 11] }, { n: '😴 Кімната сну', x: 10, z: -10.2, b: [3, -11, 17, -3] }, { n: '🏋️ Спортзал', x: 8.5, z: 16, b: [3, 3, 14, 18] }, { n: '🎨 Креативна агенція', x: 20, z: 16.4, b: [14, 3, 26, 18] }],
     floors: [[-26, -17.2, -3, -3, '#F4F1EA', '#E8E2D6'], [-17, 3, -3, 11, '#8C5A3C'], [3, -11, 17, -3, '#7E6FB8'], [3, 3, 14, 18, '#3E3A5C'], [14, 3, 26, 18, '#FFD6A8']],
     crates: [],
     furn() {
@@ -84,7 +84,7 @@ const VARS = [
     puddles: [{ x: 10, z: -9 }, { f: .5, o: .7 }, { f: .93, o: -.6 }],
     sc: { x0: 7.6, x1: 12.4, z0: -15, z1: -5, a: [10, -15], b: [10, -5] },
     ow: [],
-    rooms: [{ n: '☎️ Колл-центр «Алло»', x: -6, z: -10 }, { n: '📈 Відділ продажів', x: 6, z: 0 }, { n: '🖨️ Друкарня', x: -19, z: 0 }, { n: '📦 Склад', x: 3, z: 10 }, { n: '🚒 Пожежні двері', x: 10, z: -8.8 }],
+    rooms: [{ n: '☎️ Колл-центр «Алло»', x: -6, z: -10, b: [-21, -12, 21, -8] }, { n: '📈 Відділ продажів', x: 6, z: 0, b: [-11, -2, 21, 2] }, { n: '🖨️ Друкарня', x: -19, z: 0, b: [-21, -12, -17, 12] }, { n: '📦 Склад', x: 3, z: 10, b: [-21, 8, 21, 12] }, { n: '🚒 Пожежні двері', x: 10, z: -8.8, b: [7.6, -12, 12.4, -8] }],
     floors: [[-21, -12, 21, -8, '#4E3A7C'], [-11, -2, 21, 2, '#5A6BB5'], [-21, -12, -17, 12, '#C9CDD9', '#B8BECC'], [-21, 8, 21, 12, '#8E86B0'], [7.6, -12, 12.4, -8, '#FFE066']],
     crates: [[-10.5, 9.4], [-.5, 10.5], [18.6, 9.6]],
     furn() {
@@ -968,7 +968,7 @@ function clientTick(dt) {
   for (const tp of ST.traps) if (!V.traps.has(tp.id)) { const m = mesh(new THREE.BoxGeometry(.8, .06, .6), '#FFB347', false); m.position.set(tp.x, .07, tp.z); m.rotation.y = rand(0, 3); scene.add(m); V.traps.set(tp.id, m); }
   for (const [id, m] of V.traps) if (!tids.has(id)) { scene.remove(m); V.traps.delete(id); }
   if (ST.ph !== V.lastPh) { if (ST.ph === 'count' && here) banner(`3… 2… 1… «${VV.n}»`); V.lastPh = ST.ph; }
-  hud(fl); labels(here, fl);
+  hud(fl); labels(here, fl, dt);
 }
 /* камера летить за кріслом трохи попереду */
 const _cT = SIMSIDE ? null : new THREE.Vector3(), _cL = SIMSIDE ? null : new THREE.Vector3();
@@ -1063,7 +1063,8 @@ function hud(fl) {
 }
 function tagEl(css, txt) { const e = document.createElement('div'); e.style.cssText = 'position:absolute;left:0;top:0;white-space:nowrap;' + css; e.innerHTML = txt; V.lbl.appendChild(e); return e; }
 function place(e, x, y, z) { const q = screenPos(x, y, z); e.style.display = q.vis ? '' : 'none'; if (q.vis) e.style.transform = `translate(${Math.round(q.x)}px,${Math.round(q.y)}px) translate(-50%,-100%)`; }
-function labels(here, fl) {
+const inRoom = (VR, r, x, z) => !!r.b && x > VR.cx + r.b[0] && x < VR.cx + r.b[2] && z > VR.cz + r.b[1] && z < VR.cz + r.b[3];
+function labels(here, fl, dt) {
   if (!V.lbl) {
     V.lbl = document.createElement('div'); V.lbl.style.cssText = 'position:fixed;inset:0;z-index:2;pointer-events:none'; document.body.appendChild(V.lbl);
     V.startLbl = tagEl('padding:4px 10px;border-radius:10px;background:#FFE066;color:#2E2346;font:800 14px system-ui,sans-serif', '🏁 СТАРТ — записатися (F)');
@@ -1071,7 +1072,13 @@ function labels(here, fl) {
     V.padLbl = [0, 1, 2].map(() => tagEl('padding:3px 9px;border-radius:10px;background:rgba(46,35,70,.85);color:#fff;font:700 12px/1.3 system-ui,sans-serif;text-align:center', ''));
   }
   V.lbl.style.display = here && !panel ? '' : 'none'; if (!here) return;
-  V.rooms.forEach((list, vi) => list.forEach(({ r, VR, e }) => { if (vi !== fl) { e.style.display = 'none'; return; } place(e, VR.cx + r.x, 1.6, VR.cz + r.z); }));
+  // табличка кімнати, в якій ти зараз, плавно зникає (~0.2 с), щоб не заважала; решта видно
+  const fdt = Math.min(.1, dt || 0);
+  V.rooms.forEach((list, vi) => list.forEach(o => {
+    const { r, VR, e } = o; if (vi !== fl) { e.style.display = 'none'; return; }
+    const tgt = inRoom(VR, r, pl.x, pl.z) ? 0 : 1; o.op = o.op == null ? tgt : tgt > o.op ? Math.min(tgt, o.op + fdt * 5) : Math.max(tgt, o.op - fdt * 5);
+    e.style.opacity = o.op.toFixed(2); place(e, VR.cx + r.x, 1.6, VR.cz + r.z); if (o.op <= 0) e.style.display = 'none';
+  }));
   const S = VARS[fl].START; place(V.startLbl, S.x, 2, S.z); if (RC.on) V.startLbl.style.display = 'none';
   const voting = !RC.on && (ST.ph === 'idle' || ST.ph === 'lobby'), c = voteCounts(), mine = ST.votes[myKey()];
   V.padLbl.forEach((e, i) => {
@@ -1159,5 +1166,5 @@ A.tab('chairrace', '🪑 Гонки', () => {
 });
 if (window.__ADDON_TEST) window.__race = {
   ST, AU, RC, V, VARS, get VV() { return VV; }, get TR() { return TR; }, get N() { return N; }, GRID: k => GRID(k), get START() { return VV.START; }, get ITEM_SPOTS() { return VV.ITEMS; }, get BOOSTS() { return VV.BOOSTS; }, get ZOMBIES() { return VV.ZOMB; },
-  zombiePos, ranking, useItem, throwBomb, shootPlunger, nearIdx, posOf, doorOpen, floorAt, useVar, req,
+  inRoom, zombiePos, ranking, useItem, throwBomb, shootPlunger, nearIdx, posOf, doorOpen, floorAt, useVar, req,
 };

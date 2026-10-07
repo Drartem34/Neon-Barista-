@@ -46,6 +46,15 @@ assert(/🥊 PVP/.test(body().textContent) && body().querySelector('[data-mode="
 body().querySelector('[data-mode="chairrace"]').click(); step(.6);
 assert(Math.hypot(T.pl.x - R.START.x, T.pl.z - R.START.z) < 2.2 && R.floorAt(T.pl.x, T.pl.z) === 0, 'переніс у ліфтовий хол поверху 42 до старту');
 assert($('#cr-intro'), 'картка «як грати» з’явилась'); $('#cr-intro button').click(); assert(!$('#cr-intro'), 'картку закрито');
+// таблички кімнат: тієї, де стоїш, — плавно зникає; решта видно; виходиш — повертається
+{ const sx = T.pl.x, sz = T.pl.z, L = R.V.rooms[0], os = L.find(o => /Опенспейс/.test(o.r.n)), others = L.filter(o => o !== os), V0 = R.VARS[0];
+  const vis = o => o.e.style.display !== 'none' && +o.e.style.opacity > .95;
+  assert(L.every(o => o.r.b) && R.VARS.every(V => V.rooms.every(r => R.inRoom(V, r, V.cx + (r.b[0] + r.b[2]) / 2, V.cz + (r.b[1] + r.b[3]) / 2))), 'у кожної кімнати є прямокутник');
+  assert(os && vis(os), 'у ліфтовому холі табличка «Опенспейс» видна');
+  T.pl.x = V0.cx - 13; T.pl.z = V0.cz - 4.5; step(.05); const mid = +os.e.style.opacity;
+  step(.3); assert(R.inRoom(V0, os.r, T.pl.x, T.pl.z) && mid > 0 && mid < 1 && +os.e.style.opacity === 0 && os.e.style.display === 'none', `зайшов в опенспейс — табличка плавно зникла (${mid} → 0)`);
+  assert(others.filter(o => !R.inRoom(V0, o.r, T.pl.x, T.pl.z)).every(o => +o.e.style.opacity > .95), 'таблички інших кімнат лишились');
+  T.pl.x = sx; T.pl.z = sz; step(.4); assert(vis(os), 'вийшов — табличка повернулась'); }
 // стіна лобі (скло) не пускає на трасу пішки
 { const sx = T.pl.x, sz = T.pl.z; T.input.jx = 0; T.input.jz = 1; step(2); T.input.jz = 0; assert(T.pl.z < R.VARS[0].BB.z0 - .2, 'скляна стіна лобі не пускає на трасу пішки'); T.pl.x = sx; T.pl.z = sz; step(.1); }
 // голосування: стаю на майданчик №3

@@ -56,6 +56,21 @@ at({ x: F.L.x - 10, z: F.L.z - 1.5 }); step(.1); for (let k = 0; k < 20; k++) { 
 assert(T.pl.z > F.L.z - 3 - .2, 'стіна коридору не пускає крізь себе');
 at({ x: F.L.x + 18.5, z: F.L.z }); step(.1); for (let k = 0; k < 30; k++) { T.pl.x += .15; step(.02); }
 assert(T.pl.x < F.L.x + 20 && T.terrainAt(T.pl.x, T.pl.z) === 'land', 'скло фасаду не дає випасти з хмарочоса');
+// назва кімнати ховається, поки стоїш у ній (інші — видно), і повертається, коли виходиш
+{
+  const RL = F.V.rl, of = (vi, n) => RL.filter(e => e.vi === vi && e.n === n);
+  assert(F.LAY.every((q, i) => RL.some(e => e.vi === i)), `таблички кімнат зареєстровані на всіх поверхах (${RL.length})`);
+  const kit = of(0, 'КУХНЯ'), srv = of(0, 'СЕРВЕРНА');
+  assert(kit.length && srv.length && kit.concat(srv).every(e => e.m.visible && e.m.material.opacity > .5), 'спершу видно «КУХНЯ» і «СЕРВЕРНА»');
+  at({ x: F.L.x + 9, z: F.L.z + 5 }); step(.06);
+  assert(F.V.inRoom && F.V.inRoom.n === 'КУХНЯ' && kit.every(e => e.m.material.opacity > 0 && e.m.material.opacity < e.o), 'зайшов на кухню — табличка гасне плавно');
+  step(.3);
+  assert(kit.every(e => !e.m.visible && e.m.material.opacity < .01) && srv.every(e => e.m.visible && e.m.material.opacity === e.o), 'на кухні «КУХНЯ» сховано, «СЕРВЕРНА» видно');
+  at({ x: F.L.x, z: F.L.z - 8 }); step(.35);
+  assert(kit.every(e => e.m.visible && Math.abs(e.m.material.opacity - e.o) < 1e-6) && srv.every(e => !e.m.visible), 'перейшов у серверну — «КУХНЯ» знову видно, «СЕРВЕРНА» сховано');
+  at(F.START.p); step(.35);
+  assert(RL.filter(e => e.vi === 0 && e.n !== 'РЕСЕПШН').every(e => e.m.visible), 'на ресепшні видно всі інші таблички');
+}
 
 const seen = []; let jamT = 0, boomT = 0, excelT = 0;
 /* проходимо ланцюжок, слухаючись лише підказки */

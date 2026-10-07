@@ -32,7 +32,7 @@ const floorOf = (x, z) => { for (let i = 0; i < LAY.length; i++) if (dist2(x, z,
 const st = (ox, oz, px, pz, r) => ({ o: W(ox, oz), p: W(px, pz), r, l: { x: ox, z: oz }, pl: { x: px, z: pz } });
 const V = { lbl: null, glbl: null, gArrow: null, gMark: null, goal: null, hud: null, list: null, goalEl: null, act: null, joined: false, auto: false, dark: null, music: -1,
   hm: new Map(), zm: new Map(), fm: new Map(), cols: [], boss: null, clock: null, clockK: 1, prLight: null, srvLight: null, fan: null, recep: null, acc: null, built: [],
-  plg: [], plCd: 0, cof: 3, dashT: 0, rid: -1, barOn: false, flyM: null, caps: [], tpT: 0, chewT: 0, padEl: [], sendT: 0, vote: -1 };
+  plg: [], plCd: 0, cof: 3, dashT: 0, rid: -1, barOn: false, flyM: null, caps: [], tpT: 0, chewT: 0, padEl: [], sendT: 0, vote: -1, rl: [], inRoom: null };
 
 /* ---------- Стіни й тверді меблі (для поверху, що зараз будується) ---------- */
 function wall(ax, az, bx, bz, doors, kind) {
@@ -428,6 +428,7 @@ function makeKit(g) {
     sign(txt, col, x, z, w, y = 1.85, ry = 0) {
       if (!g) return null; w = w || Math.max(1.6, txt.length * .19 + .5);
       const n = neonSign(txt, col, w, .48); n.position.set(OX + x, y, OZ + z); n.rotation.y = ry; scene.add(A.dynamic(n));
+      roomLbl(txt, n);
       if (y < 2.4 && !ry) for (const sx of [-w / 2 + .15, w / 2 - .15]) K.box(x + sx, y - .4, z - .02, .05, .5, .05, '#4E4A6E');
       return n;
     },
@@ -436,6 +437,7 @@ function makeKit(g) {
       if (x2 && x2.fillText) { x2.font = 'bold 60px sans-serif'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.lineWidth = 10; x2.strokeStyle = 'rgba(46,35,70,.55)'; x2.strokeText(txt, 256, 50); x2.fillStyle = col; x2.fillText(txt, 256, 50); }
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 96 / 512), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: .85, depthWrite: false }));
       m.rotation.x = -Math.PI / 2; m.position.set(OX + x, .075, OZ + z); m.renderOrder = 1; scene.add(A.dynamic(m));
+      roomLbl(txt, m);
     },
     person(x, z, ry, skin, shirt, seated) {
       if (!g) return null; const h = buildOffice(skin, shirt);
@@ -1440,6 +1442,22 @@ function toLobby(msg) {
   camPos.set(pl.x, 20, pl.z + 15); camLook.set(pl.x, .5, pl.z); if (msg) toast(msg);
 }
 
+/* ---------- Назви кімнат ховаються, поки ти всередині цієї кімнати (плавно, ~0,2 с) ---------- */
+// V.rl: { vi, n, m, o } — табличка/напис на підлозі, що належить кімнаті з назвою n на поверсі vi
+function roomLbl(txt, m) { if (L && L.rooms.some(r => r.n === txt)) V.rl.push({ vi: L.vi, n: txt, m, o: m.material.opacity, k: 1 }); }
+function roomAt(x, z) {
+  const f = floorOf(x, z); if (f < 0) return null; const Q = LAY[f], lx = x - Q.x, lz = z - Q.z;
+  const r = Q.rooms.find(r => lx > r.x0 && lx < r.x1 && lz > r.z0 && lz < r.z1); return r ? { vi: f, n: r.n } : null;
+}
+function roomLabels(dt) {
+  const here = running && !pl.dead ? roomAt(pl.x, pl.z) : null; V.inRoom = here;
+  for (const e of V.rl) {
+    const tg = here && e.vi === here.vi && e.n === here.n ? 0 : 1;
+    e.k = tg > e.k ? Math.min(tg, e.k + dt / .2) : Math.max(tg, e.k - dt / .2);
+    e.m.material.opacity = e.o * e.k; e.m.visible = e.k > .01;
+  }
+}
+
 /* ---------- Кожен кадр ---------- */
 function clientTick(dt) {
   const t = gameTime;
@@ -1448,7 +1466,7 @@ function clientTick(dt) {
   if (ST.rid !== V.rid) { V.rid = ST.rid; V.cof = 3; V.dashT = 0; }
   if (V.dashT > 0) { V.dashT -= dt; if (Math.random() < dt * 20) burst(pl.x, .3, pl.z, '#C4956A', 1, 1, .4, .5); }
   if (V.plCd > 0) V.plCd -= dt;
-  setBar(); updPlg(dt);
+  setBar(); updPlg(dt); roomLabels(dt);
   // колеги з даними махають, над головою 📄; колега з Excel кличе на допомогу
   for (const [i, c] of V.cols.entries()) {
     if (!c) continue; const has = ST.on && ST.desk[i], xl = ST.on && ST.xl && ST.xl.i === i;
@@ -1840,4 +1858,4 @@ if (!SIMSIDE && typeof document !== 'undefined') {
 }
 A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(goDeadline, 700); });
 if (window.__ADDON_TEST) window.__deadline = { ST, AU, V, LAY, get L() { return L; }, get DESKS() { return DESKS; }, get START() { return START; }, get SEND() { return SEND; }, get PRINTER() { return PRINTER; }, get COFFEE() { return COFFEE; }, get TUBE() { return TUBE; }, get STAIRS() { return STAIRS; }, get PADS() { return PADS; }, get OBS() { return OBS; }, get WALLS() { return WALLS; },
-  STEPS, goal, intro, chaos, req, myHeld, myKey, blocked, navPath, clockStr, cur, useVar, floorOf, inOffice, firePlunger, throwReport, coffeeDash, reachable };
+  STEPS, goal, intro, chaos, req, myHeld, myKey, blocked, navPath, clockStr, cur, useVar, floorOf, inOffice, firePlunger, throwReport, coffeeDash, reachable, roomAt, roomLabels };

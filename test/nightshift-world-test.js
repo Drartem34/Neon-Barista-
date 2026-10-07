@@ -122,6 +122,10 @@ const tp = (T, p, dx = 0, dz = 0) => { T.pl.x = p.x + dx; T.pl.z = p.z + dz; T.p
   assert(!F.ST.pl[a.name].tk && !F.ST.pl[a.name].d && Math.hypot(a.pl.x - FL.SVC[tk - 1].p.x, a.pl.z - FL.SVC[tk - 1].p.z) < 2, 'ліфт приїхав — Ліхтаря витягли з підвалу, стоїть поруч');
   // Батарейка тікає, Ліхтар прикриває ліхтариком: картка → стікер → щитова → рубильники → сходи
   guards = [b, a];
+  // обоє вмикають ліхтарики (після кабінки й підвалу вони вимкнені); кого встигли схопити — врятує tpB
+  const lit = T => { const s = G.ST.pl[T.name]; return s.l || s.d; };
+  for (let k = 0; k < 6 && !(lit(a) && lit(b)); k++) { for (const T of [a, b]) if (!lit(T) && !T.w.__nightshift.ST.pl[T.name].l) T.keydown('KeyL'); await tick(AB, .4); }
+  assert(G.ST.on && lit(a) && lit(b), 'обоє знову світять ліхтариками' + (G.ST.on ? '' : ' (ніч скінчилась: ' + JSON.stringify(b.w.__nightshift.V.lastEnd) + ')'));
   const tpB = async p => {   // Батарейка — до точки, Ліхтар поруч; якщо когось схопили — інший рятує
     for (let r = 0; r < 4; r++) {
       const down = [a, b].find(T => G.ST.pl[T.name] && G.ST.pl[T.name].d); if (!down) break;

@@ -250,4 +250,13 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
   step(.2); assert(!T.MODEBAR || N.floorAt(T.pl.x, T.pl.z) >= 0, 'пішов в інший режим — звичайний хотбар');
   N.endNight(false, 'тест'); step(.1);
 }
+// контури ворогів: без ліхтаря далеко — не видно; поруч — «чуття небезпеки»; після ліхтаря — світиться кілька секунд
+{ const NS = w.__nightshift;
+  const fa = NS.V.fa || 0, bx = -Math.sin(fa), bz = -Math.cos(fa);   // позаду гравця — поза ліхтариком
+  const far = { x: T.pl.x + bx * 8, z: T.pl.z + bz * 8, t: 0 }, near = { x: T.pl.x + bx * 1.5, z: T.pl.z + bz * 1.5, t: 0 };
+  assert(!NS.outlineOf(far), 'зомбі далеко в темряві — контуру нема (і жодного кола довкола)');
+  const s1 = NS.outlineOf(near); assert(s1 && s1.k === 'sense' && s1.a > 0 && s1.a < .5, `зомбі зовсім поруч — ледь помітна червона підсвітка «чуйки» (${s1 && s1.a.toFixed(2)})`);
+  far.x = T.pl.x - bx * 6; far.z = T.pl.z - bz * 6; const g1 = NS.outlineOf(far);   // перед гравцем — у промені ліхтарика assert(g1 && g1.k === 'lit' && g1.a > .9, 'посвітив ліхтарем — контур яскраво світиться');
+  far.x = T.pl.x + bx * 8; far.z = T.pl.z + bz * 8; step(NS.GLOW_T - 1); assert(NS.outlineOf(far) && NS.outlineOf(far).k === 'lit', 'контур ще світиться кілька секунд після ліхтаря');
+  step(2); assert(!NS.outlineOf(far), 'через ~3 с контур згасає'); }
 console.log('ALL OK'); process.exit(0);

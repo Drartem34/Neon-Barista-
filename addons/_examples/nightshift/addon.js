@@ -1312,6 +1312,28 @@ function darkness() {
     x.fillStyle = v.t ? 'rgba(255,50,50,.95)' : `rgba(210,255,110,${e && e.lit ? .3 : .85})`;
     for (const sx of [-side, side]) { x.beginPath(); x.arc(p.x + sx, p.y, v.t ? 2.2 : 1.6, 0, 7); x.fill(); }
   }
+  // контури ворогів: світяться кілька секунд після ліхтаря; зовсім поруч — ледь помітне «чуття небезпеки»
+  for (const [, v] of V.en) {
+    const o = outlineOf(v); if (!o) continue;
+    const sc = v.t ? 1.25 : 1, at = y => sp(v.x, v.z, y * sc), hd = at(1.72), nk = at(1.42), hp = at(.86), ft = at(.05);
+    const q = sp(v.x + .5, v.z, 1), q0 = sp(v.x, v.z, 1), ppm = Math.max(4, Math.hypot(q.x - q0.x, q.y - q0.y) * 2) * sc;
+    x.save(); x.globalAlpha = o.a; x.strokeStyle = o.c; x.shadowColor = o.c; x.shadowBlur = 8; x.lineWidth = Math.max(1.2, ppm * .05); x.lineJoin = x.lineCap = 'round';
+    x.beginPath(); x.arc(hd.x, hd.y, ppm * .24, 0, 7); x.stroke();
+    const w = ppm * .3; x.beginPath(); x.moveTo(nk.x - w, nk.y); x.lineTo(nk.x + w, nk.y); x.lineTo(hp.x + w * .85, hp.y); x.lineTo(hp.x - w * .85, hp.y); x.closePath(); x.stroke();
+    for (const sx of [-.4, .4]) { x.beginPath(); x.moveTo(hp.x + sx * w, hp.y); x.lineTo(ft.x + sx * w * 1.1, ft.y); x.stroke(); }
+    for (const sx of [-1.15, 1.15]) { x.beginPath(); x.moveTo(nk.x + sx * w * .9, nk.y + ppm * .05); x.lineTo(hp.x + sx * w * 1.15, hp.y - ppm * .05); x.stroke(); }
+    x.restore();
+  }
+}
+/* стан контуру ворога: 'lit' — щойно світив ліхтарем (3 с, потім гасне), 'sense' — ворог зовсім поруч у темряві */
+const GLOW_T = 3, SENSE_R = 3.2;
+function outlineOf(v) {
+  const d = dist2(v.x, v.z, pl.x, pl.z), me = mySt();
+  if (me && me.l && me.b > 0 && !me.d && !me.h && d < LIGHT_R + .5) { let da = Math.atan2(v.x - pl.x, v.z - pl.z) - V.fa; da = Math.atan2(Math.sin(da), Math.cos(da)); if (Math.abs(da) < LIGHT_A + .08) v.litAt = gameTime; }
+  const since = v.litAt == null ? 99 : gameTime - v.litAt;
+  if (since < GLOW_T + .6) return { k: 'lit', c: v.t ? '#FF8A5C' : '#B8FF6B', a: since < GLOW_T ? .95 : .95 * (1 - (since - GLOW_T) / .6) };
+  if (d < SENSE_R && !amHid()) return { k: 'sense', c: '#FF5C7A', a: (.12 + .3 * (1 - d / SENSE_R)) * (.75 + .25 * Math.sin(gameTime * 6)) };
+  return null;
 }
 
 /* ---------- Тримай F поруч: обшук, рубильник, підняти друга, викликати ліфт ---------- */
@@ -1412,7 +1434,7 @@ function goal() {
   if (amHid()) return { txt: `🫥 Ти ${HIDE_N[(CABS[mySt().h - 1] || {}).k] || 'в схованці'}: тебе не бачать і не чують. <b>F</b> — вийти, коли стихне.` };
   if (amDown()) return { txt: '🆘 Тебе збили з ніг! Лежиш і кличеш кентів — хай підійдуть і потримають <b>F</b> поруч. Зомбі кинув — оговтаєшся сам за кілька секунд.' };
   if (V.act) return { txt: `${ACT_IC[V.act.what]} ${V.act.what === 'rescue' ? 'Ліфт їде з підвалу… ГУЧНО!' : V.act.what === 'revive' ? 'Піднімаю друга' : V.act.what === 'fuse' ? 'Вмикаю рубильник' : 'Обшукую'} ${Math.round(V.act.t / V.act.need * 100)}% — не відходь!` };
-  const dg = dragged(); if (dg.length) { const q = dg.reduce((a, b) => d(a.e) < d(b.e) ? a : b); return { id: 'drag', tg: q.e, txt: `🧟 <b>${escapeHTML(q.k)}</b> тягнуть у підвал! Біжи й <b>світи ліхтариком на зомбі</b> ${DROP_T} с — або кинь 🧪 шот (<b>2</b>) йому під ноги.` }; }
+  const dg = dragged(); if (dg.length) { const q = dg.reduce((a, b) => d(a.e) < d(b.e) ? a : b); return { id: 'drag', tg: null, txt: `🧟 <b>${escapeHTML(q.k)}</b> тягнуть у підвал! Біжи й <b>світи ліхтариком на зомбі</b> ${DROP_T} с — або кинь 🧪 шот (<b>2</b>) йому під ноги.` }; }
   const tk = takenBy(); for (const i in tk) return { id: 'svc' + i, tg: SVC[i].p, txt: `🕳️ <b>${tk[i].map(escapeHTML).join(', ')}</b> у підвалі! Біжи до <b>${SVC[i].n}</b> і тримай <b>F</b> ${RESCUE_T} с (прибиральник почує!).` };
   const dm = downedMates(); if (dm.length) { const m = dm.reduce((a, b) => d(a) < d(b) ? a : b); return { id: 'mate', tg: m, txt: `🆘 <b>${escapeHTML(m.k)}</b> лежить! Біжи, натисни <b>F</b> поруч і тримайся 3 с.` }; }
   if (s && s.b < 25) {
@@ -1628,7 +1650,7 @@ if (!SIMSIDE && typeof document !== 'undefined') {
   }
 }
 A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(goNight, 700); });
-if (window.__ADDON_TEST) window.__nightshift = { ST, AU, V, FLOORS, useVar, get FL() { return FL; }, get CUR() { return CUR; }, get SPAWN() { return SPAWN; }, get CLOCK() { return CLOCK; }, get EXIT() { return EXIT; }, get ESC() { return ESC; }, get ELEC() { return ELEC; },
+if (window.__ADDON_TEST) window.__nightshift = { outlineOf, GLOW_T, SENSE_R, ST, AU, V, FLOORS, useVar, get FL() { return FL; }, get CUR() { return CUR; }, get SPAWN() { return SPAWN; }, get CLOCK() { return CLOCK; }, get EXIT() { return EXIT; }, get ESC() { return ESC; }, get ELEC() { return ELEC; },
   get BREAKERS() { return BREAKERS; }, get CARD_SPOTS() { return CARD_SPOTS; }, get NOTE_SPOTS() { return NOTE_SPOTS; }, get ITEMS() { return ITEMS; }, get BAT_SPOTS() { return ITEMS; }, get CABS() { return CABS; }, get WAYS() { return WAYS; }, get EN_SPAWN() { return EN_SPAWN; },
   get SVC() { return SVC; }, get SENS() { return SENS; }, get WALLS() { return WALLS; }, get DOORS() { return DOORS; }, get ROOMS() { return ROOMS; }, get FURN() { return FURN; }, get FURN_L() { return FURN_L; }, get MONITORS() { return MONITORS; }, get NC() { return NC; },
   goal, intro, req, onReq, litBy, dragged, takenBy, los, inB, grid, cellOf, freeNear, addEnemy, startNight, endNight, myKey, solids, roomAt, floorAt, tally, lzAt, MB, throwShot };

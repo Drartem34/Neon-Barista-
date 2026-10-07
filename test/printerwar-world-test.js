@@ -1,4 +1,4 @@
-// Тест «Битви за принтер» на сервері світу: двоє гравців і боти.
+// Тест «Битви за принтер» v2 на сервері світу: двоє гравців, голосування за поверх, боти, кнопка тривоги.
 // Запуск: node test/printerwar-world-test.js
 const fs = require('fs'), path = require('path'), os = require('os'), { spawn } = require('child_process');
 const { JSDOM } = require('jsdom');
@@ -46,18 +46,32 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   await tick([a, b], 1);
   for (const T of [a, b]) { const it = T.getInteract(); assert(it && /Записатися/.test(it.l), 'F — записатися'); it.fn(); await tick([a, b], .5); }
   assert(W.ST.ph === 'lobby' && Q.ST.ps.length === 2, 'обоє в лобі (рахує сервер)');
+  // Друкар голосує за поверх 63 (кружечок на поверсі 42)
+  { const pd = W.VAR[0].pads[2]; a.pl.x = pd.x; a.pl.z = pd.z; }
+  for (let i = 0; i < 10 && Q.ST.votes['Друкар'] !== 2; i++) await tick([a, b], .3);
+  assert(Q.ST.votes['Друкар'] === 2, 'голос Друкаря за поверх 63 бачить і Конкурент');
   for (let i = 0; i < 30 && W.ST.ph !== 'fight'; i++) await tick([a, b], .5);
-  assert(W.ST.ph === 'fight' && Q.ST.ps.length === 4, 'битва: 2 гравці + 2 боти');
+  assert(W.ST.ph === 'fight' && Q.ST.ps.length === 4 && W.ST.v === 2 && Q.ST.v === 2, 'битва на поверсі 63: 2 гравці + 2 боти');
+  await tick([a, b], .3);
+  assert(W.varAt(a.pl.x, a.pl.z) === 2 && Q.varAt(b.pl.x, b.pl.z) === 2, 'ліфт: обох перенесло на поверх 63');
   const bot = W.ST.ps.find(p => p.bot), bx = bot.x, bz = bot.z;
   await tick([a, b], 1.5);
   assert(Math.hypot(bot.x - bx, bot.z - bz) > 1, 'боти біжать до принтера — бачать обоє');
-  // Друкар у колі
+  // Друкар у колі біля активного принтера
   let owned = false, pushed = false;
   for (let i = 0; i < 120 && !pushed; i++) { if (!pushed) { a.pl.x = W.PX + 1.6; a.pl.z = W.PZ; } await tick([a, b], .1); if (Q.ST.owner === 'Друкар' || Q.ST.owner === '*') owned = true; if (Math.hypot(a.pl.x - W.PX - 1.6, a.pl.z - W.PZ) > .8) pushed = true; }
   assert(owned, `Конкурент бачить, хто біля принтера (${Q.ST.owner})`);
   const pa = W.ST.ps.find(p => p.k === 'Друкар'), pb = Q.ST.ps.find(p => p.k === 'Друкар');
   assert(pa && pb && Math.abs(pa.pages - pb.pages) <= 2, `сторінки однакові в обох (${pa.pages} / ${pb.pages})`);
   assert(pushed, 'бот-офісник виштовхнув Друкаря з кола');
+  // Конкурент тисне кнопку тривоги — начальник для всіх
+  { const al = Q.VAR[2].alarm; b.pl.x = al.x - 1; b.pl.z = al.z; await tick([a, b], .6); let pressed = false;
+    for (let i = 0; i < 80 && !(W.ST.ev === 'boss' && Q.ST.ev === 'boss'); i++) {   // якщо саме йде інша подія — чекаємо й тиснемо знову
+      b.pl.x = al.x - 1; b.pl.z = al.z;
+      if (!Q.ST.ev && Q.ST.ac <= 0) { const it = b.getInteract(); if (it && /тривог/.test(it.l)) { it.fn(); pressed = true; } }
+      await tick([a, b], .3);
+    }
+    assert(pressed && W.ST.ev === 'boss' && Q.ST.ev === 'boss' && W.ST.ac > 20, '🚨 Конкурент натиснув тривогу через сервер — «Начальник іде!» в обох'); }
   // обоє йдуть — арена звільняється
   for (const T of [a, b]) { T.pl.x = 0; T.pl.z = 3; }
   for (let i = 0; i < 20 && W.ST.ph !== 'idle'; i++) await tick([a, b], .3);

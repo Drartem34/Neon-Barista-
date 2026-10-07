@@ -15,12 +15,13 @@ w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => 
 w.__ADDON_CODE = [{ id: 'chairrace', src: 'chairrace/addon.js', code: fs.readFileSync(path.join(root, 'addons/_examples/chairrace/addon.js'), 'utf8') }];
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
 src += ';window.__T={get MODES(){return MODES},get paused(){return paused},get running(){return running},get P(){return P},pl,MON,PROPS,BODIES,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),nearBar:()=>nearBar(),input,renderPanel,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),fireHook:h=>fireHook(h),releaseCarry:t=>releaseCarry(t),pickUpAny:t=>pickUpAny(t),damageProp:(p,d)=>damageProp(p,d),hurt:d=>hurtPlayer(d),dropLoot:(x,z,l)=>dropLoot(x,z,l),DROPS};';
+src += ';window.__T.STATICS=STATICS;';
 w.eval(src);
 const T = w.__T; let now = 1000;
-const calm = () => { const F = w.__flight; if (F) { F.AU.stormT = 999; F.AU.failT = 999; F.ST.storms.length = 0; } };   // без випадкових гроз і поломок — тест передбачуваний
-const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; calm(); T.frame(now); if (i % 3 === 0) IV.forEach(f => f()); } };
+const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; T.frame(now); if (i % 3 === 0) IV.forEach(f => f()); } };
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exit(1); } console.log('ok -', m); };
 const body = () => w.document.querySelector('#pbody');
+const $ = s => w.document.querySelector(s);
 const R = w.__race;
 assert(T.ADDONS.list.every(a => a.ok), 'аддон завантажився: ' + T.ADDONS.list.map(a => a.name + (a.ok ? '' : ' ✗ ' + a.err)).join(', '));
 const pv = w.document.getElementById('mm-pvp');
@@ -28,35 +29,90 @@ assert(pv && !pv.classList.contains('mm-locked') && /Гонки/.test(pv.textCon
 pv.click(); assert(w.document.querySelector('#mm-pvp-pick [data-pm="chairrace"]'), 'PVP → вибір режиму: є «Гонки на кріслах»');
 w.document.querySelector('#mm-pvp-pick .x').click();
 T.startGame(true); T.P.tut = -1; T.pl.hp = 9999; step(.3);
+// три поверхи збудовані: острів, фасад, стіни, меблі, траса — все в межах r
+R.VARS.forEach((V, i) => {
+  const isl = T.ISLMAP[V.id], F = V.F;
+  const corners = [[F.x0, F.z0], [F.x1, F.z0], [F.x0, F.z1], [F.x1, F.z1]];
+  const st = T.STATICS.filter(o => o.x > F.x0 - 1 && o.x < F.x1 + 1 && o.z > F.z0 - 1 && o.z < F.z1 + 1).length;
+  const trIn = V.TR.every(p => p.x > V.BB.x0 && p.x < V.BB.x1 && p.z > V.BB.z0 && p.z < V.BB.z1);
+  assert(isl && Math.hypot(isl.x - [300, 440, 580][i], isl.z + 300) < .1 && corners.every(([x, z]) => Math.hypot(x - isl.x, z - isl.z) < isl.r - .5) && corners.every(([x, z]) => T.terrainAt(x, z) === 'land'),
+    `«${V.n}»: острів на (${isl.x}, ${isl.z}), поверх ${(F.x1 - F.x0).toFixed(0)}×${(F.z1 - F.z0).toFixed(0)} вміщується в r=${isl.r}`);
+  assert(st > 250 && V.WALLS.length > 100 && trIn && V.N > 100 && R.V.vis[i] && R.V.vis[i].boxes.length === 4, `«${V.n}»: ${st} твердих перешкод, ${V.WALLS.length} шматків стін, траса ${V.N} точок у межах поверху, модель зібрана`);
+});
+{ const V2 = R.VARS[1], c = { x: V2.cx, z: V2.cz }; assert(!T.STATICS.some(o => Math.hypot(o.x - c.x, o.z - c.z) < 2.8), '«Атріум»: на перехресті вісімки стін нема — проїзд в обидва боки'); }
+{ const V3 = R.VARS[2], S = V3.SC; assert(S && !T.STATICS.some(o => o.x > S.x0 + .3 && o.x < S.x1 - .3 && o.z > S.z0 && o.z < S.z1), '«Колл-центр»: прохід пожежних дверей вільний від стін і меблів'); }
 T.keydown('Escape'); step(.05);
 assert(/🥊 PVP/.test(body().textContent) && body().querySelector('[data-mode="chairrace"]'), 'у меню паузи розділ PVP з гонками');
 body().querySelector('[data-mode="chairrace"]').click(); step(.6);
-assert(Math.hypot(T.pl.x - R.START.x, T.pl.z - R.START.z) < 2.2, 'переніс до старту траси');
-let it = T.getInteract(); assert(it && /Записатися/.test(it.l), 'біля старту F — «Записатися на заїзд»'); it.fn(); step(.1);
+assert(Math.hypot(T.pl.x - R.START.x, T.pl.z - R.START.z) < 2.2 && R.floorAt(T.pl.x, T.pl.z) === 0, 'переніс у ліфтовий хол поверху 42 до старту');
+assert($('#cr-intro'), 'картка «як грати» з’явилась'); $('#cr-intro button').click(); assert(!$('#cr-intro'), 'картку закрито');
+// стіна лобі (скло) не пускає на трасу пішки
+{ const sx = T.pl.x, sz = T.pl.z; T.input.jx = 0; T.input.jz = 1; step(2); T.input.jz = 0; assert(T.pl.z < R.VARS[0].BB.z0 - .2, 'скляна стіна лобі не пускає на трасу пішки'); T.pl.x = sx; T.pl.z = sz; step(.1); }
+// голосування: стаю на майданчик №3
+{ const p = R.VARS[0].PADS[2]; T.pl.x = p.x; T.pl.z = p.z; step(.4); assert(R.ST.v === 2 && R.ST.votes.me === 2 && R.VV === R.VARS[2], 'голос на майданчику №3 — наступна траса «Колл-центр»'); }
+{ const p = R.VARS[0].PADS[0]; T.pl.x = p.x; T.pl.z = p.z; const it = T.getInteract(); assert(it && /Голос/.test(it.l), 'F біля майданчика — «Голос за …»'); }
+{ const p = R.VARS[0].PADS[2]; T.pl.x = p.x; T.pl.z = p.z; step(.2); }
+T.pl.x = R.VARS[0].START.x + 1; T.pl.z = R.VARS[0].START.z; step(.1);
+let it = T.getInteract(); assert(it && /Записатися/.test(it.l) && /Колл-центр/.test(it.l), 'біля старту F — «Записатися на заїзд · Колл-центр»'); it.fn(); step(.1);
 assert(R.ST.ph === 'lobby' && R.ST.racers.length === 1, 'записався — лобі');
+R.AU.noBotArms = true;   // у тесті боти не кидаються бомбами (передбачуваність)
 step(2.5); assert(R.ST.ph === 'count' && R.ST.racers.length === 4 && R.RC.on, 'боти зайняли місця, відлік, я в кріслі');
+assert(R.floorAt(T.pl.x, T.pl.z) === 2 && R.ST.v === 2, 'гра перенесла на поверх 63 (не трасу за замовчуванням)');
+const mb = $('#modebar');
+assert(mb && !mb.hidden && /💣/.test(mb.textContent) && /🪠/.test(mb.textContent) && $('#weapon').hidden && $('#drinks').hidden, 'хотбар порожній: лише 💣 Бомба і 🪠 Вантуз');
+assert(R.RC.bombs === 2, 'на старті 2 бомби');
 step(4); assert(R.ST.ph === 'race', 'ПОЇХАЛИ!');
 // автопілот у тесті: тримаємо джойстик у бік траси попереду
 const drive = s => { for (let i = 0; i < s * 20; i++) { const q = R.TR[(R.RC.idx + 7) % R.N], dx = q.x - R.RC.x, dz = q.z - R.RC.z, d = Math.hypot(dx, dz) || 1; T.input.jx = dx / d; T.input.jz = dz / d; step(.05); } T.input.jx = T.input.jz = 0; };
 const x0 = R.RC.x, z0 = R.RC.z; drive(1.5);
 assert(Math.hypot(R.RC.x - x0, R.RC.z - z0) > 6 && R.RC.lap === 0, `крісло їде (коло ${R.RC.lap + 1})`);
 // стіна траси не випускає
-{ const p = R.TR[R.RC.idx]; const sx = R.RC.x, sz = R.RC.z; R.RC.x += -p.dz * 6; R.RC.z += p.dx * 6; step(.05); const q = R.TR[R.RC.idx]; const lat = Math.abs(-(R.RC.x - q.x) * q.dz + (R.RC.z - q.z) * q.dx); assert(lat < 2.8, 'борти траси не випускають з траси'); }
+{ const p = R.TR[R.RC.idx]; R.RC.x += -p.dz * 6; R.RC.z += p.dx * 6; T.pl.x = R.RC.x; T.pl.z = R.RC.z; step(.05); const q = R.TR[R.RC.idx]; const lat = Math.abs(-(R.RC.x - q.x) * q.dz + (R.RC.z - q.z) * q.dx); assert(lat < 2.8 || R.RC.sc, 'борти траси не випускають з траси'); }
+const put = (i, o = 0) => { const p = R.TR[i % R.N]; R.RC.x = p.x - p.dz * o; R.RC.z = p.z + p.dx * o; R.RC.idx = i % R.N; R.RC.prev = R.RC.idx; R.RC.h = Math.atan2(p.dz, p.dx); R.RC.spin = 0; R.RC.slip = 0; R.RC.slow = 0; R.RC.pull = null; T.pl.x = R.RC.x; T.pl.z = R.RC.z; return p; };
+const far = () => R.ST.racers.filter(r => r.bot).forEach((b, k) => { const q = R.TR[(R.RC.idx + R.N / 2 + k * 6) % R.N | 0]; b.x = q.x; b.z = q.z; b.idx = (R.RC.idx + R.N / 2 + k * 6) % R.N | 0; b.prevIdx = b.idx; b.v = 0; });
 // предмети
+put(R.N * .3 | 0); far();
 R.RC.item = 'coffee'; R.useItem(); assert(R.RC.boost > 1 && !R.RC.item, '☕ кава — прискорення');
 R.RC.item = 'folder'; R.useItem(); step(.1); assert(R.ST.traps.length >= 1, '📁 папка — пастка на трасі');
-{ const tp = R.ST.traps[R.ST.traps.length - 1]; R.RC.spin = 0; R.RC.x = tp.x; R.RC.z = tp.z; step(.1); assert(R.RC.spin > 0, 'наїхав на пастку — закрутило'); R.RC.spin = 0; }
-{ const bot = R.ST.racers.find(r => r.bot); const p = R.TR[R.RC.idx]; R.RC.x = p.x; R.RC.z = p.z; R.RC.h = Math.atan2(p.dz, p.dx); bot.v = 0; R.RC.item = 'stapler'; R.RC.spin = 0; bot.x = R.RC.x + Math.cos(R.RC.h) * 4; bot.z = R.RC.z + Math.sin(R.RC.h) * 4; bot.spin = 0; R.useItem(); step(.3); assert(bot.spin > 0, '📎 степлер влучив у бота — закрутило'); }
+{ const tp = R.ST.traps[R.ST.traps.length - 1]; R.RC.spin = 0; R.RC.x = tp.x; R.RC.z = tp.z; T.pl.x = tp.x; T.pl.z = tp.z; step(.1); assert(R.RC.spin > 0, 'наїхав на пастку — закрутило'); R.RC.spin = 0; }
+{ const bot = R.ST.racers.find(r => r.bot); const p = put(R.N * .3 | 0); far(); bot.v = 0; R.RC.item = 'stapler'; bot.x = R.RC.x + p.dx * 4; bot.z = R.RC.z + p.dz * 4; bot.spin = 0; R.useItem(); step(.3); assert(bot.spin > 0, '📎 степлер влучив у бота — закрутило'); }
 R.RC.item = 'tea'; R.useItem(); step(.05); assert(R.ST.racers.some(r => r.bot && r.drunk > 0), '🍵 чай — лідер-бот п\'яніє');
+// 💣 бомба: клавіша 1 — дугою вперед; вибух крутить і гальмує бота
+{ const bot = R.ST.racers.filter(r => r.bot)[1]; const p = put(R.N * .3 | 0); far(); R.RC.v = 0; bot.x = R.RC.x + p.dx * 8; bot.z = R.RC.z + p.dz * 8; bot.spin = 0; bot.slow = 0; bot.v = 0; bot.idx = R.nearIdx(bot.x, bot.z); bot.prevIdx = bot.idx;
+  const bx = bot.x, bz = bot.z; T.keydown('Digit1'); assert(R.RC.bombs === 1, '1 — кинув бомбу (лишилась 1)');
+  for (let i = 0; i < 30; i++) { bot.x = bx; bot.z = bz; bot.v = 0; step(.05); if (bot.spin > 0) break; }
+  assert(bot.spin > 0 && bot.slow > 0, `💥 бомба влучила: бота закрутило й пригальмувало`); }
+// 🪠 вантуз: клавіша 2 — чіпляє бота попереду, мене тягне вперед, його гальмує
+{ const bot = R.ST.racers.filter(r => r.bot)[2]; const p = put(R.N * .3 | 0); far(); R.RC.v = 2; bot.x = R.RC.x + p.dx * 8; bot.z = R.RC.z + p.dz * 8; bot.spin = 0; bot.slow = 0; bot.v = 6; bot.h = R.RC.h; bot.idx = R.nearIdx(bot.x, bot.z); bot.prevIdx = bot.idx;
+  const sx = R.RC.x, sz = R.RC.z; T.keydown('Digit2'); let pulled = false;
+  for (let i = 0; i < 12; i++) { step(.05); if (R.RC.pull) pulled = true; }
+  assert(pulled && bot.slow > 0 && Math.hypot(R.RC.x - sx, R.RC.z - sz) > 4 && R.RC.plCd > 0, '🪠 вантуз зачепив бота: мене смикнуло вперед, бота пригальмувало, перезарядка');
+  T.keydown('Digit2'); assert(R.V.plungers.length === 0, 'на перезарядці вантуз не стріляє'); }
 // коробка з предметом
-{ R.RC.item = ''; const p = R.TR[R.ITEM_SPOTS[1]]; R.RC.x = p.x; R.RC.z = p.z; R.RC.idx = R.ITEM_SPOTS[1]; R.RC.prev = R.RC.idx; step(.2); assert(R.RC.item, `коробка «?» дала предмет: ${R.RC.item}`); }
+{ R.RC.item = ''; const b0 = R.RC.bombs; R.ST.boxes[1] = [1, 1, 1]; put(R.ITEM_SPOTS[1]); far(); step(.2); assert(R.RC.item || R.RC.bombs > b0, `коробка «?» дала: ${R.RC.item || '💣 бомбу'}`); }
+// 💦 калюжа — ковзає
+{ const q = R.VV.PUD[1]; put(R.nearIdx(q.x, q.z)); far(); R.RC.x = q.x; R.RC.z = q.z; T.pl.x = q.x; T.pl.z = q.z; step(.05); assert(R.RC.slip > 0, '💦 калюжа прибиральниці — крісло ковзає'); }
+// 💨 дрифт-буст: накопичений дрифт на прямій перетворюється на прискорення
+{ put(R.N * .3 | 0); far(); R.RC.boost = 0; R.RC.v = 10; R.RC.drift = .8; R.RC.driftIdle = 0; const n0 = R.RC.nDrift; drive(.3); assert(R.RC.nDrift === n0 + 1 && R.RC.drift === 0, '💨 дрифт → супер-буст на виході з повороту'); }
+// 🌬️ слипстрім: їду позаду бота — тяга
+{ const bot = R.ST.racers.filter(r => r.bot)[0]; const n0 = R.RC.nDraft; let ok = false;
+  for (let i = 0; i < 40 && !ok; i++) { const p = put(R.N * .3 | 0, 0); if (i === 0) far(); R.RC.v = 10; R.RC.boost = 0; bot.x = R.RC.x + p.dx * 3.5; bot.z = R.RC.z + p.dz * 3.5; bot.v = 0; bot.spin = 0; T.input.jx = p.dx; T.input.jz = p.dz; step(.05); ok = R.RC.nDraft > n0; }
+  T.input.jx = T.input.jz = 0; assert(ok, '🌬️ позаду суперника — слипстрім-буст'); }
+// 🚒 пожежні двері-зріз: відчинено — проїжджаю з першого рядку в другий, зачинено — борт
+{ const S = R.VV.SC, cl = R.VV.ZOMB.find(z => z.mop && z.ax === 1); cl.x += 100; far();
+  const tryCut = open => { const p = put(S.ia); R.RC.x = (S.x0 + S.x1) / 2; T.pl.x = R.RC.x; R.RC.h = Math.PI / 2; R.RC.v = 7; R.ST.t = open ? 18.2 : 23; for (let i = 0; i < 26; i++) { T.input.jx = 0; T.input.jz = 1; step(.05); if (open) R.ST.t = 18.2; else R.ST.t = 23; } T.input.jz = 0; return R.RC.z; };
+  const zOpen = tryCut(true); assert(Math.abs(zOpen - S.bz) < 2.2 && Math.abs(R.RC.idx - S.ib) < 8, `відчинені пожежні двері — зріз у другий ряд (idx ${R.RC.idx} ≈ ${S.ib})`);
+  const zShut = tryCut(false); assert(Math.abs(zShut - R.TR[S.ia].z) < 2.4, 'зачинені двері — крісло лишається в коридорі'); cl.x -= 100; }
 // проходимо 3 кола — фініш
-{ const g = R.TR[R.N - 2]; R.RC.x = g.x; R.RC.z = g.z; R.RC.idx = R.N - 2; R.RC.prev = R.N - 2; R.RC.lap = 0; R.RC.spin = 0; }
+put(R.N - 2); R.RC.lap = 0;
 let guard = 0; const c0 = T.P.coins;
-while (R.ST.ph === 'race' && guard++ < 200) { R.RC.spin = 0; R.RC.drunk = 0; drive(1); if (R.RC.lap < 3 && guard % 3 === 0) { const g = R.TR[R.N - 3]; R.RC.x = g.x; R.RC.z = g.z; R.RC.idx = R.N - 3; R.RC.prev = R.N - 3; } }
+while (R.ST.ph === 'race' && guard++ < 200) { R.RC.spin = 0; R.RC.drunk = 0; R.RC.slip = 0; drive(1); if (R.RC.lap < 3 && guard % 3 === 0) { put(R.N - 3); } }
 assert(R.RC.fin || R.ST.ph !== 'race', `3 кола — фініш (коло ${R.RC.lap})`);
 step(.5); assert(R.ST.ph === 'end' && R.ST.res[0], 'гонка скінчилась — є результати');
 assert(T.P.coins > c0 && T.P.addons.chairrace.races === 1, `нагорода за місце: +${T.P.coins - c0} 🪙 (${R.ST.res.indexOf('me') + 1} місце)`);
-assert(!R.RC.on, 'після фінішу встаєш з крісла');
-step(9); assert(R.ST.ph === 'idle', 'траса знову вільна для нового заїзду');
+assert(!R.RC.on && $('#modebar').hidden && !$('#weapon').hidden, 'після фінішу встаєш з крісла — звичайний хотбар повернувся');
+step(9); assert(R.ST.ph === 'idle' && R.ST.v === 0 && !Object.keys(R.ST.votes).length, 'траса вільна; наступна за замовчуванням — інший поверх (ротація), голоси скинуто');
+// вихід через меню режиму посеред заїзду — хотбар відновлюється
+{ const p = R.VARS[0].START; T.pl.x = p.x + 1; T.pl.z = p.z; step(.1); T.getInteract().fn(); step(7); assert(R.RC.on && !$('#modebar').hidden, 'новий заїзд на поверсі 42 — знову в кріслі');
+  R.RC.x = R.RC.x; T.pl.x += 30; step(.1); assert(!R.RC.on && $('#modebar').hidden && R.ST.ph === 'idle', 'перенесло деінде — встав з крісла, хотбар відновлено, заїзд скасовано'); }
 console.log('ALL OK'); process.exit(0);

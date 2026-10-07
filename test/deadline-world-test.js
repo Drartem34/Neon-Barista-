@@ -24,7 +24,7 @@ async function client(name) {
   w.console.warn = () => { }; w.__ADDON_TEST = true; w.fetch = (u, o) => fetch(new URL(u, `http://127.0.0.1:${PORT}/`), o); w.setInterval = () => 0;
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
   let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-  src += ';window.__T={get P(){return P},get MODEBAR(){return MODEBAR},pl,NET,WORLD,ISLMAP,startGame,frame,setAcct,get worldReady(){return worldReady},getInteract:()=>getInteract(),get panel(){return panel},get hero(){return hero}};';
+  src += ';window.__T={get P(){return P},get MODEBAR(){return MODEBAR},pl,NET,WORLD,ISLMAP,startGame,frame,setAcct,get worldReady(){return worldReady},getInteract:()=>getInteract(),leave:()=>{const m=curMode();if(m&&m.leave)m.leave();goHub("")},get panel(){return panel},get hero(){return hero}};';
   w.eval(src);
   const reg = await post('register', { login: name, pass: 'pass-' + name });
   w.__T.setAcct({ token: reg.token, login: reg.login, admin: reg.admin });
@@ -34,6 +34,7 @@ async function client(name) {
   return T;
 }
 const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (const T of Ts) { T.now += 50; T.pl.hp = 9999; T.frame(T.now); } await sleep(50); } };
+const lob = T => T.w.document.getElementById('mlobby');
 const at = (T, p) => { T.pl.x = p.x; T.pl.z = p.z; T.pl.y = 0; };
 /* один крок за підказкою: іди до жовтої мітки, F, тримайся поруч */
 async function follow(T, D, Ts) {
@@ -53,14 +54,19 @@ async function follow(T, D, Ts) {
   await tick([a, b], 1.5);
   const D = a.w.__deadline, E = b.w.__deadline, Ts = [a, b];
   assert(['deadline', 'deadline2', 'deadline3'].every(id => a.ISLMAP[id] && b.ISLMAP[id]), 'три поверхи-острови є в обох');
-  // обоє в холі 42-го; голосують за банк, ставши на панель «57»
+  // обоє в холі 42-го — у кожного вікно лобі; голосують кліком по картці «57 · Банк»
   D.useVar(0); E.useVar(0);
-  at(a, D.PADS[1]); at(b, { x: D.PADS[1].x + .3, z: D.PADS[1].z }); await tick(Ts, 1.2);
-  assert(D.ST.vo[1] === 2 && E.ST.vo[1] === 2 && D.ST.nx === 1 && E.ST.nx === 1, '🗳️ обидва голоси за «57 · Банк» — бачать обоє (рахує сервер)');
-  at(a, D.START.p); at(b, { x: D.START.p.x - 2, z: D.START.p.z }); await tick(Ts, 1);
-  let it = a.getInteract(); assert(it && /аврал/.test(it.l) && /Банк/.test(it.l), 'Бухгалтер на ресепшні: «Почати аврал · Банк»'); it.fn(); await tick(Ts, 1.5);
+  at(a, D.START.p); at(b, { x: D.START.p.x - 2, z: D.START.p.z }); await tick(Ts, 1.2);
+  assert(lob(a) && lob(b) && lob(a).querySelectorAll('[data-lv]').length === 3, '🗳️ обоє в лобі — у кожного відкрите вікно з 3 поверхами');
+  lob(a).querySelector('[data-lv="1"]').click(); lob(b).querySelector('[data-lv="1"]').click(); await tick(Ts, 1.2);
+  assert(D.ST.vo[1] === 2 && E.ST.vo[1] === 2 && D.ST.nx === 1 && E.ST.nx === 1 && /🗳️ 2/.test(lob(b).querySelector('[data-lv="1"]').textContent), '🗳️ обидва голоси за «57 · Банк» — бачать обоє (рахує сервер)');
+  assert(/Бухгалтер/.test(lob(b).querySelector('.who').textContent) && /Стажер/.test(lob(a).querySelector('.who').textContent), 'у списку лобі — обидва гравці');
+  lob(a).querySelector('.rdy').click(); await tick(Ts, 1.2);
+  assert(!D.ST.on && !E.ST.on && E.ST.rt > 0 && /Старт за/.test(lob(b).textContent) && /✅ Бухгалтер/.test(lob(b).querySelector('.who').textContent), 'Бухгалтер готовий — Стажер бачить ✅ і таймер «Старт за … с»; раунд ще чекає');
+  lob(b).querySelector('.rdy').click(); await tick(Ts, 1.5);
   assert(D.ST.on && E.ST.on && D.ST.vi === 1 && E.ST.vi === 1 && D.ST.steps.join() === E.ST.steps.join() && D.ST.steps.length === 6, `раунд почався в обох на 57-му (рахує сервер): ${E.ST.steps.join(' → ')}`);
   assert([a, b].every(T => Math.hypot(T.pl.x - D.START.p.x, T.pl.z - D.START.p.z) < 2), '🛗 ліфт переніс обох на поверх банку');
+  assert(!lob(a) && !lob(b), 'раунд почався — вікно лобі закрилось в обох');
   assert(D.ST.desk.join() === E.ST.desk.join() && E.ST.desk.filter(Boolean).length === 3, 'обидва бачать тих самих касирів з даними');
   assert(a.MODEBAR && b.MODEBAR && /🪠/.test(a.w.document.getElementById('modebar').textContent), 'в обох набір режиму з 🪠 Вантузом');
   // Стажер бере дані — Бухгалтер бачить папери в його руках
@@ -106,5 +112,15 @@ async function follow(T, D, Ts) {
   assert(a.P.addons.deadline.wins === 1 && b.P.addons.deadline.wins === 1 && a.P.coins > c0a + 40 && b.P.coins > c0b + 40, `перемога в обох: +${a.P.coins - c0a} / +${b.P.coins - c0b} 🪙`);
   assert(!a.MODEBAR && !b.MODEBAR, 'після раунду в обох звичайний хотбар');
   assert(D.ST.nx === 2 && E.ST.nx === 2, 'наступний раунд без голосів — вище, на 63-й');
+  for (const T of Ts) at(T, D.START.p); await tick(Ts, 1);
+  assert(lob(a) && lob(b), 'після раунду обоє знову бачать вікно лобі');
+  // Стажер готовий, Бухгалтер мовчить — через 20 с ліфт їде сам
+  lob(b).querySelector('.rdy').click(); await tick(Ts, 2);
+  assert(!E.ST.on && E.ST.rt > 10 && /Старт за/.test(lob(a).textContent), `Бухгалтер бачить таймер: старт за ${E.ST.rt} с`);
+  for (let i = 0; i < 30 && !E.ST.on; i++) await tick(Ts, 1);
+  assert(D.ST.on && E.ST.on && D.ST.vi === 2 && E.ST.vi === 2 && !lob(a) && !lob(b), '⏳ 20 с минуло — раунд почався сам на 63-му, вікна закрились');
+  // вихід з режиму — вікно лобі закривається
+  b.leave(); await tick(Ts, 1);
+  assert(!lob(b) && b.w.__deadline.floorOf(b.pl.x, b.pl.z) < 0, 'Стажер пішов у хаб — вікна лобі в нього немає');
   console.log('ALL OK'); cleanup(0);
 })().catch(e => { console.error(e); cleanup(1); });

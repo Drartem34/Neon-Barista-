@@ -1,4 +1,4 @@
-// Тест PVP-режиму «Битва за принтер» v2 у грі без сервера: три поверхи, голосування, ковзанка, пачки, турбо, тривога.
+// Тест PVP-режиму «Битва за принтер» v2 у грі без сервера: три поверхи, лобі-вікно (голос + «Я готовий»), ковзанка, пачки, турбо, тривога.
 // Запуск: node test/printerwar-test.js
 const fs = require('fs'), path = require('path');
 const { JSDOM } = require('jsdom');
@@ -14,7 +14,7 @@ w.setTimeout = f => { f(); return 0; };
 w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
 w.__ADDON_CODE = [{ id: 'printerwar', src: 'printerwar/addon.js', code: fs.readFileSync(path.join(root, 'addons/_examples/printerwar/addon.js'), 'utf8') }];
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-src += ';window.__T={get MODES(){return MODES},get paused(){return paused},get running(){return running},get P(){return P},get STATICS(){return STATICS},get MODEBAR(){return MODEBAR},onSyrup:(x,z)=>onSyrup(x,z),islandAt:(x,z)=>islandAt(x,z),pl,MON,PROPS,BODIES,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),input,renderPanel,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),keyup:c=>dispatchEvent(new KeyboardEvent("keyup",{code:c})),releaseCarry:t=>releaseCarry(t)};';
+src += ';window.__T={get MLOBBY(){return MLOBBY},get MODES(){return MODES},get paused(){return paused},get running(){return running},get P(){return P},get STATICS(){return STATICS},get MODEBAR(){return MODEBAR},onSyrup:(x,z)=>onSyrup(x,z),islandAt:(x,z)=>islandAt(x,z),pl,MON,PROPS,BODIES,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),input,renderPanel,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),keyup:c=>dispatchEvent(new KeyboardEvent("keyup",{code:c})),releaseCarry:t=>releaseCarry(t)};';
 w.eval(src);
 const T = w.__T; let now = 1000;
 const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; T.frame(now); if (i % 3 === 0) IV.forEach(f => f()); } };
@@ -33,18 +33,27 @@ for (const D of W.VAR) {
   const st = T.STATICS.filter(s => Math.abs(s.x - D.cx) <= D.w / 2 + .1 && Math.abs(s.z - D.cz) <= D.d / 2 + .1).length;
   const fits = [[-1, -1], [1, -1], [-1, 1], [1, 1]].every(([a, b]) => Math.hypot(a * (D.w / 2 + .6), b * (D.d / 2 + .6)) < isl.r);
   assert(isl && isl.x === D.cx && st > 200 && fits && T.terrainAt(D.cx + D.w / 2 - .5, D.cz + D.d / 2 - .5) === 'land', `${D.n}: острів (${D.cx}, ${D.cz}), ${st} твердих точок, поверх у межах r=${isl.r}`);
-  const targets = [...D.pads, ...D.spots, D.alarm.x ? { x: D.alarm.x - 1, z: D.alarm.z } : null, ...(D.route ? D.route : D.prn.map(p => ({ x: p.x + 1.6, z: p.z })))];
+  const targets = [...D.spots, D.alarm.x ? { x: D.alarm.x - 1, z: D.alarm.z } : null, ...(D.route ? D.route : D.prn.map(p => ({ x: p.x + 1.6, z: p.z })))];
   const bad = targets.filter(p => !W.reachable(D, D.board.x, D.board.z - 1.4, p.x, p.z));
-  assert(!bad.length, `${D.n}: від табло можна дійти до кружечків, кнопки тривоги й принтера${bad.length ? ' ✗ ' + JSON.stringify(bad) : ''}`);
+  assert(!bad.length, `${D.n}: від стенда лобі можна дійти до кнопки тривоги й принтера${bad.length ? ' ✗ ' + JSON.stringify(bad) : ''}`);
 }
 assert(new Set(W.VAR.map(D => D.n)).size === 3 && W.VAR[1].route && W.VAR[2].prn.length === 2, 'три різні поверхи: 42 (статичний), 57 (принтер на колесах), 63 (два принтери)');
 
 // --- раунд 1 (поверх 42) — без голосування: поверх, де стоїш
+const pop = () => w.document.getElementById('mlobby');
+assert(!W.VAR.some(D => D.pads), 'кружечків для голосування на підлозі більше немає');
 T.keydown('Escape'); step(.05); body().querySelector('[data-mode="printerwar"]').click(); step(.6);
 assert(W.varAt(T.pl.x, T.pl.z) === 0, 'Esc → «Битва за принтер» → ліфтовий хол поверху 42');
-let it = T.getInteract(); assert(it && /Записатися/.test(it.l), 'біля табло F — «Записатися на битву»'); it.fn(); step(.1);
-assert(W.ST.ph === 'lobby', 'лобі'); step(4.5);
+assert(W.ST.ph === 'lobby' && W.ST.ps.some(p => p.k === 'me') && pop() && T.MLOBBY && pop().querySelectorAll('[data-lv]').length === 3, 'увійшов у режим — я в лобі, відкрилось вікно лобі з трьома картками поверхів');
+assert([...pop().querySelectorAll('.map .im')].every((e, i) => e.getAttribute('style').includes(`addons/printerwar/map${i + 1}.jpg`)), 'картки з картинками addons/printerwar/map1..3.jpg');
+step(2); assert(W.ST.ph === 'lobby', 'без «Я готовий» раунд не стартує');
+// «Сховати» → F біля стенда відкриває знову
+pop().querySelector('.hide').click(); step(.2); assert(!pop() && W.ST.ph === 'lobby', '«Сховати» — вікно закрилось, лобі лишилось');
+assert(/Лобі/.test(w.document.getElementById('printer-goal').innerHTML), 'жовта підказка: як відкрити лобі знову');
+let it = T.getInteract(); assert(it && /Лобі/.test(it.l), 'біля стенда F — «Лобі»'); it.fn(); step(.1); assert(pop(), 'F — вікно лобі знову відкрите');
+pop().querySelector('.rdy').click(); step(.1);
 assert(W.ST.ph === 'fight' && W.ST.v === 0 && W.ST.ps.length === 4 && W.ST.ps.filter(p => p.bot).length === 3, 'битва на поверсі 42: я + 3 боти');
+assert(!pop() && !T.MLOBBY, 'раунд почався — вікно лобі закрилось');
 assert(T.MODEBAR && T.MODEBAR.slots.length === 3 && !w.document.querySelector('#modebar').hidden, 'панель режиму: 📄 кинути / 🫣 заритися / 👊 штовхнути');
 W.AU.evIn = 999; W.AU.puIn = 999;
 T.pl.x = W.BOARD.x; T.pl.z = W.BOARD.z - 1.4;
@@ -121,22 +130,24 @@ for (let i = 0; i < 20 && W.ST.ph === 'fight'; i++) { away(); atPrn(); step(.1);
 assert(W.ST.ph === 'end' && W.ST.res[0][0] === 'me', `${W.GOAL} сторінок — перемога`);
 assert(T.P.coins > c0 && T.P.addons.printerwar.wins === 1, `нагорода +${T.P.coins - c0} 🪙`);
 step(.1); assert(!T.MODEBAR && w.document.querySelector('#modebar').hidden, 'раунд скінчився — звичайна панель предметів повернулась');
-step(9); assert(W.ST.ph === 'idle' && W.ST.v === 1, 'принт-рум вільний; наступний поверх у меню — 57');
+step(9); assert(W.ST.ph !== 'fight' && W.ST.v === 1, 'принт-рум вільний; наступний поверх у меню — 57');
 
-// --- голосування: стаю на кружечок «63» на поверсі 42 → раунд на поверсі 63, мене везе ліфт
-{ const D = W.VAR[0]; T.pl.x = D.board.x; T.pl.z = D.board.z - 1.4; step(.1); T.getInteract().fn(); step(.1);
-  T.pl.x = D.pads[2].x; T.pl.z = D.pads[2].z; step(.3); assert(W.ST.votes.me === 2, '🗳️ став на кружечок «63» — голос за поверх 63');
-  step(4.5); me = W.ST.ps.find(p => p.k === 'me'); assert(W.ST.ph === 'fight' && W.ST.v === 2 && W.varAt(T.pl.x, T.pl.z) === 2, 'голосування: раунд на поверсі 63, мене перенесло туди');
+// --- голосування у вікні лобі: клік по картці «63» на поверсі 42 → раунд на поверсі 63, мене везе ліфт
+{ step(.3); assert(W.ST.ph === 'lobby' && pop(), 'після раунду — нове лобі, вікно відкрилось знову');
+  pop().querySelector('[data-lv="2"]').click(); step(.1);
+  assert(W.ST.votes.me === 2 && W.lobbyDef().votes.join() === '0,0,1' && /mine/.test(pop().querySelector('[data-lv="2"]').className) && /🗳️ 1/.test(pop().querySelector('[data-lv="2"]').textContent), '🗳️ клік по картці «63» — голос, лічильник 1');
+  T.MLOBBY.onVote(0); step(.1); assert(W.lobbyDef().votes.join() === '1,0,0', 'передумав — голос перейшов на 42');
+  T.MLOBBY.onVote(2); step(.1); T.MLOBBY.onReady(); step(.1); me = W.ST.ps.find(p => p.k === 'me'); assert(W.ST.ph === 'fight' && W.ST.v === 2 && W.varAt(T.pl.x, T.pl.z) === 2, 'голосування: раунд на поверсі 63, мене перенесло туди');
   W.AU.evIn = 999; W.AU.puIn = 999;
   const A0 = W.prnPos(); assert(W.actIdx(2) === 0 && A0 === W.VAR[2].prn[0], 'поверх 63: працює північний принтер');
   let pg = me.pages; for (let i = 0; i < 15; i++) { away(); atPrn(); step(.1); } assert(me.pages > pg, 'друкую на північному');
   W.ST.t = W.SWITCH - .1; step(.2); const B0 = W.prnPos(); assert(W.actIdx(2) === 1 && B0 === W.VAR[2].prn[1], '🔀 через 25 с перемкнуло на південний принтер');
   pg = me.pages; T.pl.x = A0.x + 1.6; T.pl.z = A0.z; away(); step(.6); assert(me.pages === pg, 'вимкнений принтер не друкує');
   for (let i = 0; i < 15; i++) { away(); atPrn(); step(.1); } assert(me.pages > pg, 'на південному — друкую');
-  W.req('leave'); step(.1); assert(W.ST.ph === 'idle', 'вийшов — раунд скинувся');
+  W.req('leave'); step(.1); assert(W.ST.ph !== 'fight', 'вийшов — раунд скинувся');
 }
 // --- поверх 57: принтер на колесах їде колією, зона їде з ним
-{ W.goPrinter(1); step(.5); assert(W.varAt(T.pl.x, T.pl.z) === 1, 'меню: поверх 57'); T.getInteract().fn(); step(5); me = W.ST.ps.find(p => p.k === 'me');
+{ W.goPrinter(1); step(.5); assert(W.varAt(T.pl.x, T.pl.z) === 1 && W.ST.ph === 'lobby' && pop(), 'меню: поверх 57, вікно лобі'); T.MLOBBY.onReady(); step(.3); me = W.ST.ps.find(p => p.k === 'me');
   assert(W.ST.ph === 'fight' && W.ST.v === 1, 'раунд на поверсі 57 (без голосів — поверх, де стоїш)');
   W.AU.evIn = 999; W.AU.puIn = 999;
   const a = W.prnPos(); step(2); const b = W.prnPos(); assert(Math.hypot(b.x - a.x, b.z - a.z) > 1, `принтер на колесах їде (${Math.hypot(b.x - a.x, b.z - a.z).toFixed(1)} м за 2 с)`);
@@ -149,4 +160,8 @@ step(9); assert(W.ST.ph === 'idle' && W.ST.v === 1, 'принт-рум віль�
   T.pl.x = D.cx + (r[1] + r[3]) / 2; T.pl.z = D.cz + (r[2] + r[4]) / 2; T.pl.y = 0; step(.2);
   const lb = W.V.roomLbl.find(o => o.r === r), other = W.V.roomLbl.find(o => o.r !== r);
   assert(lb && lb.e.style.opacity === '0' && other.e.style.opacity === '1', `у кімнаті «${r[0]}» її назва ховається, інші видно`); }
+// вийшов з режиму (Esc → Відкритий світ) — вікно лобі закрилось, лобі розпустилось
+{ W.openLobby(); step(.3); assert(W.ST.ph === 'lobby' && pop(), 'вкладка/стенд — лобі відкрите');
+  T.keydown('Escape'); step(.05); body().querySelector('[data-mode="world"]').click(); step(.3);
+  assert(!pop() && !T.MLOBBY && W.ST.ph === 'idle' && W.varAt(T.pl.x, T.pl.z) < 0, 'вийшов з режиму — вікно лобі закрилось, лобі порожнє'); }
 console.log('ALL OK'); process.exit(0);

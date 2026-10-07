@@ -45,6 +45,7 @@ T.keydown('Escape'); step(.05);
 assert(/🥊 PVP/.test(body().textContent) && body().querySelector('[data-mode="chairrace"]'), 'у меню паузи розділ PVP з гонками');
 body().querySelector('[data-mode="chairrace"]').click(); step(.6);
 assert(Math.hypot(T.pl.x - R.START.x, T.pl.z - R.START.z) < 2.2 && R.floorAt(T.pl.x, T.pl.z) === 0, 'переніс у ліфтовий хол поверху 42 до старту');
+assert($('#mlobby') && $('#mlobby [data-lv]'), 'одразу після входу відкрився попап лобі');
 assert($('#cr-intro'), 'картка «як грати» з’явилась'); $('#cr-intro button').click(); assert(!$('#cr-intro'), 'картку закрито');
 // таблички кімнат: тієї, де стоїш, — плавно зникає; решта видно; виходиш — повертається
 { const sx = T.pl.x, sz = T.pl.z, L = R.V.rooms[0], os = L.find(o => /Опенспейс/.test(o.r.n)), others = L.filter(o => o !== os), V0 = R.VARS[0];
@@ -57,15 +58,28 @@ assert($('#cr-intro'), 'картка «як грати» з’явилась'); 
   T.pl.x = sx; T.pl.z = sz; step(.4); assert(vis(os), 'вийшов — табличка повернулась'); }
 // стіна лобі (скло) не пускає на трасу пішки
 { const sx = T.pl.x, sz = T.pl.z; T.input.jx = 0; T.input.jz = 1; step(2); T.input.jz = 0; assert(T.pl.z < R.VARS[0].BB.z0 - .2, 'скляна стіна лобі не пускає на трасу пішки'); T.pl.x = sx; T.pl.z = sz; step(.1); }
-// голосування: стаю на майданчик №3
-{ const p = R.VARS[0].PADS[2]; T.pl.x = p.x; T.pl.z = p.z; step(.4); assert(R.ST.v === 2 && R.ST.votes.me === 2 && R.VV === R.VARS[2], 'голос на майданчику №3 — наступна траса «Колл-центр»'); }
-{ const p = R.VARS[0].PADS[0]; T.pl.x = p.x; T.pl.z = p.z; const it = T.getInteract(); assert(it && /Голос/.test(it.l), 'F біля майданчика — «Голос за …»'); }
-{ const p = R.VARS[0].PADS[2]; T.pl.x = p.x; T.pl.z = p.z; step(.2); }
-T.pl.x = R.VARS[0].START.x + 1; T.pl.z = R.VARS[0].START.z; step(.1);
-let it = T.getInteract(); assert(it && /Записатися/.test(it.l) && /Колл-центр/.test(it.l), 'біля старту F — «Записатися на заїзд · Колл-центр»'); it.fn(); step(.1);
-assert(R.ST.ph === 'lobby' && R.ST.racers.length === 1, 'записався — лобі');
+// лобі-попап: відкрився сам при вході; майданчиків голосування на підлозі більше нема
+const lob = () => $('#mlobby');
+assert(lob() && lob().querySelectorAll('[data-lv]').length === 3 && /Я готовий/.test(lob().textContent), 'увійшов у режим — відкрився попап лобі з 3 картками трас і «Я готовий»');
+assert([...lob().querySelectorAll('.map .im')].every((e, i) => e.getAttribute('style').includes(`addons/chairrace/map${i + 1}.jpg`)), 'у карток картинки addons/chairrace/map1..3.jpg');
+assert(R.VARS.every(V => !V.PADS) && !/майданчик/.test(w.document.body.innerHTML), 'жодних 🗳️ майданчиків / табличок голосування на поверсі');
+// нічия на старті — жереб серед лідерів; без голосів — ротація
+{ R.ST.votes = { a: 0, b: 2 }; const seen = new Set(); for (let i = 0; i < 60; i++) seen.add(R.pickVar(true)); assert(seen.size === 2 && seen.has(0) && seen.has(2), 'нічия 1:1 — випадково одна з двох лідерів'); R.ST.votes = {}; assert(R.pickVar(true) === R.ST.def, 'без голосів — траса за ротацією'); }
+// голос кліком по картці №3
+lob().querySelector('[data-lv="2"]').click(); step(.1);
+assert(R.ST.v === 2 && R.ST.votes.me === 2 && R.VV === R.VARS[2] && lob().querySelector('[data-lv="2"]').classList.contains('mine') && /🗳️ 1/.test(lob().querySelector('[data-lv="2"] .vc').textContent), 'клік по картці «Колл-центр» — голос зараховано, лічильник 1, картка підсвічена');
+// «Сховати» — попап зник, підказка й F у холі відкривають знову
+lob().querySelector('.hide').click(); step(.2);
+assert(!lob() && /F/.test($('#race-goal').textContent) && /Лобі сховано/.test($('#race-goal').textContent), '«Сховати» — попап закрито, внизу підказка «F — відкрити лобі»');
+let it = T.getInteract(); assert(it && /Відкрити лобі/.test(it.l), 'F у ліфтовому холі — «Відкрити лобі»'); it.fn(); step(.1);
+assert(lob(), 'F — попап знову відкрито');
+lob().querySelector('.hide').click(); step(.1); T.openPanel('ax_chairrace'); step(.05);
+{ const btn = body().querySelector('[data-cr="lobby"]'); assert(btn, 'у вкладці «🪑 Гонки» є кнопка «🗳️ Лобі»'); btn.click(); step(.1); assert(lob() && !T.panel, 'кнопка «🗳️ Лобі» відкрила попап'); }
 R.AU.noBotArms = true;   // у тесті боти не кидаються бомбами (передбачуваність)
-step(2.5); assert(R.ST.ph === 'count' && R.ST.racers.length === 4 && R.RC.on, 'боти зайняли місця, відлік, я в кріслі');
+// «Я готовий» — офлайн старт одразу, боти займають місця, попап закривається
+lob().querySelector('.rdy').click(); step(.1);
+assert(R.ST.ph === 'count' && R.ST.racers.length === 4 && R.RC.on, '«Я готовий» — одразу відлік, боти зайняли місця, я в кріслі');
+assert(!lob(), 'заїзд почався — попап закрито');
 assert(R.floorAt(T.pl.x, T.pl.z) === 2 && R.ST.v === 2, 'гра перенесла на поверх 63 (не трасу за замовчуванням)');
 const mb = $('#modebar');
 assert(mb && !mb.hidden && /💣/.test(mb.textContent) && /🪠/.test(mb.textContent) && $('#weapon').hidden && $('#drinks').hidden, 'хотбар порожній: лише 💣 Бомба і 🪠 Вантуз');
@@ -122,6 +136,9 @@ assert(T.P.coins > c0 && T.P.addons.chairrace.races === 1, `нагорода з�
 assert(!R.RC.on && $('#modebar').hidden && !$('#weapon').hidden, 'після фінішу встаєш з крісла — звичайний хотбар повернувся');
 step(9); assert(R.ST.ph === 'idle' && R.ST.v === 0 && !Object.keys(R.ST.votes).length, 'траса вільна; наступна за замовчуванням — інший поверх (ротація), голоси скинуто');
 // вихід через меню режиму посеред заїзду — хотбар відновлюється
-{ const p = R.VARS[0].START; T.pl.x = p.x + 1; T.pl.z = p.z; step(.1); T.getInteract().fn(); step(7); assert(R.RC.on && !$('#modebar').hidden, 'новий заїзд на поверсі 42 — знову в кріслі');
+{ assert(lob() && R.floorAt(T.pl.x, T.pl.z) >= 0, 'після заїзду лобі відкрилось знову'); lob().querySelector('.rdy').click(); step(7); assert(R.RC.on && !$('#modebar').hidden && R.floorAt(T.pl.x, T.pl.z) === 0, 'новий заїзд на поверсі 42 (ротація) — знову в кріслі');
   R.RC.x = R.RC.x; T.pl.x += 30; step(.1); assert(!R.RC.on && $('#modebar').hidden && R.ST.ph === 'idle', 'перенесло деінде — встав з крісла, хотбар відновлено, заїзд скасовано'); }
+// попап закривається, коли йдеш з режиму
+T.keydown('Escape'); step(.05); body().querySelector('[data-mode="chairrace"]').click(); step(.6);
+assert(lob(), 'знову в лобі — попап відкрився'); T.pl.x += 200; step(.1); assert(!lob(), 'пішов з режиму — попап закрився');
 console.log('ALL OK'); process.exit(0);

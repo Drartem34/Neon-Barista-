@@ -44,14 +44,22 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
   assert(a.WORLD.on && b.WORLD.on && a.ISLMAP.hideboss, 'обидва в спільному світі, офіс є');
   for (const [T, dx] of [[a, 0], [b, -1.5]]) { T.pl.x = F.SPAWN.x + dx; T.pl.z = F.SPAWN.z; T.pl.y = 0; T.pl.hp = 9999; }
   await tick([a, b], 1);
-  // Шеф хоче бути босом і стартує
+  const lob = T => T.w.document.getElementById('mlobby');
+  assert(lob(a) && lob(b) && lob(a).querySelectorAll('.map').length === 3, 'обидва в холі — в обох відкрите вікно лобі з трьома поверхами');
+  assert(/Шеф/.test(lob(b).querySelector('.who').textContent) && /Ледар/.test(lob(a).querySelector('.who').textContent), 'у лобі видно обох гравців');
+  // обидва голосують за 42-й кліком по картці; Шеф хоче бути босом і першим тисне «Я готовий»
+  lob(a).querySelector('[data-lv="0"]').click(); lob(b).querySelector('[data-lv="0"]').click(); await tick([a, b], .8);
+  assert(F.ST.vt[0] === 2 && G.ST.vt[0] === 2 && /🗳️ 2/.test(lob(b).querySelector('[data-lv="0"] .vc').textContent), 'сервер порахував 2 голоси за 42-й — видно в обох');
   F.V.pref = 'boss';
-  a.pl.x = F.BOARD.x; a.pl.z = F.BOARD.z - 1.2; await tick([a, b], .3);
-  let it = a.getInteract(); assert(it && /Почати раунд/.test(it.l), 'Шеф біля таблички ▶ СТАРТ'); it.fn();
-  await tick([a, b], 1.2);
-  assert(F.ST.on && G.ST.on && F.ST.ro.length === 2 && G.ST.ro.length === 2, 'раунд почався в обох (рахує сервер), ботів нема — двоє людей');
+  lob(a).querySelector('.rdy').click(); await tick([a, b], 1.2);
+  assert(!F.ST.on && /⏳ Не готовий/.test(lob(a).querySelector('.rdy').textContent) && /✅ Шеф/.test(lob(b).querySelector('.who').textContent), 'Шеф готовий — Ледар бачить ✅, раунд ще чекає');
+  assert(/Старт за/.test(lob(b).querySelector('.row').textContent) && G.ST.ct > 15, `онлайн іде відлік автостарту (${G.ST.ct.toFixed(0)} с)`);
+  G.lobbyDef().onReady(); await tick([a, b], 1.2);
+  assert(F.ST.on && G.ST.on && F.ST.ro.length === 2 && G.ST.ro.length === 2, 'Ледар теж готовий — раунд почався в обох (рахує сервер), ботів нема — двоє людей');
+  assert(!lob(a) && !lob(b), 'раунд почався — вікно лобі закрилось в обох');
+  let it;
   assert(F.bossE().k === 'Шеф' && G.bossE().k === 'Шеф' && G.me() && !G.me().boss, 'Шеф — бос, Ледар — офісник (обидва бачать однаково)');
-  assert(F.ST.v === 0 && G.ST.v === 0, 'ніхто не голосував — граємо на 42-му, де всі стоять');
+  assert(F.ST.v === 0 && G.ST.v === 0, 'граємо на 42-му, за який голосували');
   assert(F.inOffice(a.pl.x, a.pl.z) && a.w.document.getElementById('hb-blind').style.display === 'flex', 'бос — у скляному кабінеті на нараді');
   // Ледар ховається
   const h = G.hideSpots().find(s => s.f.t === 'ficus' && !G.DESKS.some(d => Math.hypot(d.x - s.x, d.z - s.z) < 2.6));
@@ -91,14 +99,17 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
   assert(b.hero.root.visible && Object.values(a.NET.players).find(r => r.name === 'Ледар').h.root.visible, 'після раунду Ледар знову людина');
   assert((F.ST.sc['Шеф'] || 0) >= 3 && (G.ST.sc['Шеф'] || 0) >= 3, 'табло: Шеф має очки в обох');
   assert(!a.MODEBAR && !b.MODEBAR, 'після раунду — звичайний хотбар в обох');
-  // голосування: обидва стали на килимок «57»
-  const P1 = F.FL[0].pads[1];
-  a.pl.x = P1.x - .3; a.pl.z = P1.z; b.pl.x = P1.x + .3; b.pl.z = P1.z; await tick([a, b], 1.2);
-  assert(F.ST.nv === 1 && G.ST.nv === 1 && F.ST.vt[1] === 2, 'обидва на килимку 🗳️ 57 — сервер порахував 2 голоси, наступний поверх — колл-центр');
-  // наступний раунд — роль боса переходить, а ліфт везе на 57-й
-  b.pl.x = F.BOARD.x; b.pl.z = F.BOARD.z - 1.2; a.pl.x = F.SPAWN.x; a.pl.z = F.SPAWN.z; await tick([a, b], .5);
-  it = b.getInteract(); assert(it && /57/.test(it.l), 'табличка ▶ СТАРТ: «Почати раунд на Поверх 57»'); it.fn(); await tick([a, b], 1.2);
-  assert(F.ST.on && F.bossE().k === 'Ледар' && G.bossE().k === 'Ледар', 'новий раунд: тепер бос — Ледар (по колу)');
+  // голосування в лобі: обидва за «57»; готовий лише Ледар — Шеф мовчить, і через 20 с стартуємо самі
+  b.pl.x = F.SPAWN.x - 1; b.pl.z = F.SPAWN.z; a.pl.x = F.SPAWN.x; a.pl.z = F.SPAWN.z; await tick([a, b], .6);
+  assert(lob(a) && lob(b), 'після раунду лобі знову відкрите в обох');
+  lob(a).querySelector('[data-lv="1"]').click(); G.lobbyDef().onVote(1); await tick([a, b], .8);
+  assert(F.ST.nv === 1 && G.ST.nv === 1 && F.ST.vt[1] === 2 && lob(a).querySelector('[data-lv="1"]').classList.contains('mine'), 'обидва голосують за 57 у вікні лобі — сервер порахував 2 голоси, наступний поверх — колл-центр');
+  lob(b).querySelector('.rdy').click(); await tick([a, b], 1);
+  assert(!F.ST.on && /Старт за/.test(lob(a).querySelector('.row').textContent), 'Ледар готовий, Шеф мовчить — у Шефа відлік «Старт за … с»');
+  for (let k = 0; k < 26 && !F.ST.on; k++) { b.pl.x = F.SPAWN.x - 1; b.pl.z = F.SPAWN.z; await tick([a, b], 1); }
+  await tick([a, b], 1);
+  assert(F.ST.on && F.bossE().k === 'Ледар' && G.bossE().k === 'Ледар', 'через 20 с — автостарт без Шефової відповіді; новий раунд: тепер бос — Ледар (по колу)');
+  assert(!lob(a) && !lob(b), 'автостарт — вікно лобі закрилось в обох');
   const F1 = F.FL[1];
   assert(F.ST.v === 1 && G.ST.v === 1 && F.floorAt(a.pl.x, a.pl.z) === 1 && F.floorAt(b.pl.x, b.pl.z) === 1 && G.inOffice(b.pl.x, b.pl.z), 'обох перевезло на 57-й: бос — у кабінеті супервайзерки, Шеф — у холі');
   // Шеф ховається кріслом і таранить боса

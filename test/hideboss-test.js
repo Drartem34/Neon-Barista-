@@ -36,8 +36,9 @@ for (const [v, F] of H.FL.entries()) {
   // периметр закритий: стіни-статики по всіх чотирьох краях
   const edge = (fx, fz) => ss.some(o => Math.abs(o.x - fx) < .6 && Math.abs(o.z - fz) < .6);
   assert(edge(F.x, F.z - F.hz) && edge(F.x, F.z + F.hz) && edge(F.x - F.hx, F.z) && edge(F.x + F.hx, F.z), `«${F.n}»: зовнішні стіни не випускають з хмарочоса`);
-  assert([F.spawn, F.board, ...F.pads, F.carpet, F.bossSpot].every(p => H.floorAt(p.x, p.z) === v), `«${F.n}»: старт, голосування, кабінет боса — на своєму поверсі`);
-  assert([F.spawn, ...F.pads].every(p => H.navFree(p.x, p.z)), `«${F.n}»: ліфтовий хол і килимки вільні`);
+  assert([F.spawn, F.board, F.carpet, F.bossSpot].every(p => H.floorAt(p.x, p.z) === v), `«${F.n}»: хол, стійка лобі, кабінет боса — на своєму поверсі`);
+  assert(!F.pads && !F.role, `«${F.n}»: килимків для голосування й таблички ролі більше нема`);
+  assert(H.navFree(F.spawn.x, F.spawn.z), `«${F.n}»: ліфтовий хол вільний`);
   const M = F.meet, hs = H.hideSpots(v), ms = hs.filter(h => H.inRoomR(F, M, h.x, h.z, .3));
   assert(ms.length >= 3, `«${F.n}»: у «${M.n}» є де сховатись на зборах (${ms.length})`);
   for (const h of [ms[0], hs[hs.length - 1], hs[hs.length >> 1]]) { const rt = H.route(F.spawn.x, F.spawn.z, h.x, h.z); assert(rt.length > 3 && rt.every(p => H.floorAt(p.x, p.z) === v && H.navFree(p.x, p.z)), `«${F.n}»: від ліфта до «${H.FT[h.f.t].n}» у «${H.roomAt(h.x, h.z).n}» є маршрут (${rt.length} точок)`); }
@@ -46,20 +47,34 @@ for (const [v, F] of H.FL.entries()) {
 T.startGame(true); T.P.tut = -1; T.pl.hp = 9999; step(.3);
 T.keydown('Escape'); step(.05); body().querySelector('[data-mode="hideboss"]').click(); step(.5);
 assert(Math.hypot(T.pl.x - H.SPAWN.x, T.pl.z - H.SPAWN.z) < 1, 'Esc → «Сховайся від боса» переносить в офіс');
-assert(H.goal().id === 'start:0' && w.document.getElementById('hb-intro'), 'до старту: інструкція й підказка «▶ СТАРТ»');
+const lob = () => w.document.getElementById('mlobby');
+assert(w.document.getElementById('hb-intro') && !lob(), 'до старту: спершу інструкція (лобі під нею не відкриваємо)');
 w.document.querySelector('#hb-intro button').click(); assert(!w.document.getElementById('hb-intro') && T.P.addons.hideboss.intro === 1, 'інструкцію закрив — більше не показується');
-step(.1); assert(/СТАРТ/.test(w.document.getElementById('hideboss-goal').textContent) && /Сховайся від боса/.test(w.document.getElementById('hideboss-hud').textContent), 'HUD і рядок «👉 що робити зараз»');
+step(.1);
+assert(lob() && lob().querySelectorAll('.map').length === 3 && /Сховайся від боса/.test(lob().textContent), 'вхід у режим — відкрилось вікно лобі з трьома картками поверхів');
+assert([1, 2, 3].every(i => lob().innerHTML.includes(`addons/hideboss/map${i}.jpg`)), 'на картках — картинки поверхів map1…map3.jpg');
+assert(/Ти/.test(lob().querySelector('.who').textContent) && /офісник/.test(lob().textContent), 'у лобі: список гравців (⏳ Ти) і роль, якою граєш сам');
+assert(H.goal().id === 'lobby' && /Я готовий/.test(w.document.getElementById('hideboss-goal').textContent) && /Сховайся від боса/.test(w.document.getElementById('hideboss-goal').textContent + w.document.getElementById('hideboss-hud').textContent), 'HUD і рядок «👉 обери поверх і натисни Я готовий»');
+assert(!H.FL.some(F => T.STATICS.some(o => F.role && Math.hypot(o.x - F.role.x, o.z - F.role.z) < .3)), 'табличок 🎭 РОЛЬ нема');
+// «Сховати» — вікно закривається, підказка веде до стійки «🗳️ ЛОБІ», F там — знову відкриває
+lob().querySelector('.hide').click(); step(.1);
+assert(!lob() && H.goal().id === 'start:0' && /ЛОБІ/.test(w.document.getElementById('hideboss-goal').textContent), '«Сховати» — лобі закрите, підказка: F біля стійки 🗳️ ЛОБІ');
+T.pl.x = H.BOARD.x; T.pl.z = H.BOARD.z - 1.2; step(.1);
+{ const i = T.getInteract(); assert(i && /лобі/i.test(i.l), 'біля стійки F — «Відкрити лобі»'); i.fn(); step(.1); assert(lob(), 'F — лобі знову відкрите'); }
+lob().querySelector('.hide').click(); step(.1); T.openPanel('ax_hideboss'); step(.05);
+body().querySelector('[data-hb="lobby"]').click(); step(.1); assert(lob() && !T.panel, 'вкладка 🙈 Хованки → «🗳️ Лобі» теж відкриває вікно');
 assert(H.FURN.length > 60 && ['chair', 'cooler', 'ficus', 'copier', 'cabinet', 'box', 'trash', 'coffee', 'sofa', 'desk'].every(t => H.FURN.some(f => f.t === t)), `офіс заставлений меблями (${H.FURN.length})`);
 // стіни офісу не випускають
 T.pl.x = F0.x + 15.5; T.pl.z = F0.z + 10.5; step(.05); for (let k = 0; k < 40; k++) { T.pl.z += .1; step(.02); } assert(T.pl.z < F0.z + 12.8, 'з поверху не вийдеш крізь скляний фасад');
 
 const hideAt = t => { const h = H.hideSpots().find(s => s.f.t === t && !H.DESKS.some(d => Math.hypot(d.x - s.x, d.z - s.z) < 2.6)); T.pl.x = h.x; T.pl.z = h.z; step(.05); return h; };
-const toBoard = () => { T.pl.x = H.BOARD.x; T.pl.z = H.BOARD.z - 1.2; step(.1); };
+const ready = () => { step(.1); assert(lob(), 'лобі відкрите'); lob().querySelector('.rdy').click(); step(.1); };
 
 /* ===== 1. Офісником проти бота-боса ===== */
-toBoard();
-let it = T.getInteract(); assert(it && /Почати раунд/.test(it.l) && /офісник/.test(it.l), 'біля таблички F — «Почати раунд (я — офісник)»'); it.fn(); step(.2);
-assert(ST.on && ST.ph === 'meet' && H.me() && !H.me().boss, 'раунд почався: я — офісник, бос на нараді');
+T.pl.x = H.SPAWN.x; T.pl.z = H.SPAWN.z; ready(); step(.1);
+assert(ST.on && ST.ph === 'meet' && H.me() && !H.me().boss, '✅ «Я готовий» (сам) — раунд одразу почався: я — офісник, бос на нараді');
+assert(!lob(), 'раунд почався — вікно лобі закрилось');
+let it;
 assert(H.bossE().bot && H.alive().length === 3, `бот-бос «${H.bossE().n}» і ще два боти-офісники`);
 assert(ST.v === 0, 'ніхто не голосував — граємо на поверсі, де стоїш (42)');
 step(.1); assert(T.MODEBAR && T.MODEBAR.slots.map(q => q.id).join() === 'mask,decoy,ram,smoke' && !w.document.getElementById('modebar').hidden && w.document.getElementById('weapon').hidden, 'панель офісника замість напоїв: 🎭 📄 🛞 🚬');
@@ -96,7 +111,8 @@ T.pl.x = F0.x; T.pl.z = F0.z; step(.1); assert(H.inOffice(T.pl.x, T.pl.z), 'сп
 assert(!H.inOffice(T.pl.x, T.pl.z), 'після раунду — з кабінету на волю');
 
 /* ===== 2. Пересидів боса: вийшов час ===== */
-toBoard(); T.getInteract().fn(); step(.2); H.AU.freeze = true;
+step(.1); assert(lob() && /Я готовий/.test(lob().querySelector('.rdy').textContent), 'після раунду лобі відкривається знову');
+ready(); step(.1); H.AU.freeze = true;
 assert(ST.on && ST.rn === 2 && !H.me().boss, 'новий раунд офісником');
 hideAt('chair'); it = T.getInteract(); assert(it && /крісло/i.test(it.l), 'біля крісла F — «Замаскуватись: 🪑 Офісне крісло»'); it.fn(); step(.1);
 T.keydown('KeyR'); step(.1); assert(ST.dec.length === 1 && H.me().dc, 'R — фейковий звіт лишився на підлозі');
@@ -119,9 +135,9 @@ ST.ph = 'hunt'; ST.t = H.DUR - .5;
 { const c0 = T.P.coins; step(1); assert(!ST.on && T.P.addons.hideboss.survived === 1 && T.P.coins >= c0 + 80, `час вийшов — я пересидів боса: +${T.P.coins - c0} 🪙`); }
 
 /* ===== 3. Босом проти ботів-офісників ===== */
-T.pl.x = H.ROLE.x; T.pl.z = H.ROLE.z - 1.2; step(.1);
-it = T.getInteract(); assert(it && /Хочу бути/.test(it.l), 'табличка 🎭 РОЛЬ — вибір ролі'); it.fn(); assert(H.V.pref === 'boss', 'тепер я хочу бути босом');
-toBoard(); it = T.getInteract(); assert(/бос/.test(it.l), 'F — «Почати раунд (я — бос)»'); it.fn(); step(.3);
+step(.1); T.openPanel('ax_hideboss'); step(.05); body().querySelector('[data-hb="boss"]').click(); assert(H.V.pref === 'boss', 'вкладка: «🎭 Сам граю 👔 босом»'); T.closePanel(); step(.1);
+assert(lob() && /бос<\/b> проти ботів/.test(lob().querySelector('.row').innerHTML), 'у лобі видно обрану роль: бос проти ботів');
+ready(); step(.2);
 assert(ST.on && H.me().boss && H.alive().length === 3 && H.alive().every(e => e.bot), 'я — бос, проти трьох ботів-офісників');
 step(.1); assert(T.MODEBAR && T.MODEBAR.slots.map(q => q.id).join() === 'catch,check,bell', 'панель боса: 👉 🔍 🔔');
 assert(H.inOffice(T.pl.x, T.pl.z) && w.document.getElementById('hb-blind').style.display === 'flex', 'нарада: бос у скляному кабінеті й нічого не бачить');
@@ -171,13 +187,13 @@ assert(!T.MODEBAR && !w.document.getElementById('weapon').hidden, 'раунд с
 
 /* ===== 4. Голосування за поверх і раунд на «Поверх 63 · Юридична фірма» ===== */
 {
-  const pd = F0.pads[2]; T.pl.x = pd.x; T.pl.z = pd.z; step(.6);
-  it = T.getInteract(); assert(it && /Голосувати/.test(it.l) && /63/.test(it.l), 'на килимку 🗳️ — «Голосувати за Поверх 63»');
-  assert(ST.nv === 2 && ST.vt[2] === 1, 'став на килимок — голос за 63-й поверх');
-  T.pl.x = F0.pads[1].x; T.pl.z = F0.pads[1].z; step(.6); assert(ST.nv === 1 && ST.vt[1] === 1 && !ST.vt[2], 'перейшов на інший килимок — голос змінився (57)');
-  T.pl.x = pd.x; T.pl.z = pd.z; step(.6); assert(ST.nv === 2, 'і назад на 63');
+  step(.2); assert(lob(), 'лобі знову відкрите');
+  lob().querySelector('[data-lv="2"]').click(); step(.3);
+  assert(ST.nv === 2 && ST.vt[2] === 1 && lob().querySelector('[data-lv="2"]').classList.contains('mine') && /🗳️ 1/.test(lob().querySelector('[data-lv="2"] .vc').textContent), 'клік по картці «63» — голос (1), картка підсвічена');
+  H.lobbyDef().onVote(1); step(.3); assert(ST.nv === 1 && ST.vt[1] === 1 && !ST.vt[2], 'onVote(1) — голос змінився на 57');
+  lob().querySelector('[data-lv="2"]').click(); step(.3); assert(ST.nv === 2 && /63/.test(lob().querySelector('.sub').textContent), 'і назад на 63 — «Наступний: Поверх 63»');
 }
-toBoard(); it = T.getInteract(); assert(/63/.test(it.l), 'табличка ▶ СТАРТ: «Почати раунд на Поверх 63»'); it.fn(); step(.3);
+ready(); step(.2);
 const F2 = H.FL[2];
 assert(ST.on && ST.v === 2 && H.floorAt(T.pl.x, T.pl.z) === 2 && H.inOffice(T.pl.x, T.pl.z), 'ліфт привіз на 63-й: бос — у кабінеті партнера');
 assert(H.bossE().k === 'me' && H.alive().every(e => H.floorAt(e.x, e.z) === 2), 'боти-офісники теж на 63-му');
@@ -189,7 +205,9 @@ H.AU.freeze = true;
 { const c0 = T.P.coins; ST.t = H.DUR - .2; step(.5); assert(!ST.on && T.P.addons.hideboss.bossRounds === 2 && T.P.addons.hideboss.floors[2] === 1 && T.P.coins > c0, 'час вийшов — раунд на 63-му зарахований'); }
 assert(!H.inOffice(T.pl.x, T.pl.z) && H.floorAt(T.pl.x, T.pl.z) === 2, 'після раунду — у холі 63-го');
 // Esc-меню веде в хол поверху наступного раунду
-H.goHide(1); step(.2); assert(H.floorAt(T.pl.x, T.pl.z) === 1, 'goHide(1) — ліфтом на 57-й (колл-центр)');
+H.goHide(1); step(.2); assert(H.floorAt(T.pl.x, T.pl.z) === 1 && lob(), 'goHide(1) — ліфтом на 57-й (колл-центр), лобі відкрите');
+{ const x = T.pl.x, z = T.pl.z; T.pl.x = 0; T.pl.z = 0; step(.2); assert(!lob(), 'пішов з режиму — вікно лобі закрилось'); T.pl.x = x; T.pl.z = z; step(.2); assert(lob(), 'повернувся — лобі знову'); }
+lob().querySelector('.hide').click(); step(.1);
 T.openPanel('ax_hideboss'); step(.05); assert(/Хованки/.test(body().textContent) && /Табло/.test(body().textContent), 'вкладка «🙈 Хованки» з табло'); T.closePanel();
 // назва кімнати ховається, коли стоїш у ній
 { const H = w.__hideboss, r = H.ROOMS.find(q => q.id !== 'hall' && Math.abs(q.x1 - q.x0) > 3) || H.ROOMS[1], F = H.FL ? (H.FL[0] || H.FL) : null;

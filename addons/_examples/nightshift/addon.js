@@ -3,11 +3,14 @@
      «Поверх 42 · Опенспейс»       — класичний офіс: опенспейс, переговорна, кабінет начальника, щитова, архів із люком у підвал.
      «Поверх 57 · IT-стартап»       — кільцевий коридор довкола скляної серверної-«акваріума», колл-центр, нап-рум із капсулами, ігрова.
      «Поверх 63 · Юридична фірма»   — величезний архів-лабіринт стелажів, кабінети партнерів за склом, бібліотека, поштова, сходи в підвал.
-   Поверх обирають голосуванням: стань на 🗳️ плиту в холі (або F на ній). Нікого не обрали — поверхи йдуть по колу.
+   Поверх обирають у попапі лобі (картки з картинками) + «✅ Я готовий»: старт, коли готові всі (онлайн — щонайпізніше за 20 с після першого).
+   Нічия — жереб, ніхто не голосував — поверхи йдуть по колу.
    - 🔦 ліхтарик (L / 1), 🧪 неонові шоти (2) — кидаєш, і 30 с там коло неонового світла: зомбі в ньому завмирають і не заходять;
      🔋 запасні батарейки (3), 📻 рація (4) — показує кентів. Набір режиму (modeBar) замість хотбара, поки йде зміна.
    - Зомбі-офісники рухаються лише в темряві. Схопили — НЕ вбивають, а тягнуть тебе за ногу до вантажного ліфта / люка в підвал.
-     Кент має кілька секунд: посвітити на зомбі (або кинути шот) — той кидає здобич. Сам — тисни F, брикайся.
+     Кент має кілька секунд: посвітити на зомбі (або кинути шот) — той кидає здобич. Сам — тисни F / Пробіл, вирвешся за 2–3 с (зомбі оглушений).
+   - ☕ Лікувальна кава (5): вариш на кухні біля кавомашини (F, 3 с, гучно), до 2 чашок — лікує, піднімає тебе або кента поруч.
+   - Ліхтарик не світить крізь стіни (скло пропускає): конус обрізано променями, і «освітлений» зомбі — лише на прямій видимості.
      Дотягли — ти «в підвалі»: кенти викликають вантажний ліфт (F 4 с біля нього, гучно!) і витягають тебе.
    - «Нічний прибиральник» полює на звук (Z — крастися), ховатися: шафа, кабінка, капсула, під столом.
    - Датчики руху в коридорах: вмикають світло на 4 с (зомбі завмирають), але прибиральник бачить, що там хтось є.
@@ -22,6 +25,8 @@ const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);
 const WH = 1.3;                                                          // висота стін (низькі — камера бачить кімнати)
 const DUR = 330, LIGHT_R = 9.5, LIGHT_A = .42, DRAIN = .9;               // ніч 5,5 хв; ліхтарик: дальність, пів-кута, розряд %/с
 const LZ_R = 3, LZ_T = 30, DRAG_SPD = 1.25, DROP_T = 1.4, RESCUE_T = 4;  // коло шоту, його час; тягнуть — швидкість, скільки світити, щоб кинув; витягти з підвалу
+const KICK = .1, KICK_DEC = .15, STUN_T = 2, IFRAME_T = 2;               // брикайся: + за натиск, спад/с; зомбі оглушений; «пільга» після того, як вирвався
+const CF_MAX = 2, BREW_T = 3, LOBBY_T = 20;                              // лікувальна кава: максимум у кишені, скільки варити; лобі: автостарт через 20 с після першого «готовий»
 const P2 = Math.PI / 2, PI = Math.PI;
 const wrapA = a => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
 const inR = (p, r) => !!p && p.x >= r.x0 && p.x <= r.x1 && p.z >= r.z0 && p.z <= r.z1;
@@ -130,7 +135,7 @@ const F42 = mkFloor(0, { id: 'nightshift', n: 'Поверх 42 · Опенспе
     for (const x of [8, 9.6, 11.2]) { F('desk', x, 13.7, 0, 0, { c: '#D6E4E4' }); F('desk', x, 12.9, PI, 0, { c: '#D6E4E4' }); } F('plant', 5.6, 15.4); F('plant', 12.4, 9.6);
     // місця
     f.SPAWN = L(0, 13.5); f.CLOCK = L(4.3, 13.5); f.CLOCK_S = 1; f.EXIT = L(16.3, 0); f.ELEC = L(-17, 1.2);
-    f.VOTE = [L(-2.2, 11), L(0, 11), L(2.2, 11)];
+    f.COFFEE = L(-12.4, 6.25); f.CM = L(-13.5, 6.25);   // де стати біля кавомашини на кухні / сама машина
     f.PANEL_X = f.cx - 19.6; f.BRK_Z = [4, 5.2, 6.4];
     f.CARD_SPOTS = [P(14, -11.6, { n: 'стіл начальника', ic: '💼' }), P(-12.5, 8.2, { n: 'холодильник', ic: '🧊' }), P(-9.4, -5.9, { n: 'шухляда в опенспейсі', ic: '🗄️' }),
       P(-18.3, 12, { n: 'полиця в архіві', ic: '📚' }), P(0, 6.9, { n: 'стійка рецепції', ic: '🛎️' }), P(8, 11.6, { n: 'стіл айтішника', ic: '🧑‍💻' })];
@@ -208,7 +213,7 @@ const F57 = mkFloor(1, { id: 'nightshift2', n: 'Поверх 57 · IT-старт
     for (const x of [5.75, 7.5, 9.25]) F('part', x, 13.95); for (const x of [4.85, 6.6, 8.4]) F('wc', x, 14.5); F('counter', 9.5, 10.6, -P2, 2.4, { mirror: 1 });
     for (const x of [11.8, 13.4, 15, 18.2, 19.8]) { F('desk', x, 12.4, 0, 0, { c: '#D6E4F4' }); F('desk', x, 11.6, PI, 0, { c: '#D6E4F4' }); } F('plant', 21.4, 14.4); F('shelf', 21.6, 11.5, -P2, 2);
     f.SPAWN = L(.5, 11); f.CLOCK = L(3.3, 12.5); f.CLOCK_S = 1; f.EXIT = L(-2.1, 13); f.ELEC = L(17.5, -4.6);
-    f.VOTE = [L(-.8, 14.1), L(.9, 14.1), L(2.6, 14.1)];
+    f.COFFEE = L(-20.4, 2.4); f.CM = L(-21.5, 2.4);
     f.PANEL_X = f.cx + 13.55; f.BRK_Z = [-12.2, -11, -9.8];
     f.CARD_SPOTS = [P(8.5, -10.6, { n: 'стіл CEO', ic: '💼' }), P(-20.4, 4.6, { n: 'холодильник', ic: '🧊' }), P(-12, -10.15, { n: 'шухляда оператора', ic: '🎧' }),
       P(1.2, 1.5, { n: 'стійка №7 у серверній', ic: '🖥️' }), P(-8, 3.6, { n: 'капсула для сну', ic: '🛌' }), P(16.6, 10.3, { n: 'стенд тестувальника', ic: '📱' })];
@@ -283,7 +288,7 @@ const F63 = mkFloor(2, { id: 'nightshift3', n: 'Поверх 63 · Юридич�
     // хол: мармурова рецепція, Феміда, дивани для клієнтів
     F('recep', 14.5, 10.5, 0, 0, { sign: 'ЗАКОН' }); F('chair', 14.5, 9.7, PI); F('statue', 5, 16); F('sofa', 19.35, 9.5, -P2, 2.4); F('ctable', 18.2, 9.5, P2); F('plant', 19.3, 7.6, 0, 0, { big: 1 }); F('plant', 4.6, 7.6, 0, 0, { big: 1 }); F('plant', 15.8, 16.3);
     f.SPAWN = L(9.5, 10.4); f.CLOCK = L(4.75, 9.5); f.CLOCK_S = -1; f.EXIT = L(15.3, 15.25); f.ELEC = L(-2.6, 14);
-    f.VOTE = [L(7.6, 14.2), L(9.6, 14.2), L(11.6, 14.2)];
+    f.COFFEE = L(4.4, 2.4); f.CM = L(4.4, 3.5);
     f.PANEL_X = f.cx - 10.45; f.BRK_Z = [13, 14.2, 15.4];
     f.CARD_SPOTS = [P(-18, -11.4, { n: 'стіл партнера А', ic: '💼' }), P(6, -2.3, { n: 'холодильник', ic: '🧊' }), P(-16.2, 6, { n: 'шухляда «Справи 1998»', ic: '📁' }),
       P(-15.5, 13.2, { n: 'посилка без адреси', ic: '📦' }), P(13.3, -15, { n: 'рідкісний кодекс', ic: '📜' }), P(14.5, 11.7, { n: 'стійка рецепції', ic: '🛎️' })];
@@ -305,11 +310,11 @@ const floorAt = (x, z) => FLOORS.findIndex(f => dist2(x, z, f.cx, f.cz) < f.r + 
 const inIsl = (x, z) => floorAt(x, z) >= 0;
 
 /* ---------- Поточний поверх: усі «глобальні» таблиці дивляться на нього ---------- */
-let FL = F42, CUR = 0, BX, BZ, HX, HZ, WALLS, DOORS, ROOMS, FURN_L, FURN, SPAWN, CLOCK, EXIT, ESC, ELEC, ELEC_D, EXIT_D, BREAKERS, CARD_SPOTS, NOTE_SPOTS, ITEMS, CABS, MONITORS, PRINTER, PHONE, SVC, EN_SPAWN, WAYS, SENS, NC, NR, GX0, GZ0;
+let FL = F42, CUR = 0, BX, BZ, HX, HZ, COFFEE, CM, WALLS, DOORS, ROOMS, FURN_L, FURN, SPAWN, CLOCK, EXIT, ESC, ELEC, ELEC_D, EXIT_D, BREAKERS, CARD_SPOTS, NOTE_SPOTS, ITEMS, CABS, MONITORS, PRINTER, PHONE, SVC, EN_SPAWN, WAYS, SENS, NC, NR, GX0, GZ0;
 function useVar(i) {
   i = clamp(i | 0, 0, FLOORS.length - 1); if (FL === FLOORS[i] && BX != null) return;
   CUR = i; FL = FLOORS[i];
-  ({ cx: BX, cz: BZ, hx: HX, hz: HZ, WALLS, DOORS, ROOMS, FURN_L, FURN, SPAWN, CLOCK, EXIT, ESC, ELEC, ELEC_D, EXIT_D, BREAKERS, CARD_SPOTS, NOTE_SPOTS, ITEMS, CABS, MONITORS, PRINTER, PHONE, SVC, EN_SPAWN, WAYS, SENS, NC, NR, GX0, GZ0 } = FL);
+  ({ cx: BX, cz: BZ, hx: HX, hz: HZ, COFFEE, CM, WALLS, DOORS, ROOMS, FURN_L, FURN, SPAWN, CLOCK, EXIT, ESC, ELEC, ELEC_D, EXIT_D, BREAKERS, CARD_SPOTS, NOTE_SPOTS, ITEMS, CABS, MONITORS, PRINTER, PHONE, SVC, EN_SPAWN, WAYS, SENS, NC, NR, GX0, GZ0 } = FL);
 }
 useVar(0);
 const L = (x, z) => ({ x: BX + x, z: BZ + z });
@@ -318,17 +323,18 @@ const roomAt = (x, z) => FL.roomAt(x, z);
 const roomN = p => { const r = p && roomAt(p.x, p.z); return r ? r.n.trim() : ''; };
 
 /* ---------- Стан ночі ---------- */
-const ST = { on: false, t: 0, dur: DUR, v: 0, nx: 0, vt: [0, 0, 0], en: [], pl: {}, card: '', cs: [], note: 0, noteAt: 0, ord: null, edoor: 0, fz: 0, power: 0, exit: 0, bats: [], shp: [], lz: [], ms: [], gift: null };
-const AU = { cardAt: 0, order: [0, 1, 2], eid: 0, lid: 0, calm: 0, spawnT: 40, scareT: 25, cleanAt: 50, stT: 0, idle: 0, noise: [], inp: {}, sayT: 0, votes: {}, def: 0, ms: [], msOn: [], knock: {}, ping: {} };
+const ST = { on: false, t: 0, dur: DUR, v: 0, nx: 0, vt: [0, 0, 0], en: [], pl: {}, card: '', cs: [], note: 0, noteAt: 0, ord: null, edoor: 0, fz: 0, power: 0, exit: 0, bats: [], shp: [], lz: [], ms: [], gift: null, lp: [], as: 0 };
+// lp — хто в лобі: [ім'я, голос, готовий]; as — автостарт через N с
+const AU = { cardAt: 0, order: [0, 1, 2], eid: 0, lid: 0, calm: 0, spawnT: 40, scareT: 25, cleanAt: 50, stT: 0, idle: 0, noise: [], inp: {}, sayT: 0, votes: {}, ready: {}, rdT: -1, def: 0, ms: [], msOn: [], knock: {}, ping: {}, kick: {}, brew: {} };
 const myKey = () => (NET.on && typeof WORLD !== 'undefined' && WORLD.on ? myName() : 'me');
 const keyOf = from => SIMSIDE ? String(from && from.name || '') : 'me';
 const r2 = v => Math.round(v * 100) / 100;
-// b — батарейка %, l — ліхтарик, d — лежить, h — схованка, a — куди світить, g — «пільга» після підйому, dr — хто тягне (id зомбі), tk — у підвалі (номер ліфта + 1), sh — шоти, bs — запасні батарейки
-const plS = k => ST.pl[k] || (ST.pl[k] = { b: 100, l: 1, d: 0, h: 0, a: 0, g: 0, dr: 0, tk: 0, sh: 2, bs: 1, sg: 0, rt: 0 });
+// b — батарейка %, l — ліхтарик, d — лежить, h — схованка, a — куди світить, g — «пільга» після підйому, dr — хто тягне (id зомбі), tk — у підвалі (номер ліфта + 1), sh — шоти, bs — запасні батарейки, sg — брикання 0…1, cf — лікувальна кава
+const plS = k => ST.pl[k] || (ST.pl[k] = { b: 100, l: 1, d: 0, h: 0, a: 0, g: 0, dr: 0, tk: 0, sh: 2, bs: 1, sg: 0, rt: 0, cf: 0 });
 function snap() {
   return { on: ST.on ? 1 : 0, t: r2(ST.t), dur: ST.dur, v: ST.v, nx: ST.nx, vt: ST.vt,
-    en: ST.en.map(e => [e.id, e.t, r2(e.x), r2(e.z), r2(e.face), (e.lit ? 1 : 0) | (e.st === 'chase' || e.st === 'hunt' ? 2 : 0) | (e.st === 'happy' ? 4 : 0) | (e.st === 'flee' ? 8 : 0) | (e.st === 'drag' ? 16 : 0), e.to | 0]),
-    pl: Object.entries(ST.pl).map(([k, s]) => [k, Math.round(s.b), s.l ? 1 : 0, s.d ? 1 : 0, s.h | 0, r2(s.a), s.g > 0 ? 1 : 0, s.dr | 0, s.tk | 0, s.sh | 0, s.bs | 0, r2(s.sg)]),
+    en: ST.en.map(e => [e.id, e.t, r2(e.x), r2(e.z), r2(e.face), (e.lit ? 1 : 0) | (e.st === 'chase' || e.st === 'hunt' ? 2 : 0) | (e.st === 'happy' ? 4 : 0) | (e.st === 'flee' ? 8 : 0) | (e.st === 'drag' ? 16 : 0) | (e.st === 'stun' ? 32 : 0), e.to | 0]),
+    pl: Object.entries(ST.pl).map(([k, s]) => [k, Math.round(s.b), s.l ? 1 : 0, s.d ? 1 : 0, s.h | 0, r2(s.a), s.g > 0 ? 1 : 0, s.dr | 0, s.tk | 0, s.sh | 0, s.bs | 0, r2(s.sg), s.cf | 0]), lp: ST.lp, as: ST.as,
     cd: ST.card, cs: ST.cs, nt: ST.note, na: ST.noteAt, ord: ST.ord, ed: ST.edoor, fz: ST.fz, pw: ST.power, ex: ST.exit, bt: ST.bats, sp: ST.shp,
     lz: ST.lz.map(z => [z.id, r2(z.x), r2(z.z), Math.round(z.t * 10) / 10]), ms: ST.ms, gf: ST.gift };
 }
@@ -337,14 +343,15 @@ function applySnap(d) {
     edoor: d.ed ? 1 : 0, fz: d.fz | 0, power: d.pw ? 1 : 0, exit: d.ex ? 1 : 0 });
   if (ST.on) useVar(ST.v);
   if (Array.isArray(d.vt)) ST.vt = [0, 1, 2].map(i => d.vt[i] | 0);
+  ST.lp = Array.isArray(d.lp) ? d.lp.slice(0, 8).map(a => [String(a[0]), clamp(a[1] | 0, -1, 2), a[2] ? 1 : 0]) : []; ST.as = d.as | 0;
   if (Array.isArray(d.cs)) ST.cs = d.cs.slice(0, 8).map(v => v ? 1 : 0);
   if (Array.isArray(d.bt)) ST.bats = d.bt.slice(0, 24).map(i => i | 0);
   if (Array.isArray(d.sp)) ST.shp = d.sp.slice(0, 24).map(i => i | 0);
   if (Array.isArray(d.ms)) ST.ms = d.ms.slice(0, 8).map(v => v | 0);
   ST.gift = Array.isArray(d.gf) ? [d.gf[0] | 0, String(d.gf[1])] : null;
   if (Array.isArray(d.lz)) ST.lz = d.lz.slice(0, 8).map(a => ({ id: a[0], x: +a[1], z: +a[2], t: +a[3] }));
-  if (Array.isArray(d.en)) ST.en = d.en.slice(0, 14).map(a => ({ id: a[0], t: a[1] ? 1 : 0, x: +a[2], z: +a[3], face: +a[4], lit: a[5] & 1 ? 1 : 0, st: a[5] & 16 ? 'drag' : a[5] & 4 ? 'happy' : a[5] & 8 ? 'flee' : a[5] & 2 ? 'chase' : 'wander', to: a[6] | 0 }));
-  if (Array.isArray(d.pl)) { const o = {}; for (const a of d.pl.slice(0, 8)) o[String(a[0])] = { b: +a[1], l: a[2] ? 1 : 0, d: a[3] ? 1 : 0, h: a[4] | 0, a: +a[5], g: a[6] ? 1 : 0, dr: a[7] | 0, tk: a[8] | 0, sh: a[9] | 0, bs: a[10] | 0, sg: +a[11] || 0 }; ST.pl = o; }
+  if (Array.isArray(d.en)) ST.en = d.en.slice(0, 14).map(a => ({ id: a[0], t: a[1] ? 1 : 0, x: +a[2], z: +a[3], face: +a[4], lit: a[5] & 1 ? 1 : 0, st: a[5] & 32 ? 'stun' : a[5] & 16 ? 'drag' : a[5] & 4 ? 'happy' : a[5] & 8 ? 'flee' : a[5] & 2 ? 'chase' : 'wander', to: a[6] | 0 }));
+  if (Array.isArray(d.pl)) { const o = {}; for (const a of d.pl.slice(0, 8)) o[String(a[0])] = { b: +a[1], l: a[2] ? 1 : 0, d: a[3] ? 1 : 0, h: a[4] | 0, a: +a[5], g: a[6] ? 1 : 0, dr: a[7] | 0, tk: a[8] | 0, sh: a[9] | 0, bs: a[10] | 0, sg: +a[11] || 0, cf: a[12] | 0 }; ST.pl = o; }
 }
 function pushState() { if (SIMSIDE) A.send('st', snap()); }
 function emit(e) { if (SIMSIDE) A.send('ev', e); else onEvent(e); }
@@ -394,6 +401,32 @@ function los(x0, z0, x1, z1, furn, solid) {   // скло пропускає п�
   if (furn) for (const r of FURN) if (segHit(x0, z0, x1, z1, r)) return false;
   return true;
 }
+/* промінь ліхтарика: де він упреться в непрозору стіну (скло світло пропускає) — для конуса темряви й прожектора */
+function rayRect(x, z, dx, dz, r) {
+  let t0 = -1e9, t1 = 1e9;
+  for (const [p, d, lo, hi] of [[x, dx, r.x0, r.x1], [z, dz, r.z0, r.z1]]) {
+    if (Math.abs(d) < 1e-9) { if (p < lo || p > hi) return -1; continue; }
+    let a = (lo - p) / d, b = (hi - p) / d; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b); if (t0 > t1) return -1;
+  }
+  return t0 >= 0 ? t0 : -1;   // стоїш «у стіні» (наприклад, кент на межі) — цю стіну не рахуємо
+}
+function rayLen(x, z, a, R) {
+  const dx = Math.sin(a), dz = Math.cos(a); let best = R;
+  for (const r of solids()) { if (r.glass) continue; const t = rayRect(x, z, dx, dz, r); if (t >= 0 && t < best) best = t; }
+  return best;
+}
+/* промені конуса: кут і довжина кожного (обрізані стінами) */
+function coneRays(x, z, a, n = 24) {
+  const out = [], half = LIGHT_A + .08, R = LIGHT_R + 1;
+  for (let k = 0; k <= n; k++) { const aa = a - half + half * 2 * k / n; out.push({ a: aa, l: Math.min(R, rayLen(x, z, aa, R) + .12) }); }
+  return out;
+}
+/* чи в промені ліхтарика точка: дальність, кут і пряма видимість без стін — ОДНА перевірка для сервера (litBy), контурів (outlineOf) і підписів */
+function inBeam(px, pz, a, x, z) {
+  const d = dist2(px, pz, x, z); if (d > LIGHT_R) return false;
+  if (d > .6 && Math.abs(wrapA(Math.atan2(x - px, z - pz) - a)) > LIGHT_A + .3 / d) return false;
+  return los(px, pz, x, z);
+}
 /* неонові кола й датчики руху */
 const lzAt = (x, z) => ST.lz.some(q => dist2(x, z, q.x, q.z) < LZ_R);
 const sensAt = (x, z) => SENS.some((r, i) => ST.ms[i] === 1 && x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1);
@@ -431,28 +464,63 @@ function crew() {
 }
 function posOf(k) { if (!SIMSIDE) return pl; return simPlayers().find(p => String(p.name || '') === k) || null; }
 const nearK = (k, o, r) => { const p = posOf(k); return !!p && !!o && dist2(p.x, p.z, o.x, o.z) < r; };
-/* голоси за поверх: хто стоїть у холі; нема голосів — по колу */
+/* ---------- Лобі: голоси за поверх і «Я готовий» (у попапі); рахує сервер або сам гравець ---------- */
 function tally() {
   const here = new Set(crew().map(p => p.k));
-  for (const k of Object.keys(AU.votes)) if (!here.has(k)) delete AU.votes[k];
+  for (const o of [AU.votes, AU.ready]) for (const k of Object.keys(o)) if (!here.has(k)) delete o[k];
   ST.vt = [0, 0, 0]; for (const v of Object.values(AU.votes)) ST.vt[v]++;
   const mx = Math.max(...ST.vt);
-  ST.nx = mx > 0 ? [0, 1, 2].map(i => (AU.def + i) % 3).find(i => ST.vt[i] === mx) : AU.def;
+  ST.nx = mx > 0 ? [0, 1, 2].map(i => (AU.def + i) % 3).find(i => ST.vt[i] === mx) : AU.def;   // для табло: лідер (нічия — перший по черзі; при старті — жереб)
+  ST.lp = [...here].map(k => [k, k in AU.votes ? AU.votes[k] : -1, AU.ready[k] ? 1 : 0]);
 }
+/* старт, коли готові ВСІ люди на поверхах (мін. 1); онлайн — ще й за 20 с після першого «готовий» */
+function lobbyTick(dt) {
+  if (ST.on) return;
+  tally();
+  const n = ST.lp.length, rd = ST.lp.filter(q => q[2]).length;
+  if (n && rd === n) { AU.rdT = -1; ST.as = 0; startNight(); return; }
+  if (rd && SIMSIDE) { if (AU.rdT < 0) AU.rdT = LOBBY_T; AU.rdT -= dt; if (AU.rdT <= 0) { AU.rdT = -1; ST.as = 0; startNight(); return; } }
+  else AU.rdT = -1;
+  ST.as = AU.rdT > 0 ? Math.ceil(AU.rdT) : 0;
+  AU.stT -= dt; if (AU.stT <= 0 && n) { AU.stT = .5; pushState(); }
+}
+const inLobby = k => !ST.on && crew().some(p => p.k === k);
 function onReq(d, from) {
   const k = keyOf(from), who = SIMSIDE ? escapeHTML(k) : 'Ти';
-  if (d.k === 'start') { if (!ST.on && FLOORS.some(f => nearK(k, f.CLOCK, 3))) startNight(k); return; }
   if (d.k === 'vote') {
-    const f = FLOORS[d.f | 0], v = d.v | 0; if (ST.on || !f || v < 0 || v > 2 || !nearK(k, f.VOTE[v], 1.6)) return;
-    if (AU.votes[k] === v) return; AU.votes[k] = v; tally(); emit({ k: 'vote', who: k, v }); pushState(); return;
+    const v = d.v | 0; if (v < 0 || v > 2 || !inLobby(k) || AU.votes[k] === v) return;
+    AU.votes[k] = v; tally(); emit({ k: 'vote', who: k, v }); pushState(); return;
+  }
+  if (d.k === 'ready') {
+    if (!inLobby(k)) return;
+    if (d.on) AU.ready[k] = 1; else delete AU.ready[k];
+    tally(); emit({ k: 'ready', who: k, on: d.on ? 1 : 0 }); pushState(); lobbyTick(0); return;
   }
   if (d.k === 'in') { AU.inp[k] = { a: +d.a || 0, n: clamp(+d.n || 0, 0, 2), t: ST.t }; if (ST.pl[k]) ST.pl[k].a = wrapA(+d.a || 0); return; }
   if (!ST.on) return;
   const s = plS(k);
   if (d.k === 'light') { if (s.d) return; s.l = d.on && s.b > 0 ? 1 : 0; pushState(); return; }
-  if (d.k === 'kick') {   // брикаєшся, поки тягнуть
-    if (!s.dr) return; s.sg = Math.min(1, s.sg + .11);
-    if (s.sg >= 1) { const e = ST.en.find(q => q.id === s.dr); if (e) { e.st = 'flee'; e.timer = 4; e.vic = ''; fleeWay(e); } s.dr = 0; s.d = 0; s.sg = 0; s.g = 2.5; s.l = s.b > 0 ? 1 : 0; emit({ k: 'free', who: k }); }
+  if (d.k === 'kick') {   // брикаєшся, поки тягнуть: кожен натиск F/Пробіл — +10 %, повна шкала — вирвався
+    if (!s.dr || (AU.kick[k] || 0) > ST.t) return; AU.kick[k] = ST.t + .05;   // (не частіше 20 разів/с)
+    s.sg = Math.min(1, s.sg + KICK);
+    if (s.sg >= 1) {
+      const e = ST.en.find(q => q.id === s.dr);
+      if (e) Object.assign(e, { st: 'stun', timer: STUN_T, vic: '', litT: 0, tg: '' });   // зомбі оглушений ~2 с
+      Object.assign(s, { dr: 0, d: 0, sg: 0, rt: 0, g: IFRAME_T, l: s.b > 0 ? 1 : 0 });   // і кілька секунд тебе ніхто не схопить
+      emit({ k: 'free', who: k, id: e ? e.id : 0, x: e ? r2(e.x) : 0, z: e ? r2(e.z) : 0 });
+    }
+    pushState(); return;
+  }
+  if (d.k === 'coffee') {   // ☕ лікувальна кава: підвестися самому, підняти кента поруч або просто підлікуватись
+    if ((s.cf | 0) <= 0 || s.dr || s.tk) return;
+    const tw = String(d.who || '');
+    if (tw && tw !== k) {
+      const t = ST.pl[tw]; if (s.d || !t || !t.d || t.dr || t.tk || !nearK(k, posOf(tw) || { x: 1e9, z: 1e9 }, 2.6)) return;
+      s.cf--; Object.assign(t, { d: 0, g: 3, rt: 0, l: t.b > 0 ? 1 : 0 }); emit({ k: 'coffee', who: k, tg: tw, up: 1 });
+    } else {
+      s.cf--; const up = s.d ? 1 : 0; if (up) Object.assign(s, { d: 0, g: 2.5, rt: 0, l: s.b > 0 ? 1 : 0 });
+      emit({ k: 'coffee', who: k, up });
+    }
     pushState(); return;
   }
   if (d.k === 'knock') { if (!s.tk || (AU.knock[k] || 0) > ST.t) return; AU.knock[k] = ST.t + 3; emit({ k: 'knock', who: k, i: s.tk - 1 }); return; }
@@ -490,6 +558,11 @@ function onReq(d, from) {
     for (const e of ST.en) if (e.st === 'drag' && dist2(e.x, e.z, x, z) < LZ_R) dropVic(e, 'shot');
     emit({ k: 'shot', who: k, x: r2(x), z: r2(z), fx: r2(p.x), fz: r2(p.z) }); pushState();
   }
+  else if (d.k === 'brewing') { if ((AU.brew[k] || 0) > ST.t || !nearK(k, COFFEE, 2.6)) return; AU.brew[k] = ST.t + 2; AU.noise.push({ x: COFFEE.x, z: COFFEE.z, r: 8 }); }   // кавомашина гуде — прибиральник чує
+  else if (d.k === 'brew') {
+    if ((s.cf | 0) >= CF_MAX || !nearK(k, COFFEE, 2.6)) return;
+    s.cf = (s.cf | 0) + 1; AU.noise.push({ x: COFFEE.x, z: COFFEE.z, r: 9 }); emit({ k: 'brew', who: k, n: s.cf }); pushState();
+  }
   else if (d.k === 'ping') { if ((AU.ping[k] || 0) > ST.t) return; AU.ping[k] = ST.t + 10; const p = posOf(k); if (p) { AU.noise.push({ x: p.x, z: p.z, r: 6 }); emit({ k: 'ping', who: k, x: r2(p.x), z: r2(p.z) }); } }
   else if (d.k === 'search') {
     const i = d.i | 0; if (!CARD_SPOTS[i] || ST.cs[i] || !nearK(k, CARD_SPOTS[i], 2.4)) return;
@@ -514,17 +587,17 @@ function onReq(d, from) {
 function giveBat(s) { if (s.b <= 0) { s.b = 100; s.l = 1; } else s.bs = Math.min(3, s.bs + 1); }
 function startNight(k) {
   tally();
-  const v = ST.nx; useVar(v);
+  const mx = Math.max(...ST.vt), v = mx > 0 ? pick([0, 1, 2].filter(i => ST.vt[i] === mx)) : AU.def; useVar(v);   // більшість; нічия — жереб; без голосів — по колу
   const c = crew();
-  Object.assign(ST, { on: true, t: 0, dur: DUR, v, en: [], pl: {}, card: '', cs: CARD_SPOTS.map(() => 0), note: 0, ord: null, edoor: 0, fz: 0, power: 0, exit: 0, lz: [], ms: SENS.map(() => 0), gift: null, vt: [0, 0, 0] });
+  Object.assign(ST, { on: true, t: 0, dur: DUR, v, nx: v, en: [], pl: {}, card: '', cs: CARD_SPOTS.map(() => 0), note: 0, ord: null, edoor: 0, fz: 0, power: 0, exit: 0, lz: [], ms: SENS.map(() => 0), gift: null, vt: [0, 0, 0], lp: [], as: 0 });
   ST.noteAt = Math.floor(Math.random() * NOTE_SPOTS.length);
   const sp0 = ITEMS.map((_, i) => i).sort(() => Math.random() - .5); ST.bats = sp0.slice(0, 4); ST.shp = sp0.slice(4, 7);
   const o = [0, 1, 2]; for (let i = 2; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
-  Object.assign(AU, { cardAt: Math.floor(Math.random() * CARD_SPOTS.length), order: o, calm: 10, spawnT: rand(35, 50), scareT: rand(14, 22), cleanAt: 60, idle: 0, noise: [], inp: {}, sayT: 0, votes: {}, ms: SENS.map(() => 0), msOn: SENS.map(() => 0), knock: {}, ping: {} });
+  Object.assign(AU, { cardAt: Math.floor(Math.random() * CARD_SPOTS.length), order: o, calm: 10, spawnT: rand(35, 50), scareT: rand(14, 22), cleanAt: 60, idle: 0, noise: [], inp: {}, sayT: 0, votes: {}, ready: {}, rdT: -1, ms: SENS.map(() => 0), msOn: SENS.map(() => 0), knock: {}, ping: {}, kick: {}, brew: {} });
   for (const p of c) plS(p.k);
   const n = Math.min(7, 3 + c.length), sp = EN_SPAWN.slice().sort(() => Math.random() - .5);
   for (let i = 0; i < n; i++) addEnemy(0, sp[i % sp.length]);
-  emit({ k: 'start', who: SIMSIDE ? k : '', v }); pushState();
+  emit({ k: 'start', who: '', v }); pushState();
 }
 function addEnemy(t, p) {
   const c = freeNear(cellOf(p.x, p.z)); if (c < 0) return null;
@@ -539,13 +612,13 @@ function endNight(win, why, by) {
   const res = { k: 'end', win: win ? 1 : 0, how: why || '', by: by || '', t: r2(ST.t), dur: ST.dur, v: ST.v };
   ST.en = []; ST.lz = []; ST.gift = null; ST.ms = SENS.map(() => 0);
   for (const s of Object.values(ST.pl)) Object.assign(s, { d: 0, h: 0, dr: 0, tk: 0, sg: 0 });
-  AU.def = (ST.v + 1) % 3; AU.votes = {}; tally();
+  AU.def = (ST.v + 1) % 3; AU.votes = {}; AU.ready = {}; AU.rdT = -1; ST.as = 0; tally();
   emit(res); pushState();
 }
 /* хто ще «в грі»: лежачий, якого тягнуть, ще може вирватись; у підвалі чи лежачий без допомоги — ні */
 function allOut() {
   const c = crew(); if (!c.length) return false;
-  return c.every(p => { const s = plS(p.k); return s.tk || (s.d && !s.dr && !(s.rt > 0)); });
+  return c.every(p => { const s = plS(p.k); return s.tk || (s.d && !s.dr && !(s.rt > 0) && !(s.cf > 0)); });   // лежиш, але є ☕ — ще підведешся сам
 }
 function checkOut(txt) { if (allOut()) endNight(false, txt); }
 function down(k, e) {   // прибиральник збиває з ніг
@@ -583,10 +656,7 @@ function dragTick(e, dt) {
 function litBy(e) {
   for (const c of crew()) {
     const s = ST.pl[c.k]; if (!s || !s.l || s.b <= 0 || s.d || s.h) continue;
-    const d = dist2(c.x, c.z, e.x, e.z); if (d > LIGHT_R) continue;
-    if (d > .6 && Math.abs(wrapA(Math.atan2(e.x - c.x, e.z - c.z) - s.a)) > LIGHT_A + .3 / d) continue;
-    if (!los(c.x, c.z, e.x, e.z)) continue;
-    return c.k;
+    if (inBeam(c.x, c.z, s.a, e.x, e.z)) return c.k;
   }
   return '';
 }
@@ -602,7 +672,7 @@ function sensTick(dt, prey) {
   }
 }
 function authTick(dt) {
-  if (!ST.on) return;
+  if (!ST.on) { lobbyTick(dt); return; }
   ST.t += dt;
   const c = crew();
   if (!c.length) { AU.idle += dt; if (AU.idle > (SIMSIDE ? 10 : 3)) endNight(false, 'На поверсі нікого не лишилось.'); return; }
@@ -611,7 +681,7 @@ function authTick(dt) {
   for (const p of c) {
     const s = plS(p.k);
     if (s.g > 0) s.g -= dt;
-    if (s.sg > 0 && s.dr) s.sg = Math.max(0, s.sg - dt * .12);
+    if (s.sg > 0 && s.dr) s.sg = Math.max(0, s.sg - dt * KICK_DEC);
     if (s.rt > 0 && (s.rt -= dt) <= 0 && s.d && !s.dr && !s.tk) { s.d = 0; s.g = 2; s.l = s.b > 0 ? 1 : 0; emit({ k: 'up', who: p.k }); }
     if (s.l && !s.d && !s.h) { s.b = Math.max(0, s.b - DRAIN * dt); if (s.b <= 0) { s.l = 0; emit({ k: 'msg', to: p.k, txt: s.bs ? '🔦 Батарейка сіла! Натисни <b>3</b> — встав запасну 🔋.' : '🔦 Батарейка сіла! Шукай 🔋 — вони світяться в темряві.' }); } }
     const inp = AU.inp[p.k]; if (inp && ST.t - inp.t > 1.2) inp.n = 0;
@@ -645,6 +715,7 @@ function authTick(dt) {
     let near = null, nd = 1e9; for (const p of prey) { const d = dist2(p.x, p.z, e.x, e.z); if (d < nd) { nd = d; near = p; } }
     if (e.t === 0) {
       if (e.st === 'drag') { dragTick(e, dt); continue; }
+      if (e.st === 'stun') { if (e.timer <= 0) { e.st = 'flee'; e.timer = 3; fleeWay(e); } continue; }   // оглушений: стоїть і бачить зірочки
       // зомбі: на світлі — завмирає; довго світять — тікає
       if (e.lit) { e.litT += dt; if (e.litT > 3 && e.st !== 'flee') { e.st = 'flee'; e.timer = 4; fleeWay(e); } continue; }
       e.litT = Math.max(0, e.litT - dt * .5);
@@ -710,7 +781,7 @@ const _buildIsland = buildIsland;
 buildIsland = function (s) { if (s.biome !== 'nightoffice') return _buildIsland.apply(this, arguments); return SIMSIDE ? new THREE.Group() : buildFloor(s.fi | 0); };
 
 const V = { en: new Map(), vm: [], lbl: null, glbl: null, gArrow: null, gMark: null, goal: null, hud: null, goalEl: null, dark: null, spot: null, act: null, sendT: 0, joined: false, auto: false, lastP: null, fa: 0, noise: 0,
-  monT: [0, 0, 0, 0, 0, 0], printT: 0, phoneT: 0, svcT: [0, 0], near: 99, music: -1, seenNote: new Set(), lz: new Map(), fly: [], mb: false, myVote: -1, radT: 0, radio: 0, places: [], roomsL: [], mateL: {}, kickT: 0 };
+  monT: [0, 0, 0, 0, 0, 0], printT: 0, phoneT: 0, svcT: [0, 0], near: 99, music: -1, seenNote: new Set(), lz: new Map(), fly: [], mb: false, myVote: -1, radT: 0, radio: 0, places: [], roomsL: [], mateL: {}, kickT: 0, lbOn: false, lbHide: false, lbWait: 0, kickL: 0, kickHit: 0 };
 const VM = () => V.vm[CUR] || {};
 const amDown = () => { const s = ST.pl[myKey()]; return !!(ST.on && s && s.d); };
 const amHid = () => { const s = ST.pl[myKey()]; return !!(ST.on && s && s.h); };
@@ -857,7 +928,7 @@ function slideDoor(g, r, col, h) {
 }
 function buildFloor(k) {
   const f = FLOORS[k], g = new THREE.Group(); scene.add(g);
-  const M = V.vm[k] = { mons: [], printer: null, phone: null, svc: [], edoor: null, exitD: null, items: [], note: null, lamps: [], brk: [], sens: [], pads: [], gift: null };
+  const M = V.vm[k] = { mons: [], printer: null, phone: null, svc: [], edoor: null, exitD: null, items: [], note: null, lamps: [], brk: [], sens: [], cm: null, gift: null };
   const dyn = m => { if (m.parent) m.parent.remove(m); scene.add(A.dynamic(m)); return m; };
   const X = x => f.cx + x, Z = z => f.cz + z, pal = f.pal;
   buildTowerFloor(g, f.cx, f.cz, f.hx * 2, f.hz * 2, { night: true, seed: 11 + k * 37 });
@@ -964,13 +1035,9 @@ function buildFloor(k) {
     const pl2 = plate(q.n, 1.6); pl2.position.set(q.kind === 'lift' ? q.w.x : q.p.x, WH + 1.3, q.kind === 'lift' ? q.w.z : q.p.z); scene.add(A.dynamic(pl2));
     M.svc.push(o);
   }
-  // плити для голосування за поверх
-  f.VOTE.forEach((p, i) => {
-    const ring = dyn(put(g, mesh(new THREE.TorusGeometry(.62, .07, 6, 24), bulb(['#FF6BD6', '#6BE7FF', '#FFD27A'][i]), false), p.x, .06, p.z)); ring.rotation.x = P2;
-    put(g, mesh(flat(new THREE.CylinderGeometry(.58, .58, .03, 20)), '#2E2346', false), p.x, .02, p.z);
-    const s = plate('🗳️ ' + FLOORS[i].n.replace('Поверх ', ''), 1.7); s.position.set(p.x, .95, p.z); scene.add(A.dynamic(s));
-    M.pads.push(ring);
-  });
+  // кавомашина: табличка й «пара», коли вариться лікувальна кава
+  { const s = plate('☕ Кава', 1.1); s.position.set(f.CM.x, WH + .9, f.CM.z); scene.add(A.dynamic(s));
+    M.cm = dyn(put(g, mesh(new THREE.SphereGeometry(.12, 8, 6), bulb('#FF6BD6'), false), f.CM.x, 1.62, f.CM.z)); }
   // предмети (батарейка й шот на кожному місці — видно за станом), стікер, посилка з ліфта, лампи датчиків руху
   for (const b of f.ITEMS) {
     const bat = new THREE.Group(); bat.position.set(b.x, .15, b.z); scene.add(A.dynamic(bat));
@@ -1016,7 +1083,15 @@ function onEvent(e) {
   const here = running && inIsl(pl.x, pl.z);
   if (e.to && e.to !== myKey()) return;
   if (e.k === 'msg') { if (here) { if (e.big) banner(e.txt); else toast(e.txt); } }
-  else if (e.k === 'vote') { if (here) toast(`🗳️ ${nameOf(e.who)} голосує за <b>${FLOORS[e.v].n}</b>.`); }
+  else if (e.k === 'vote') { if (here && e.who !== myKey()) toast(`🗳️ ${nameOf(e.who)} голосує за <b>${FLOORS[e.v].n}</b>.`); }
+  else if (e.k === 'ready') { if (here && e.who !== myKey() && e.on) toast(`✅ ${nameOf(e.who)} готовий до зміни.`); }
+  else if (e.k === 'brew') { if (here && e.who === myKey()) { V.act = null; ftext(pl.x, 2.4, pl.z, `☕ +1 лікувальна кава (${e.n}/${CF_MAX})`, 'gold'); sfx('pour'); toast('☕ Кава готова! <b>5</b> — випити: лікує, а коли лежиш — підводишся сам (або напій кента, що лежить поруч).'); } }
+  else if (e.k === 'coffee') {
+    if (!here) return; sfx('drink');
+    if (e.who === myKey() || e.tg === myKey()) { pl.hp = S.maxHP; pl.st = S.maxSt; ftext(pl.x, 2.4, pl.z, e.up ? '☕ Бадьорість! Підвівся!' : '☕ +здоров’я', 'gold'); }
+    if (e.tg) toast(e.tg === myKey() ? `☕ ${nameOf(e.who)} напоїв тебе кавою — ти знову на ногах!` : `☕ ${nameOf(e.who)} напоїв ${nameOf(e.tg)} кавою — підвівся!`);
+    else if (e.up) toast(e.who === myKey() ? '☕ Ковток кави — і ти підвівся сам!' : `☕ ${nameOf(e.who)} випив кави й підвівся сам.`);
+  }
   else if (e.k === 'start') {
     if (!here) return; useVar(e.v | 0); V.joined = true; V.seenNote.clear(); V.act = null; V.myVote = -1; V.monT.fill(0);
     if (floorAt(pl.x, pl.z) !== CUR) { pl.x = SPAWN.x + rand(-.8, .8); pl.z = SPAWN.z + rand(-.4, .4); pl.y = 0; V.lastP = null; camPos.set(pl.x, 20, pl.z + 15); camLook.set(pl.x, .5, pl.z); }
@@ -1034,7 +1109,10 @@ function onEvent(e) {
     else banner(`🧟 ${nameOf(e.who)} тягнуть до «${svcN(e.to)}»! Посвіти на зомбі 🔦 або кинь 🧪 шот!`);
   }
   else if (e.k === 'drop') { if (here) { toast(e.who === myKey() ? '😮‍💨 Зомбі кинув тебе й утік! Зараз оговтаєшся…' : `💡 Зомбі кинув ${nameOf(e.who)}! ${e.why === 'shot' ? 'Неоновий шот — сила.' : 'Ліхтарик — сила.'}`); sfx('whoosh'); } }
-  else if (e.k === 'free') { if (here) { toast(e.who === myKey() ? '🦵 Вирвався! Тікай, поки він оговтується.' : `🦵 ${nameOf(e.who)} відбрикався від зомбі!`); sfx('hit'); } }
+  else if (e.k === 'free') {
+    if (!here) return; sfx('hit'); const v = V.en.get(e.id); if (v) { bubble(v.ent, '😵 Ой… зірочки…', false, STUN_T); burst(v.x, 2, v.z, '#FFE066', 10, 2, .6, 2); }
+    if (e.who === myKey()) { V.kickL = 0; banner('🦵 ВИРВАВСЯ! Зомбі оглушений на 2 с — тікай!'); shake = Math.max(shake, .5); } else toast(`🦵 ${nameOf(e.who)} відбрикався від зомбі!`);
+  }
   else if (e.k === 'up') { if (here && e.who === myKey()) toast('💪 Оговтався й підвівся.'); }
   else if (e.k === 'taken') {
     if (!here) return; V.svcT[e.i] = 3; sfx('ding');
@@ -1103,7 +1181,8 @@ function finish(e) {
   d.best = Math.max(d.best || 0, win && !esc ? 360 : Math.round((+e.t || 0) / (+e.dur || DUR) * 360));
   d.floors = d.floors || {}; d.floors[FLOORS[e.v | 0].sh] = (d.floors[FLOORS[e.v | 0].sh] || 0) + (win ? 1 : 0);
   banner(win ? (esc ? `🏃 ВТЕЧА! ${e.by ? nameOf(e.by) + ' вискочив перший. ' : ''}Нічна зміна закінчилась раніше — для всіх.` : '🌅 06:00! Зомбі розійшлись по домівках. Ви дожили до ранку!') : `💀 ${e.how || 'Зміну провалено.'}`);
-  toast(`Нагорода: <b>+${coins} 🪙</b> · +${xp} досвіду. Наступний поверх — голосуй на 🗳️ плитах, тоді F на табельному.`);
+  toast(`Нагорода: <b>+${coins} 🪙</b> · +${xp} досвіду. Наступний поверх — голосуй у вікні лобі й тисни «✅ Я готовий».`);
+  V.lbHide = false; V.lbWait = 3.5;   // за кілька секунд знову відкриється лобі
   sfx(win ? 'level' : 'hurt'); refreshHUD(); save();
 }
 
@@ -1118,12 +1197,21 @@ function throwShot() {
   d = Math.max(0, d - .3); req('shot', { x: r2(pl.x + dx * d), z: r2(pl.z + dz * d) }); sfx('whoosh');
 }
 function swapBat() { const s = mySt(); if (!s || s.d) return; if (!s.bs) { toast('🔋 Запасних батарейок нема — вони світяться жовтим у темряві.'); return; } if (s.b >= 99) { toast('🔋 Батарейка й так повна.'); return; } req('swap'); }
+function useCoffee() {
+  const s = mySt(); if (!s || !ST.on) return;
+  if (s.tk) { toast('🕳️ У підвалі кава не допоможе — стукай по трубах і чекай кентів.'); return; }
+  if (s.dr) { toast('💢 Спершу вирвись — тисни <b>F</b> / <b>Пробіл</b>!'); return; }
+  if (!(s.cf > 0)) { toast(`☕ Кави нема. Звари на кухні: ☕ кавомашина — <b>F</b>, постій поруч ${BREW_T} с (трохи гучно).`); return; }
+  if (!s.d) { const m = downedMates().filter(q => dist2(pl.x, pl.z, q.x, q.z) < 2.4).sort((a, b) => dist2(pl.x, pl.z, a.x, a.z) - dist2(pl.x, pl.z, b.x, b.z))[0]; if (m) { req('coffee', { who: m.k }); return; } }
+  req('coffee');
+}
 function radio() { if (V.radT > 0) { toast(`📻 Рація заряджається… ${Math.ceil(V.radT)} с`); return; } V.radT = 10; req('ping'); }
 const MB = { slots: [
   { id: 'light', ic: '🔦', n: 'Ліхтарик', count: () => { const s = mySt(); return s ? Math.round(s.b) : 0; }, use: toggleLight },
   { id: 'shot', ic: '🧪', n: 'Неоновий шот', count: () => (mySt() || {}).sh | 0, use: throwShot },
   { id: 'bat', ic: '🔋', n: 'Батарейка', count: () => (mySt() || {}).bs | 0, use: swapBat },
   { id: 'radio', ic: '📻', n: 'Рація', count: () => V.radT > 0 ? Math.ceil(V.radT) : null, use: radio },
+  { id: 'coffee', ic: '☕', n: 'Кава', count: () => (mySt() || {}).cf | 0, use: useCoffee },
 ] };
 function mbar(on) { if (on === V.mb) return; V.mb = on; if (typeof modeBar === 'function') modeBar(on ? MB : null); }
 /* політ шоту: склянка по дузі, дзень — і неонове коло */
@@ -1165,7 +1253,7 @@ function clientTick(dt) {
   });
   if (M.gift) { const g = ST.on && ST.gift && SVC[ST.gift[0]]; M.gift.visible = !!g; if (g) { const p = SVC[ST.gift[0]].p; M.gift.position.set(p.x, 0, p.z); M.gift.rotation.y += dt; } }
   (M.sens || []).forEach((m, i) => { m.visible = !ST.on || ST.power || ST.ms[i] === 1; });
-  (M.pads || []).forEach((m, i) => { const s = 1 + (ST.on ? 0 : (ST.vt[i] || 0) * .15 + (ST.nx === i ? Math.sin(t * 4) * .08 : 0)); m.scale.set(s, s, s); });
+  if (M.cm) { const br = V.act && V.act.what === 'brew'; M.cm.scale.setScalar(br ? 1 + Math.abs(Math.sin(t * 8)) * .6 : 1); if (br && Math.random() < dt * 10) burst(CM.x, 1.7, CM.z, '#FFFFFF', 1, .8, .9, .6, 1); }
   if (M.note) { const n = NOTE_SPOTS[ST.noteAt]; M.note.visible = ST.on && !ST.note; if (n) { M.note.position.set(n.m.x, n.y, n.m.z); M.note.rotation.y = n.r || 0; } }
   // неонові кола
   const seen = new Set();
@@ -1184,13 +1272,11 @@ function clientTick(dt) {
   }
   updAct(dt);
   mbar(!!(here && ST.on && !pl.dead));
-  hud(); darkness(); guide(); updSpot(here);
+  hud(); darkness(); guide(); updSpot(here); lobbyUI(dt); kickUI(dt);
   if (!here || pl.dead) { V.lastP = null; return; }
   if (ST.on) V.joined = true;
   pl.safe = { x: SPAWN.x, z: SPAWN.z };
   const s = mySt();
-  // голосування: стоїш на плиті — голос за поверх
-  if (!ST.on) { const fi = floorAt(pl.x, pl.z), f = FLOORS[fi]; if (f) { const i = f.VOTE.findIndex(p => dist2(pl.x, pl.z, p.x, p.z) < .8); if (i >= 0 && V.myVote !== i) { V.myVote = i; V.voteT = 1; req('vote', { v: i, f: fi }); sfx('ui'); } else if (i >= 0 && !AUTH() && (V.voteT -= dt) <= 0) { V.voteT = 1; req('vote', { v: i, f: fi }); } } }   // (у світі — повтор раз на секунду: сервер міг ще не знати, що ти на плиті)
   // ліхтарик дивиться туди, куди мишка (або куди йдеш)
   if (!IS_TOUCH && input.aimOk && !amDown() && !amHid()) { V.fa = angTo(pl.x, pl.z, input.ax, input.az); pl.face = V.fa; } else V.fa = pl.face;
   V.noise = amDown() || amHid() ? 0 : pl.dashT > 0 ? 1.5 : pl.moving ? (keys.KeyZ ? .1 : .75) : 0;
@@ -1202,7 +1288,7 @@ function clientTick(dt) {
   V.wasDown = amDown();
   if (amDrag()) {   // ганчір’яна лялька: лежиш на спині, ногою до зомбі, руки махають
     const v = V.en.get(s.dr); if (v) { pl.x = v.x - Math.sin(v.f) * 1.05; pl.z = v.z - Math.cos(v.f) * 1.05; pl.face = v.f; }
-    pl.dashT = 0; V.lastP = null;
+    pl.dashT = 0; pl.y = 0; V.lastP = null;
     if (hero) { hero.root.position.set(pl.x, pl.y, pl.z); hero.root.rotation.y = pl.face; hero.body.rotation.x = -1.35; hero.body.position.y = .2; if (hero.aL) { hero.aL.rotation.x = -2.6 + Math.sin(t * 9) * .5; hero.aR.rotation.x = -2.6 + Math.cos(t * 8) * .5; } }
     if (Math.random() < dt * .8) ftext(pl.x, 1.6, pl.z, pick(['АААА!', 'Пусти ногу!', 'Кенти, світіть на нього!', 'Я ще не здав звіт!']), 'bad');
     if (Math.random() < dt * 4) burst(pl.x, .1, pl.z, '#8E86B0', 1, 1, .4, .5, 1);
@@ -1243,6 +1329,7 @@ function updEnemies(dt) {
     h.l1.rotation.x = sw; h.l2.rotation.x = -sw;
     if (e.t) { h.aR.rotation.x = -.6 + Math.sin(v.ph * .5) * .4; h.aL.rotation.x = -.4; }
     else if (e.st === 'drag') { h.aL.rotation.x = h.aR.rotation.x = .5 + Math.sin(v.ph) * .1; h.body.rotation.z = Math.sin(v.ph * .5) * .12; h.body.rotation.x = .25; }   // тягне за ногу позаду себе
+    else if (e.st === 'stun') { v.ph += dt * 7; h.body.rotation.x = -.12; h.aL.rotation.x = h.aR.rotation.x = .25; h.body.rotation.z = Math.sin(v.ph) * .28; if (Math.random() < dt * 6) burst(v.x, 2.1, v.z, '#FFE066', 1, 1, .4, .5, 1); }   // оглушений: хитається, зірочки
     else { h.body.rotation.x = 0; h.aL.rotation.x = h.aR.rotation.x = e.lit ? -.2 : -1.45 + Math.sin(v.ph) * .1; h.body.rotation.z = e.lit ? 0 : Math.sin(v.ph * .5) * .08; }
     h.head.rotation.x = e.st === 'happy' ? -.3 : 0;
     if (running && !e.lit && Math.random() < dt * .04 && dist2(v.x, v.z, pl.x, pl.z) < 8) bubble(v.ent, e.t ? pick(['Тут мокро!', 'Хто наслідив?', 'Шкряб-шкряб…']) : e.st === 'drag' ? pick(['До підвааалу…', 'На нараду в підвалі…', 'Тебе чекає планьорка…']) : pick(['Мооозок… ой, тобто звіт…', 'Дееедлайн…', 'Ще одна нарада…', 'Кааави…', 'Ееексель…']), false, 2);
@@ -1257,6 +1344,7 @@ function updSpot(here) {
   const s = mySt(), on = here && ST.on && s && s.l && s.b > 0 && !s.d && !s.h;
   if (!V.spot) { if (!on) return; V.spot = new THREE.SpotLight('#FFF0C8', 0, 12, .5, .55, 1.2); V.spot.castShadow = false; scene.add(A.dynamic(V.spot)); scene.add(A.dynamic(V.spot.target)); }
   V.spot.intensity = on ? (s.b < 15 && Math.random() < .15 ? .3 : 2.2) : 0;
+  if (on) V.spot.distance = Math.max(1.5, Math.min(12, Math.max(...[-.15, 0, .15].map(da => rayLen(pl.x, pl.z, V.fa + da, 12))) + 1));   // прожектор не б'є крізь стіну
   if (on) { V.spot.position.set(pl.x + Math.sin(V.fa) * .3, 1.4, pl.z + Math.cos(V.fa) * .3); V.spot.target.position.set(pl.x + Math.sin(V.fa) * 6, 0, pl.z + Math.cos(V.fa) * 6); V.spot.target.updateMatrixWorld(); }
 }
 
@@ -1283,7 +1371,7 @@ function darkness() {
   const cone = (wx, wz, a, bat) => {
     const p = sp(wx, wz), flick = bat < 15 && Math.random() < .2 ? .35 : 1, rr = LIGHT_R + 1;
     x.beginPath(); x.moveTo(p.x, p.y);
-    for (let k = 0; k <= 10; k++) { const aa = a - LIGHT_A - .08 + (LIGHT_A + .08) * 2 * k / 10, q = sp(wx + Math.sin(aa) * rr, wz + Math.cos(aa) * rr); x.lineTo(q.x, q.y); }
+    for (const r of coneRays(wx, wz, a)) { const q = sp(wx + Math.sin(r.a) * r.l, wz + Math.cos(r.a) * r.l); x.lineTo(q.x, q.y); }   // крізь стіни не світить
     x.closePath(); const f = sp(wx + Math.sin(a) * rr, wz + Math.cos(a) * rr);
     x.fillStyle = grad(p.x, p.y, Math.hypot(f.x - p.x, f.y - p.y), [[0, .98 * flick], [.6, .85 * flick], [1, 0]]); x.fill();
   };
@@ -1303,6 +1391,7 @@ function darkness() {
   if (ST.gift && SVC[ST.gift[0]]) hole(SVC[ST.gift[0]].p.x, SVC[ST.gift[0]].p.z, .7, .6);
   if (!ST.note) { const n = NOTE_SPOTS[ST.noteAt]; if (n) hole(n.m.x, n.m.z, .45, .45); }
   if (V.radio > 0 && V.pingAt) hole(V.pingAt.x, V.pingAt.z, 1.2, .5);
+  if (CM) hole(CM.x, CM.z, V.act && V.act.what === 'brew' ? 1.4 : .55, .55);   // рожевий вогник кавомашини видно в темряві
   // рожеве сяйво шотів, очі в темряві
   x.globalCompositeOperation = 'source-over';
   for (const z of ST.lz) { const p = sp(z.x, z.z), q = sp(z.x + LZ_R, z.z), rr = Math.hypot(q.x - p.x, q.y - p.y); x.fillStyle = grad(p.x, p.y, rr * 1.2, [[0, .16], [.8, .1], [1, 0]], '255,90,220'); x.beginPath(); x.arc(p.x, p.y, rr * 1.2, 0, 7); x.fill(); }
@@ -1329,7 +1418,7 @@ function darkness() {
 const GLOW_T = 3, SENSE_R = 3.2;
 function outlineOf(v) {
   const d = dist2(v.x, v.z, pl.x, pl.z), me = mySt();
-  if (me && me.l && me.b > 0 && !me.d && !me.h && d < LIGHT_R + .5) { let da = Math.atan2(v.x - pl.x, v.z - pl.z) - V.fa; da = Math.atan2(Math.sin(da), Math.cos(da)); if (Math.abs(da) < LIGHT_A + .08) v.litAt = gameTime; }
+  if (me && me.l && me.b > 0 && !me.d && !me.h && inBeam(pl.x, pl.z, V.fa, v.x, v.z)) v.litAt = gameTime;   // за стіною — не підсвічується
   const since = v.litAt == null ? 99 : gameTime - v.litAt;
   if (since < GLOW_T + .6) return { k: 'lit', c: v.t ? '#FF8A5C' : '#B8FF6B', a: since < GLOW_T ? .95 : .95 * (1 - (since - GLOW_T) / .6) };
   if (d < SENSE_R && !amHid()) return { k: 'sense', c: '#FF5C7A', a: (.12 + .3 * (1 - d / SENSE_R)) * (.75 + .25 * Math.sin(gameTime * 6)) };
@@ -1342,10 +1431,11 @@ function actTarget(a) {
   if (a.what === 'search') return !ST.cs[a.i] && CARD_SPOTS[a.i];
   if (a.what === 'fuse') return ST.edoor && !ST.power && BREAKERS[a.i];
   if (a.what === 'rescue') return Object.values(ST.pl).some(q => q.tk === a.i + 1) && SVC[a.i] && SVC[a.i].p;
+  if (a.what === 'brew') return ((mySt() || {}).cf | 0) < CF_MAX && COFFEE;
   if (a.what === 'revive') { const s = ST.pl[a.who]; if (!s || !s.d || s.dr || s.tk) return null; if (a.who === 'me') return pl; const r = Object.values(NET.players).find(q => q.name === a.who); return r ? { x: r.x, z: r.z } : null; }
   return null;
 }
-const ACT_IC = { revive: '💪', fuse: '⚡', search: '🔍', rescue: '🛗' };
+const ACT_IC = { revive: '💪', fuse: '⚡', search: '🔍', rescue: '🛗', brew: '☕' };
 function updAct(dt) {
   const a = V.act; if (!a) return;
   const tg = actTarget(a);
@@ -1353,7 +1443,7 @@ function updAct(dt) {
   if (dist2(pl.x, pl.z, tg.x, tg.z) > 2.2) { V.act = null; toast('Відійшов — перервано.'); return; }
   a.t += dt; a.pt -= dt;
   if (a.pt <= 0) { a.pt = .45; ftext(pl.x, 2.5, pl.z, `${ACT_IC[a.what]} ${Math.round(a.t / a.need * 100)}%`, 'calm'); }
-  if (a.t >= a.need) { V.act = null; if (a.what === 'search') req('search', { i: a.i }); else if (a.what === 'fuse') req('fuse', { i: a.i }); else if (a.what === 'rescue') req('rescue', { i: a.i }); else req('revive', { who: a.who }); }
+  if (a.t >= a.need) { V.act = null; if (a.what === 'search') req('search', { i: a.i }); else if (a.what === 'fuse') req('fuse', { i: a.i }); else if (a.what === 'rescue') req('rescue', { i: a.i }); else if (a.what === 'brew') req('brew'); else req('revive', { who: a.who }); }
 }
 function mates(f) {
   const out = [];
@@ -1366,27 +1456,67 @@ const downedMates = () => mates(s => s.d && !s.dr && !s.tk);
 function dragged() { return ST.on ? Object.entries(ST.pl).filter(([k, s]) => s.dr && k !== myKey()).map(([k, s]) => ({ k, e: V.en.get(s.dr) })).filter(q => q.e) : []; }
 function takenBy() { const o = {}; if (ST.on) for (const [k, s] of Object.entries(ST.pl)) if (s.tk && k !== myKey()) (o[s.tk - 1] = o[s.tk - 1] || []).push(k); return o; }
 
+/* ---------- Лобі-попап: картки поверхів з картинками, голоси, хто готовий, «Я готовий» ---------- */
+const lobbyMe = () => ST.lp.find(q => q[0] === myKey()) || null;
+function openLobby() { V.lbHide = false; V.lbWait = 0; sfx('ui'); }
+function lobbyUI(dt) {
+  if (V.lbWait > 0) V.lbWait -= dt;
+  const want = typeof modeLobby === 'function' && running && !pl.dead && !ST.on && inIsl(pl.x, pl.z) && !V.lbHide && !panel && V.lbWait <= 0;
+  if (!want) { if (V.lbOn) { V.lbOn = false; modeLobby(null); } return; }
+  V.lbOn = true;
+  const me = lobbyMe(), n = ST.lp.length, rd = ST.lp.filter(q => q[2]).length, nx = FLOORS[ST.nx].n;
+  const info = ST.as > 0 ? `⏱️ Старт за <b>${ST.as} с</b> — або щойно всі будуть готові · ✅ ${rd}/${n}`
+    : n > 1 ? `⏳ Чекаємо, поки всі будуть готові · ✅ ${rd}/${n} · лідирує: <b>${nx}</b>`
+    : `Наступний поверх: <b>${nx}</b>. «✅ Я готовий» — і зміна почнеться.`;
+  modeLobby({ title: '🔦 Нічна зміна · лобі', sub: 'Обери поверх — клікни по картці. Потім «✅ Я готовий». Перемагає поверх із найбільшою кількістю голосів (нічия — жереб, без голосів — по колу).',
+    maps: FLOORS.map((f, i) => ({ n: f.n, img: `addons/nightshift/map${i + 1}.jpg`, about: f.sub })), votes: ST.vt, mine: me ? me[1] : V.myVote, ready: !!(me && me[2]),
+    players: ST.lp.map(q => ({ n: q[0] === myKey() ? 'Ти' : q[0], ready: !!q[2], vote: q[1] })), info,
+    onVote: i => { V.myVote = i; req('vote', { v: i }); },
+    onReady: () => { const m = lobbyMe(); req('ready', { on: m && m[2] ? 0 : 1 }); },
+    onHide: () => { V.lbHide = true; V.lbOn = false; modeLobby(null); toast('🗳️ Лобі сховано. <b>F</b> — відкрити знову (або «🗳️ Лобі» у вкладці режиму).'); } });
+}
+
+/* ---------- Брикайся: тебе тягнуть — тисни F / Пробіл, велика шкала посередині екрана ---------- */
+const kickV = () => Math.max(V.kickL || 0, (mySt() || {}).sg || 0);
+function kickPress() {
+  if (!amDrag()) return false;
+  V.kickL = Math.min(1, kickV() + KICK); V.kickHit = .12; req('kick'); shake = Math.max(shake, .25); sfx('hit'); return true;
+}
+function kickUI(dt) {
+  if (!V.kickEl) {
+    V.kickEl = document.createElement('div'); V.kickEl.id = 'ns-kick';
+    V.kickEl.style.cssText = 'position:fixed;left:50%;top:24%;transform:translateX(-50%);z-index:6;pointer-events:none;background:rgba(200,30,70,.93);color:#fff;border-radius:18px;padding:12px 20px;font:900 24px/1.25 system-ui,sans-serif;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.5);width:min(460px,88vw)';
+    document.body.appendChild(V.kickEl);
+  }
+  const on = running && !panel && amDrag();
+  V.kickEl.style.display = on ? '' : 'none';
+  if (!on) { V.kickL = 0; return; }
+  V.kickL = Math.max(0, (V.kickL || 0) - dt * KICK_DEC); if (V.kickHit > 0) V.kickHit -= dt;
+  const pc = Math.round(kickV() * 100);
+  const h = `💢 ТЕБЕ ТЯГНУТЬ! Тисни <b style="color:#FFE066">F</b> / <b style="color:#FFE066">Пробіл</b>!<div style="height:20px;background:rgba(0,0,0,.35);border-radius:10px;margin:9px 0 5px;overflow:hidden"><i style="display:block;height:100%;width:${pc}%;background:linear-gradient(90deg,#FFE066,#7FE08A);transition:width .08s"></i></div><div style="font:700 13px system-ui">${pc}% · 100% — вирвешся, а зомбі оглухне на ${STUN_T} с</div>`;
+  if (V.kickEl.innerHTML !== h) V.kickEl.innerHTML = h;
+  V.kickEl.style.transform = `translateX(-50%) scale(${V.kickHit > 0 ? 1.06 : 1})`;
+}
+if (!SIMSIDE && typeof addEventListener === 'function') addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat && running && !panel && ST.on && amDrag()) kickPress(); });
+
 /* ---------- F ---------- */
 const _getInteract = getInteract;
 getInteract = function () {
   if (!SIMSIDE && running && !pl.dead && inIsl(pl.x, pl.z) && !pl.carry && !pl.ride) {
     const near = (o, r) => !!o && dist2(pl.x, pl.z, o.x, o.z) < r;
     if (amTaken()) return { l: '🔔 Стукати по трубах (кенти почують)', fn: () => { req('knock'); shake = Math.max(shake, .15); } };
-    if (amDrag()) return { l: `💢 БРИКАЙСЯ! Тисни F (${Math.round(((mySt() || {}).sg || 0) * 100)}%)`, fn: () => { req('kick'); shake = Math.max(shake, .25); sfx('hit'); } };
+    if (amDrag()) return { l: `💢 ВИРВИСЬ! Тисни F / Пробіл (${Math.round(kickV() * 100)}%)`, fn: kickPress };
     if (amHid()) return { l: '🚪 Вийти зі схованки', fn: () => { const s = mySt(), c = CABS[s.h - 1]; req('hide', { off: 1 }); if (c) { pl.x = c.s.x; pl.z = c.s.z; V.lastP = null; } } };
-    if (amDown()) return { l: '🆘 Ти лежиш — чекай, поки піднімуть', fn: () => { } };
+    if (amDown()) return (mySt() || {}).cf > 0 ? { l: '☕ Випити кави й підвестися (або 5)', fn: useCoffee } : { l: '🆘 Ти лежиш — чекай, поки піднімуть', fn: () => { } };
     if (V.act) return { l: `${ACT_IC[V.act.what]} …${Math.round(V.act.t / V.act.need * 100)}%`, fn: () => { } };
-    if (!ST.on) {
-      const fi = floorAt(pl.x, pl.z), f = FLOORS[fi];
-      if (f && near(f.CLOCK, 1.6)) return { l: `🌙 Відбити картку — почати нічну зміну (${FLOORS[ST.nx].n})`, fn: () => { req('start'); sfx('ding'); } };
-      if (f) for (const [i, p] of f.VOTE.entries()) if (near(p, 1.3)) return { l: `🗳️ Голосувати: ${FLOORS[i].n}`, fn: () => { V.myVote = i; req('vote', { v: i, f: fi }); sfx('ui'); } };
-    }
+    if (!ST.on) { if (!V.lbOn) return { l: '🗳️ Лобі: обрати поверх і «Я готовий»', fn: openLobby }; }
     else {
       const tk = takenBy(); for (const i in tk) if (near(SVC[i].p, 1.8)) return { l: `🛗 Викликати «${SVC[i].n}» — витягти ${tk[i].map(escapeHTML).join(', ')} (тримайся ${RESCUE_T} с, ГУЧНО)`, fn: () => startAct({ what: 'rescue', i: +i, need: RESCUE_T }) };
       for (const m of downedMates()) if (near(m, 1.8)) return { l: `💪 Підняти ${escapeHTML(m.k)} (тримайся поруч 3 с)`, fn: () => startAct({ what: 'revive', who: m.k, need: 3 }) };
       if (ST.gift && near(SVC[ST.gift[0]].p, 1.5)) return { l: `📦 Забрати посилку з ліфта (${ST.gift[1] === 'bat' ? '🔋' : '🧪🧪'})`, fn: () => req('gift') };
       for (const i of ST.bats) if (near(ITEMS[i], 1.3)) return { l: '🔋 Взяти батарейку (запасна)', fn: () => req('item', { i }) };
       for (const i of ST.shp) if (near(ITEMS[i], 1.3)) return { l: '🧪 Взяти неоновий шот', fn: () => req('item', { i }) };
+      if (near(COFFEE, 1.4)) { const n = (mySt() || {}).cf | 0; return n >= CF_MAX ? { l: `☕ Кави вдосталь (${n}/${CF_MAX}) · 5 — випити`, fn: () => toast('☕ Більше двох чашок не вмістиш. Натисни <b>5</b>, щоб випити.') } : { l: `☕ Зварити лікувальну каву (${BREW_T} с, гучно) · ${n}/${CF_MAX}`, fn: () => { startAct({ what: 'brew', need: BREW_T }); req('brewing'); } }; }
       if (!ST.note && near(NOTE_SPOTS[ST.noteAt], 1.4)) return { l: '📝 Прочитати стікер на ' + NOTE_SPOTS[ST.noteAt].n, fn: () => req('note') };
       for (const [i, c] of CARD_SPOTS.entries()) if (!ST.cs[i] && !ST.card && near(c, 1.3)) return { l: `🔍 Обшукати: ${c.ic} ${c.n} (1,2 с)`, fn: () => startAct({ what: 'search', i, need: 1.2 }) };
       if (!ST.edoor && near(ELEC, 1.6)) return ST.card === myKey() ? { l: '🔑 Відчинити електрощитову карткою', fn: () => req('edoor') } : { l: ST.card ? `🔒 Щитова — картка в ${escapeHTML(ST.card)}` : '🔒 Щитова зачинена — потрібна 🔑 картка', fn: () => req('edoor') };
@@ -1410,8 +1540,7 @@ A.key('KeyL', toggleLight);
 /* ---------- Підказки: підписи (лише поруч або в промені), «що робити» і стрілка ---------- */
 function makePlaces(f) {
   return [
-    { id: 'clock', p: f.CLOCK, y: 2.2, t: () => `🌙 Табельний — почати зміну (F) · ${FLOORS[ST.nx].sh}`, on: () => !ST.on, always: 1 },
-    ...f.VOTE.map((p, i) => ({ id: 'vote' + i, p, y: 1.7, t: () => `🗳️ ${FLOORS[i].n}${ST.vt[i] ? ' · ' + ST.vt[i] : ''}`, on: () => !ST.on, always: 1 })),
+    { id: 'coffee', p: f.COFFEE, y: 2.3, t: () => `☕ Кавомашина — лікувальна кава (F, ${BREW_T} с) · ${(mySt() || {}).cf | 0}/${CF_MAX}`, on: () => ST.on },
     { id: 'exit', p: f.EXIT, y: 2.3, t: () => ST.power ? `🚪 ${f.exitN} — тікай!` : `🚪 ${f.exitN} (знеструмлено)` },
     { id: 'elec', p: f.ELEC, y: 2.2, t: () => ST.edoor ? '⚡ Електрощитова' : '🔒 Електрощитова' },
     ...f.BREAKERS.map((b, i) => ({ id: 'brk' + i, p: b, y: 2, t: `${b.ic} Рубильник`, on: () => ST.on && ST.edoor && !ST.power })),
@@ -1425,18 +1554,18 @@ function makePlaces(f) {
 function goal() {
   const d = o => dist2(pl.x, pl.z, o.x, o.z), s = mySt();
   if (!ST.on) {
-    const f = FLOORS[floorAt(pl.x, pl.z)] || FL, nx = FLOORS[ST.nx];
-    const vt = ST.vt.some(v => v) ? '' : ' (ніхто не голосував — поверхи йдуть по колу)';
-    return { id: 'clock', tg: f.CLOCK, txt: `Наступна зміна: <b>${nx.n}</b>${vt}. Стань на <b>🗳️ плиту</b>, щоб обрати поверх, потім <b>F</b> на 🌙 табельному апараті.` };
+    const nx = FLOORS[ST.nx], vt = ST.vt.some(v => v) ? '' : ' (ніхто не голосував — поверхи йдуть по колу)';
+    return { id: 'lobby', tg: null, txt: V.lbOn ? `🗳️ Лобі: клікни картку поверху й натисни <b>✅ Я готовий</b>. Наступна зміна: <b>${nx.n}</b>${vt}.`
+      : `🗳️ Лобі сховано — натисни <b>F</b>, щоб обрати поверх і стати готовим. Наступна зміна: <b>${nx.n}</b>${vt}.` };
   }
   if (amTaken()) return { id: 'svc' + (s.tk - 1), tg: SVC[s.tk - 1].p, txt: `🕳️ Ти в підвалі серед коробок із папером. Кенти мають викликати <b>${SVC[s.tk - 1].n}</b> (F ${RESCUE_T} с). <b>F</b> — стукати по трубах, щоб почули.` };
-  if (amDrag()) return { txt: `🧟 Тебе тягнуть за ногу до <b>${svcN((ST.en.find(e => e.id === s.dr) || {}).to | 0)}</b>! Тисни <b>F</b> — брикайся (${Math.round((s.sg || 0) * 100)}%). Кенти: посвітіть на зомбі або киньте 🧪!` };
+  if (amDrag()) return { txt: `🧟 Тебе тягнуть за ногу до <b>${svcN((ST.en.find(e => e.id === s.dr) || {}).to | 0)}</b>! Тисни <b>F</b> / <b>Пробіл</b> якомога частіше — вирвешся (${Math.round(kickV() * 100)}%). Кенти: посвітіть на зомбі або киньте 🧪!` };
   if (amHid()) return { txt: `🫥 Ти ${HIDE_N[(CABS[mySt().h - 1] || {}).k] || 'в схованці'}: тебе не бачать і не чують. <b>F</b> — вийти, коли стихне.` };
-  if (amDown()) return { txt: '🆘 Тебе збили з ніг! Лежиш і кличеш кентів — хай підійдуть і потримають <b>F</b> поруч. Зомбі кинув — оговтаєшся сам за кілька секунд.' };
-  if (V.act) return { txt: `${ACT_IC[V.act.what]} ${V.act.what === 'rescue' ? 'Ліфт їде з підвалу… ГУЧНО!' : V.act.what === 'revive' ? 'Піднімаю друга' : V.act.what === 'fuse' ? 'Вмикаю рубильник' : 'Обшукую'} ${Math.round(V.act.t / V.act.need * 100)}% — не відходь!` };
+  if (amDown()) return { txt: s.cf > 0 ? '🆘 Ти лежиш! У кишені є ☕ — натисни <b>5</b> (або F), ковтни кави й підведись сам.' : '🆘 Тебе збили з ніг! Лежиш і кличеш кентів — хай підійдуть і потримають <b>F</b> поруч (або дадуть ☕). Зомбі кинув — оговтаєшся сам за кілька секунд.' };
+  if (V.act) return { txt: `${ACT_IC[V.act.what]} ${V.act.what === 'rescue' ? 'Ліфт їде з підвалу… ГУЧНО!' : V.act.what === 'revive' ? 'Піднімаю друга' : V.act.what === 'fuse' ? 'Вмикаю рубильник' : V.act.what === 'brew' ? '☕ Кавомашина гуде… (прибиральник може почути)' : 'Обшукую'} ${Math.round(V.act.t / V.act.need * 100)}% — не відходь!` };
   const dg = dragged(); if (dg.length) { const q = dg.reduce((a, b) => d(a.e) < d(b.e) ? a : b); return { id: 'drag', tg: null, txt: `🧟 <b>${escapeHTML(q.k)}</b> тягнуть у підвал! Біжи й <b>світи ліхтариком на зомбі</b> ${DROP_T} с — або кинь 🧪 шот (<b>2</b>) йому під ноги.` }; }
   const tk = takenBy(); for (const i in tk) return { id: 'svc' + i, tg: SVC[i].p, txt: `🕳️ <b>${tk[i].map(escapeHTML).join(', ')}</b> у підвалі! Біжи до <b>${SVC[i].n}</b> і тримай <b>F</b> ${RESCUE_T} с (прибиральник почує!).` };
-  const dm = downedMates(); if (dm.length) { const m = dm.reduce((a, b) => d(a) < d(b) ? a : b); return { id: 'mate', tg: m, txt: `🆘 <b>${escapeHTML(m.k)}</b> лежить! Біжи, натисни <b>F</b> поруч і тримайся 3 с.` }; }
+  const dm = downedMates(); if (dm.length) { const m = dm.reduce((a, b) => d(a) < d(b) ? a : b); return { id: 'mate', tg: m, txt: `🆘 <b>${escapeHTML(m.k)}</b> лежить! Біжи, натисни <b>F</b> поруч і тримайся 3 с${s && s.cf > 0 ? ' — або дай ☕ кави (<b>5</b>), це миттєво' : ''}.` }; }
   if (s && s.b < 25) {
     if (s.bs) return { txt: `🔦 Батарейка ${Math.round(s.b)}%! Натисни <b>3</b> — встав запасну 🔋.` };
     if (ST.bats.length) { const i = ST.bats.reduce((a, b) => d(ITEMS[a]) < d(ITEMS[b]) ? a : b); return { id: 'bat' + i, tg: ITEMS[i], txt: `🔦 Батарейка ${Math.round(s.b)}%! Біжи по <b>🔋</b> (F).` }; }
@@ -1482,7 +1611,7 @@ function guide() {
   if (!show) return;
   const pos = (el, x, y, z) => { const q = screenPos(x, y, z); el.style.display = q.vis ? '' : 'none'; el.style.transform = `translate(${Math.round(q.x)}px,${Math.round(q.y)}px) translate(-50%,-100%)`; };
   const s = mySt(), lightOn = s && s.l && s.b > 0 && !s.d && !s.h;
-  const seen = o => { const dd = dist2(pl.x, pl.z, o.x, o.z); if (!ST.on || ST.power || dd < 4) return true; if (lzAt(o.x, o.z)) return true; return lightOn && dd < LIGHT_R && Math.abs(wrapA(Math.atan2(o.x - pl.x, o.z - pl.z) - V.fa)) < LIGHT_A + .2 && los(pl.x, pl.z, o.x, o.z); };
+  const seen = o => { const dd = dist2(pl.x, pl.z, o.x, o.z); if (!ST.on || ST.power || dd < 4) return true; if (lzAt(o.x, o.z)) return true; return lightOn && inBeam(pl.x, pl.z, V.fa, o.x, o.z); };
   // назви кімнат: видно при світлі або коли туди світиш; назва кімнати, де стоїш, ховається (плавно, .2 с)
   const myRoom = roomAt(pl.x, pl.z);
   V.roomsL.forEach((rs, k) => { for (const q of rs) { const on = k === CUR && q.r !== myRoom && (!ST.on || ST.power || seen(q.c)); q.e.style.opacity = on ? 1 : 0; if (on) pos(q.e, q.c.x, 1.5, q.c.z); } });
@@ -1516,9 +1645,10 @@ function intro(force) {
   el.innerHTML = `<div style="max-width:500px;width:100%;background:#1A1030;color:#E9E2FA;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.6);border:1px solid #4E4A6E">
     <div style="font:800 20px system-ui;margin-bottom:8px">🔦 Нічна зміна — як вижити</div>
     <div style="margin-bottom:6px;color:#9FE6FF">🏙️ Три поверхи хмарочоса: ${FLOORS.map(f => `<b>${f.n}</b>`).join(' · ')}. Наступний — <b>${FLOORS[ST.nx].n}</b>.</div>
-    <div>1. <b>🗳️ Поверх</b>: стань на плиту в холі — голос за поверх. <b>🌙 Старт</b>: табельний апарат — <b>F</b>.</div>
-    <div>2. <b>Набір</b>: <b>1</b> 🔦 ліхтарик (і <b>L</b>), <b>2</b> 🧪 неоновий шот — кидаєш туди, куди мишка: 30 с світла, зомбі там завмирають і не заходять; <b>3</b> 🔋 запасна батарейка; <b>4</b> 📻 рація — показує, де кенти.</div>
-    <div>3. <b>🧟 Зомбі-офісники</b> рухаються лише в темряві. Схопили — <b>тягнуть за ногу</b> до вантажного ліфта / люка в підвал. Тисни <b>F</b> — брикайся. Кенти: <b>посвітіть на зомбі</b> чи киньте 🧪 — він кине здобич.</div>
+    <div>1. <b>🗳️ Лобі</b>: у вікні клікни картку поверху — голос; <b>✅ Я готовий</b> — зміна стартує, коли готові всі (онлайн — щонайпізніше за ${LOBBY_T} с після першого «готовий»). Сховав вікно — <b>F</b>.</div>
+    <div>2. <b>Набір</b>: <b>1</b> 🔦 ліхтарик (і <b>L</b>; крізь стіни не світить, скло пропускає), <b>2</b> 🧪 неоновий шот — кидаєш туди, куди мишка: 30 с світла, зомбі там завмирають і не заходять; <b>3</b> 🔋 запасна батарейка; <b>4</b> 📻 рація — показує, де кенти; <b>5</b> ☕ лікувальна кава.</div>
+    <div>3. <b>🧟 Зомбі-офісники</b> рухаються лише в темряві. Схопили — <b>тягнуть за ногу</b> до вантажного ліфта / люка в підвал. Тисни <b>F</b> / <b>Пробіл</b> часто-часто — вирвешся за 2–3 с, а зомбі оглухне. Кенти: <b>посвітіть на зомбі</b> чи киньте 🧪 — він кине здобич.</div>
+    <div>☕ <b>Лікувальна кава</b>: на кухні біля кавомашини <b>F</b> і постій ${BREW_T} с (трохи гучно) — до ${CF_MAX} чашок. <b>5</b> — випити: лікує, а коли лежиш — підводишся сам; поруч лежить кент — піднімеш його.</div>
     <div>4. <b>🕳️ Підвал</b>: дотягли — ти зник. Кенти витягають: <b>F ${RESCUE_T} с</b> біля того ліфта (гучно!).</div>
     <div>5. <b>🧹 Прибиральник</b> полює на звук: <b>Z</b> — крастися. Шафа, кабінка, капсула, під столом (<b>F</b>) — сховатися.</div>
     <div>6. <b>💡 Датчики руху</b> в коридорах вмикають світло на 4 с (зомбі завмирають), але прибиральник бачить, що там хтось є. <b>🛗 Вантажний ліфт</b> іноді привозить посилку 📦.</div>
@@ -1552,12 +1682,13 @@ function hud() {
     const nm = k => k === myKey() ? 'ти' : escapeHTML(k);
     const team = Object.entries(ST.pl).filter(([, q]) => q.d || q.h).map(([k, q]) => q.tk ? `<span style="color:#FF8AE0">🕳️ ${nm(k)} у підвалі</span>` : q.dr ? `<span style="color:#FF5C7A">🧟 ${nm(k)} тягнуть!</span>` : q.d ? `<span style="color:#FF5C7A">🆘 ${nm(k)}</span>` : `🫥 ${nm(k)} у схованці`).join(' · ');
     const cl = ST.en.some(e => e.t);
-    h = `🌙 ${FL.n} · 🕐 <b style="font-size:15px">${clockTxt(ST.t)}</b> / 06:00 · 🔦 ${s.l && s.b > 0 ? '' : '<span style="color:#FF8A7A">вимк.</span> '}${bar} ${b}% · 🧪 ${s.sh | 0} · 🔋 ${s.bs | 0} · ${nz}<br>
+    h = `🌙 ${FL.n} · 🕐 <b style="font-size:15px">${clockTxt(ST.t)}</b> / 06:00 · 🔦 ${s.l && s.b > 0 ? '' : '<span style="color:#FF8A7A">вимк.</span> '}${bar} ${b}% · 🧪 ${s.sh | 0} · 🔋 ${s.bs | 0} · ☕ ${s.cf | 0} · ${nz}<br>
       <span style="font-weight:600;font-size:12px">${ck(ST.card, '🔑 картка' + (ST.card ? ` (${ST.card === myKey() ? 'у тебе' : escapeHTML(ST.card)})` : ''))} · ${ck(ST.note, '📝 стікер' + (ST.ord ? ': ' + ordTxt(ST.ord) : ''))} · ${ck(ST.edoor, '🚪 щитова')} · ${ck(ST.power, `⚡ щиток ${ST.fz}/3`)} · ${ck(ST.exit, '🏃 вихід')}</span>
       <br><span style="font-weight:600;font-size:12px;opacity:.85">🧟 ${ST.en.filter(e => !e.t).length}${cl ? ' · 🧹 прибиральник на зміні' : ''}${team ? ' · ' + team : ''}</span>`;
   } else {
     const f = FLOORS[floorAt(pl.x, pl.z)] || FL;
-    h = `🌙 Нічна зміна · ${f.n} · <span style="font-weight:600">наступна зміна: <b>${FLOORS[ST.nx].n}</b> · 🗳️ ${ST.vt.map((v, i) => FLOORS[i].sh + ': ' + v).join(' / ')}</span>`;
+    const rd = ST.lp.filter(q => q[2]).length;
+    h = `🌙 Нічна зміна · ${f.n} · <span style="font-weight:600">наступна зміна: <b>${FLOORS[ST.nx].n}</b> · 🗳️ ${ST.vt.map((v, i) => FLOORS[i].sh + ': ' + v).join(' / ')} · ✅ ${rd}/${ST.lp.length || 1}${ST.as > 0 ? ` · ⏱️ старт за ${ST.as} с` : ''}</span>`;
   }
   const gt = V.goal && V.goal.txt ? `👉 ${V.goal.txt}` : ''; V.goalEl.style.display = gt ? '' : 'none'; if (V.goalEl.innerHTML !== gt) V.goalEl.innerHTML = gt;
   if (V.hud.innerHTML !== h) V.hud.innerHTML = h;
@@ -1605,24 +1736,26 @@ function goNight() {
   const f = $('#fade'); closePanel(); if (f) f.style.opacity = 1; sfx('travel');
   setTimeout(() => {
     useVar(ST.on ? ST.v : ST.nx);
-    pl.x = SPAWN.x; pl.z = SPAWN.z; pl.y = 0; pl.falling = false; pl.jump = null; pl.safe = { x: SPAWN.x, z: SPAWN.z }; V.lastP = null; V.myVote = -1; camPos.set(pl.x, 20, pl.z + 15); camLook.set(pl.x, .5, pl.z); if (f) f.style.opacity = 0;
-    toast(ST.on ? `🌙 Ніч уже йде на поверсі «${FL.n}» — тримайся кентів і не вимикай ліхтарик!` : `🌙 ${FL.n}, 23:59. Стань на 🗳️ плиту, щоб обрати поверх, і відбий картку на табельному (F).`); intro();
+    pl.x = SPAWN.x; pl.z = SPAWN.z; pl.y = 0; pl.falling = false; pl.jump = null; pl.safe = { x: SPAWN.x, z: SPAWN.z }; V.lastP = null; V.myVote = -1; V.lbHide = false; V.lbWait = 0; camPos.set(pl.x, 20, pl.z + 15); camLook.set(pl.x, .5, pl.z); if (f) f.style.opacity = 0;
+    toast(ST.on ? `🌙 Ніч уже йде на поверсі «${FL.n}» — тримайся кентів і не вимикай ліхтарик!` : `🌙 ${FL.n}, 23:59. Обери поверх у вікні лобі й натисни «✅ Я готовий».`); intro();
   }, 260);
   return true;
 }
-function leaveNight() { if (amHid()) req('hide', { off: 1 }); V.act = null; mbar(false); if (hero) { hero.root.visible = true; hero.body.rotation.x = 0; hero.body.position.y = 0; } return true; }
+function leaveNight() { if (amHid()) req('hide', { off: 1 }); V.act = null; mbar(false); if (V.lbOn) { V.lbOn = false; modeLobby(null); } if (hero) { hero.root.visible = true; hero.body.rotation.x = 0; hero.body.position.y = 0; } return true; }
 if (A.mode) A.mode({ id: 'nightshift', ic: '🔦', n: 'Нічна зміна', sub: 'кооп-хорор на 1–4: три поверхи, ліхтарик, шоти, зомбі тягнуть у підвал', go: goNight, here: () => running && inIsl(pl.x, pl.z), leave: leaveNight });
 A.tab('nightshift', '🔦 Нічна зміна', () => {
   const d = A.data(), here = inIsl(pl.x, pl.z), fw = d.floors || {};
   return `<h3>🔦 Нічна зміна · Не вимикай ліхтарик</h3>
     <p style="font-size:13px;line-height:1.5;margin:4px 0 10px">Кооп-хорор на 1–4 гравці на трьох поверхах хмарочоса. Світла нема, за склом світиться нічне місто, а зомбі-офісники ще не здали квартальний звіт. Доживи до 06:00 — або втечи раніше.</p>
-    <div class="btns"><button class="btn alt" data-ns="help">❓ Як грати</button>${here ? '' : '<button class="btn" data-ns="go">🔦 На поверх</button>'}</div>
+    <div class="btns"><button class="btn alt" data-ns="help">❓ Як грати</button>${ST.on && here ? '' : '<button class="btn" data-ns="lobby">🗳️ Лобі</button>'}${here ? '' : '<button class="btn" data-ns="go">🔦 На поверх</button>'}</div>
     <div class="list" style="margin-top:10px;font-size:13px;line-height:1.55">
       ${FLOORS.map((f, i) => `<div>🏙️ <b>${f.n}</b> — ${f.sub}${ST.nx === i && !ST.on ? ' · <b style="color:#FFB04A">наступний</b>' : ''}${fw[f.sh] ? ` · перемог: ${fw[f.sh]}` : ''}</div>`).join('')}
-      <div>🗳️ <b>Поверх</b> обирають голосуванням на плитах у холі; нікого — по колу.</div>
+      <div>🗳️ <b>Лобі</b>: поверх обирають у вікні лобі (клік по картці), потім «✅ Я готовий». Старт — коли готові всі; онлайн — щонайпізніше за ${LOBBY_T} с після першого. Нічия — жереб, без голосів — по колу.</div>
       <div>🔦 <b>1</b> / <b>L</b> — ліхтарик. Сідає ~2 хв; <b>3</b> — встав запасну 🔋 (світяться в темряві).</div>
       <div>🧪 <b>2</b> — <b>неоновий шот</b>: кидаєш куди мишка, 30 с рожевого світла. Зомбі в ньому завмирають і не заходять у коло.</div>
-      <div>🧟 <b>Зомбі</b> рухаються лише в темряві. Схопили — <b>тягнуть за ногу</b> до вантажного ліфта / люка. <b>F</b> — брикайся; кенти — світіть на зомбі ${DROP_T} с або киньте шот.</div>
+      <div>🧟 <b>Зомбі</b> рухаються лише в темряві. Схопили — <b>тягнуть за ногу</b> до вантажного ліфта / люка. Тисни <b>F</b> / <b>Пробіл</b> часто-часто — за 2–3 с вирвешся, зомбі оглухне на ${STUN_T} с, а тебе ${IFRAME_T} с ніхто не схопить; кенти — світіть на зомбі ${DROP_T} с або киньте шот.</div>
+      <div>☕ <b>5</b> — <b>лікувальна кава</b> (до ${CF_MAX}): вари на кухні біля кавомашини (<b>F</b>, ${BREW_T} с, трохи гучно). Лікує; лежиш — підводишся сам; кент лежить поруч — піднімеш його.</div>
+      <div>🔦 Ліхтарик <b>не світить крізь стіни</b> (скло — пропускає): за стіною зомбі не завмирає.</div>
       <div>🕳️ <b>Підвал</b>: дотягли — ти зник. Кенти: <b>F ${RESCUE_T} с</b> біля того ліфта (гучно). Затягли всіх — програш.</div>
       <div>📻 <b>4</b> — <b>рація</b>: на 6 с видно, де кенти (і кого тягнуть).</div>
       <div>💡 <b>Датчики руху</b> в коридорах: світло на 4 с, зомбі завмирають — але прибиральник іде подивитись.</div>
@@ -1632,7 +1765,7 @@ A.tab('nightshift', '🔦 Нічна зміна', () => {
     <p class="muted" style="font-size:12px;margin-top:10px">Змін: ${d.nights || 0} · вижили: ${d.wins || 0} · втеч: ${d.escapes || 0} · найпізніше: ${clockTxt((d.best || 0) / 360 * DUR)}</p>`;
 }, e => {
   const b = e.target.closest('[data-ns]'); if (!b) return;
-  if (b.dataset.ns === 'help') { closePanel(); intro(true); } else goNight();
+  if (b.dataset.ns === 'help') { closePanel(); intro(true); } else if (b.dataset.ns === 'lobby' && inIsl(pl.x, pl.z)) { closePanel(); openLobby(); } else goNight();
 });
 if (!SIMSIDE && typeof document !== 'undefined') {
   const box = document.querySelector('#main-menu .mm-container');
@@ -1653,4 +1786,5 @@ A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(goNight, 700); });
 if (window.__ADDON_TEST) window.__nightshift = { outlineOf, GLOW_T, SENSE_R, ST, AU, V, FLOORS, useVar, get FL() { return FL; }, get CUR() { return CUR; }, get SPAWN() { return SPAWN; }, get CLOCK() { return CLOCK; }, get EXIT() { return EXIT; }, get ESC() { return ESC; }, get ELEC() { return ELEC; },
   get BREAKERS() { return BREAKERS; }, get CARD_SPOTS() { return CARD_SPOTS; }, get NOTE_SPOTS() { return NOTE_SPOTS; }, get ITEMS() { return ITEMS; }, get BAT_SPOTS() { return ITEMS; }, get CABS() { return CABS; }, get WAYS() { return WAYS; }, get EN_SPAWN() { return EN_SPAWN; },
   get SVC() { return SVC; }, get SENS() { return SENS; }, get WALLS() { return WALLS; }, get DOORS() { return DOORS; }, get ROOMS() { return ROOMS; }, get FURN() { return FURN; }, get FURN_L() { return FURN_L; }, get MONITORS() { return MONITORS; }, get NC() { return NC; },
+  get COFFEE() { return COFFEE; }, get CM() { return CM; }, rayLen, coneRays, inBeam, kickPress, kickV, useCoffee, openLobby, lobbyUI, LOBBY_T, KICK, CF_MAX,
   goal, intro, req, onReq, litBy, dragged, takenBy, los, inB, grid, cellOf, freeNear, addEnemy, startNight, endNight, myKey, solids, roomAt, floorAt, tally, lzAt, MB, throwShot };

@@ -44,12 +44,22 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   const R = a.w.__race, Q = b.w.__race;
   for (const T of [a, b]) { T.pl.x = R.START.x + 1; T.pl.z = R.START.z; T.pl.y = 0; T.pl.hp = 9999; }
   await tick([a, b], 1);
-  // голосування: Суперник стає на майданчик №2 — сервер обирає «Атріум»
-  { const p = R.VARS[0].PADS[1]; b.pl.x = p.x; b.pl.z = p.z; await tick([a, b], 1.2); b.pl.x = R.START.x + 1; b.pl.z = R.START.z;
-    assert(R.ST.v === 1 && Q.ST.v === 1 && Object.values(R.ST.votes).includes(1), `голос на майданчику — сервер обрав «${R.VARS[R.ST.v].n}», бачать обоє`); }
-  await tick([a, b], .3);
-  for (const T of [a, b]) { const it = T.getInteract(); assert(it && /Записатися/.test(it.l), 'F — записатися'); it.fn(); await tick([a, b], .5); }
-  assert(R.ST.ph === 'lobby' && Q.ST.racers.length === 2, 'обоє в лобі (рахує сервер)');
+  const lob = T => T.w.document.querySelector('#mlobby');
+  assert(lob(a) && lob(b) && lob(a).querySelectorAll('[data-lv]').length === 3, 'обоє в лобі — у кожного відкрився попап з 3 трасами');
+  for (let i = 0; i < 20 && !(R.ST.lp.length === 2 && Q.ST.lp.length === 2); i++) await tick([a, b], .2);
+  assert(/Гонщик/.test(lob(b).querySelector('.who').textContent) && /Суперник/.test(lob(a).querySelector('.who').textContent), 'у списку гравців попапа видно обох');
+  // голосування кліками по картках: обоє за «Атріум»
+  lob(a).querySelector('[data-lv="1"]').click(); lob(b).querySelector('[data-lv="1"]').click(); await tick([a, b], 1);
+  assert(R.ST.v === 1 && Q.ST.v === 1 && R.voteCounts()[1] === 2 && /🗳️ 2/.test(lob(a).querySelector('[data-lv="1"] .vc').textContent), `голоси в попапі — сервер обрав «${R.VARS[R.ST.v].n}» (2 голоси), бачать обоє`);
+  // Гонщик готовий — Суперник ще ні: лобі з таймером, ніхто не стартує
+  lob(a).querySelector('.rdy').click(); await tick([a, b], 1);
+  assert(R.ST.ph === 'lobby' && Q.ST.racers.length === 1 && /Старт за/.test(lob(b).textContent) && /✅/.test(lob(b).querySelector('.who').textContent), 'Гонщик готовий — у Суперника в попапі ✅ і «Старт за … с»');
+  assert(lob(a).querySelector('.rdy.on'), 'у Гонщика кнопка тепер «Не готовий»');
+  // Суперник готовий — усі готові: старт одразу, попапи закриваються
+  lob(b).querySelector('.rdy').click();
+  for (let i = 0; i < 10 && R.ST.ph === 'lobby'; i++) await tick([a, b], .2);
+  assert(R.ST.ph === 'count' || R.ST.ph === 'race', 'усі готові — заїзд стартував, не чекаючи 20 с');
+  await tick([a, b], .3); assert(!lob(a) && !lob(b), 'заїзд почався — попапи в обох закрились');
   for (let i = 0; i < 40 && R.ST.ph !== 'race'; i++) await tick([a, b], .5);
   assert(R.ST.ph === 'race' && R.ST.racers.length === 4 && R.RC.on && Q.RC.on, 'двоє гравців + 2 боти, поїхали');
   assert(R.floorAt(a.pl.x, a.pl.z) === 1 && R.floorAt(b.pl.x, b.pl.z) === 1, 'обох перенесло на поверх 57 (обраний голосуванням)');
@@ -82,5 +92,13 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   assert(R.ST.ph === 'end' && Q.ST.ph === 'end', 'обоє фінішували — гонка скінчилась');
   assert(R.ST.res.indexOf('Гонщик') >= 0 && a.P.addons.chairrace.races === 1 && b.P.addons.chairrace.races === 1, `результати в обох: ${R.ST.res.join(', ')}`);
   assert(!R.RC.on && a.w.document.querySelector('#modebar').hidden && b.w.document.querySelector('#modebar').hidden, 'після фінішу в обох — звичайний хотбар');
+  // наступний заїзд: готовий лише Гонщик — через 20 с сервер стартує без Суперника
+  for (let i = 0; i < 40 && R.ST.ph !== 'idle'; i++) await tick([a, b], .3);
+  await tick([a, b], .3);
+  assert(R.ST.ph === 'idle' && lob(a) && lob(b), 'після заїзду в обох знову відкрилось лобі');
+  lob(a).querySelector('.rdy').click(); await tick([a, b], 1);
+  assert(R.ST.ph === 'lobby' && R.ST.cnt > 15, `готовий лише один — сервер чекає (${Math.ceil(R.ST.cnt)} с)`);
+  for (let i = 0; i < 60 && R.ST.ph === 'lobby'; i++) await tick([a, b], .5);
+  assert(R.ST.ph !== 'lobby' && R.ST.racers.some(r => r.k === 'Гонщик') && !R.ST.racers.some(r => r.k === 'Суперник'), 'через 20 с — автостарт з тими, хто готовий');
   console.log('ALL OK'); cleanup(0);
 })().catch(e => { console.error(e); cleanup(1); });

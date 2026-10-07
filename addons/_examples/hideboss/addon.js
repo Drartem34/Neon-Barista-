@@ -120,8 +120,7 @@ function setFloor(i, def) {
   def.furn();
   const o = def.off; F.off = { x0: F.x + o[0], z0: F.z + o[1], x1: F.x + o[2], z1: F.z + o[3] };
   F.bossSpot = W(...def.bossSpot); F.carpet = W(...def.carpet); F.door = W(...def.door);
-  F.board = W(...def.board); F.role = W(...def.role); F.spawn = W(...def.spawn); F.lift = def.lift;
-  F.pads = def.pads.map((p, j) => Object.assign(W(p[0], p[1]), { v: j }));
+  F.board = W(...def.board); F.spawn = W(...def.spawn); F.lift = def.lift;   // board — стійка «🗳️ ЛОБІ» (F — відкрити вікно лобі)
   F.meet = F.rooms.find(r => r.meet);
   F.nav = { cell: .5, x0: F.x - hx, z0: F.z - hz, nx: hx * 4, nz: hz * 4, block: null };
   F.hide = null;
@@ -153,7 +152,7 @@ setFloor(0, {
     { id: 'store', n: '📦 Склад', x0: 11, z0: 1.5, x1: 18, z1: 13, fl: '#B9AE98' },
   ],
   off: [11.5, -12.5, 17.5, -2.5], bossSpot: [13, -6.2], carpet: [16.6, -3.4], door: [14.5, -2],
-  board: [-15.6, 4.4], role: [-12.6, 4.4], spawn: [-14, 9.4], pads: [[-15.6, 11.9], [-14.2, 11.9], [-12.8, 11.9]],
+  board: [-15.6, 4.4], spawn: [-14, 9.4],
   lift: { x: -10.12, z: 11, rot: -H2 },
   furn() {
     // 💻 Опенспейс: три кластери по 2×2 столи (монітори спина до спини), два ряди
@@ -225,7 +224,7 @@ setFloor(1, {
     { id: 'hall', n: '📞 Зал дзвінків', x0: -12, z0: -8, x1: 12, z1: 8, fl: '#3E4C78' },
   ],
   off: [12.5, -12.5, 19.5, -4.5], bossSpot: [18, -7.6], carpet: [18.8, -5.6], door: [16, -4],
-  board: [-17.4, -2.4], role: [-14.6, -2.4], spawn: [-15.6, 1.6], pads: [[-18.4, 4.5], [-17, 4.5], [-15.6, 4.5]],
+  board: [-17.4, -2.4], spawn: [-15.6, 1.6],
   lift: { x: -13.6, z: -3.88, rot: 0 },
   furn() {
     // 📞 Зал дзвінків: ряди кабінок (столи спина до спини з перегородками)
@@ -295,7 +294,7 @@ setFloor(2, {
     { id: 'hall', n: '🚶 Коридор', x0: -8, z0: 2, x1: 17, z1: 5, fl: '#D6CCB8' },
   ],
   off: [8.5, -13.5, 16.5, -5.5], bossSpot: [14.8, -8.4], carpet: [16, -6.4], door: [12.5, -5],
-  board: [-14.2, -2.6], role: [-10.8, -2.6], spawn: [-12.4, 3.6], pads: [[-13.4, .6], [-12, .6], [-10.6, .6]],
+  board: [-14.2, -2.6], spawn: [-12.4, 3.6],
   lift: { x: -8.12, z: -1.4, rot: -H2 },
   furn() {
     // 📚 Архів-лабіринт: ряди архівних стелажів з проходами й глухими кутами
@@ -403,8 +402,10 @@ function hideSpots(v) {
 // c — спійманий, pr — продуктивність, x/z/f — позиція (для ботів), w — працює, mv — рухається, dc — звіт використано,
 // fl — 🚩 прогуляв збори (секунд лишилось), rc — перезарядка тарана
 // v — поверх раунду, nv — поверх наступного раунду (за голосами), vt — голоси, stun — бос лежить, bell — збори, bu — дзвоник використано
-const ST = { on: false, ph: 'meet', t: 0, rn: 0, cd: 0, ro: [], dec: [], sc: {}, bk: '', v: 0, nv: 0, vt: [0, 0, 0], stun: 0, bell: 0, bu: 0 };
-const AU = { clock: 0, stT: 0, bot: {}, mv: {}, ws: {}, gone: {}, bc: {}, sus: [], did: 0, click: {}, freeze: false, votes: {}, vT: 0, ram: {}, bump: {}, claim: {} };
+// лобі: lb — хто в лобі [ключ, готовий, голос], ct — відлік до автостарту (онлайн, 20 с після першого «Я готовий»)
+const ST = { on: false, ph: 'meet', t: 0, rn: 0, cd: 0, ro: [], dec: [], sc: {}, bk: '', v: 0, nv: 0, vt: [0, 0, 0], stun: 0, bell: 0, bu: 0, lb: [], ct: 0 };
+const AU = { clock: 0, stT: 0, bot: {}, mv: {}, ws: {}, gone: {}, bc: {}, sus: [], did: 0, click: {}, freeze: false, votes: {}, vT: 0, ram: {}, bump: {}, claim: {}, ready: {}, role: {}, rdy1: '', rdyT: 0 };
+const AUTO_T = 20;   // онлайн: через стільки секунд після першого «Я готовий» стартуємо без тих, хто мовчить
 const myKey = () => (NET.on && typeof WORLD !== 'undefined' && WORLD.on ? myName() : 'me');
 const keyOf = from => SIMSIDE ? String(from && from.name || '') : 'me';
 const ent = k => ST.ro.find(e => e.k === k);
@@ -414,7 +415,7 @@ const hiders = () => ST.ro.filter(e => !e.boss);
 const alive = () => hiders().filter(e => !e.c);
 const RF = () => FL[ST.v] || FL[0];   // поверх поточного раунду
 function snap() {
-  return { on: ST.on ? 1 : 0, ph: ST.ph, t: r2(ST.t), rn: ST.rn, cd: r2(ST.cd), bk: ST.bk, v: ST.v, nv: ST.nv, vt: ST.vt, sn: r2(ST.stun), bl: r2(ST.bell), bu: ST.bu ? 1 : 0,
+  return { on: ST.on ? 1 : 0, ph: ST.ph, t: r2(ST.t), rn: ST.rn, cd: r2(ST.cd), bk: ST.bk, v: ST.v, nv: ST.nv, vt: ST.vt, sn: r2(ST.stun), bl: r2(ST.bell), bu: ST.bu ? 1 : 0, lb: ST.lb, ct: r2(ST.ct),
     ro: ST.ro.map(e => [e.k, e.n, e.boss ? 1 : 0, e.bot ? 1 : 0, e.p, r2(e.r), e.c ? 1 : 0, Math.round(e.pr), r2(e.x), r2(e.z), r2(e.f), e.w ? 1 : 0, e.mv ? 1 : 0, e.dc ? 1 : 0, r2(e.fl), r2(e.rc)]),
     dec: ST.dec.map(d => [d.id, r2(d.x), r2(d.z), d.t, r2(d.r)]), sc: Object.entries(ST.sc).sort((a, b) => b[1] - a[1]).slice(0, 10) };
 }
@@ -422,6 +423,7 @@ function applySnap(d) {
   const fv = v => clamp(v | 0, 0, FL.length - 1);
   Object.assign(ST, { on: !!d.on, ph: d.ph === 'hunt' ? 'hunt' : 'meet', t: +d.t || 0, rn: d.rn | 0, cd: +d.cd || 0, bk: String(d.bk || ''), v: fv(d.v), nv: fv(d.nv), stun: +d.sn || 0, bell: +d.bl || 0, bu: d.bu ? 1 : 0 });
   if (Array.isArray(d.vt)) ST.vt = FL.map((_, i) => d.vt[i] | 0);
+  ST.lb = Array.isArray(d.lb) ? d.lb.slice(0, 12).map(a => [String(a[0]).slice(0, 24), a[1] ? 1 : 0, a[2] >= 0 && a[2] < FL.length ? a[2] | 0 : -1]) : []; ST.ct = +d.ct || 0;
   if (Array.isArray(d.ro)) ST.ro = d.ro.slice(0, 12).map(a => ({ k: String(a[0]), n: String(a[1]).slice(0, 24), boss: !!a[2], bot: !!a[3], p: FT[a[4]] ? a[4] : '', r: +a[5] || 0, c: !!a[6], pr: +a[7] || 0, x: +a[8] || 0, z: +a[9] || 0, f: +a[10] || 0, w: !!a[11], mv: !!a[12], dc: !!a[13], fl: +a[14] || 0, rc: +a[15] || 0 }));
   if (Array.isArray(d.dec)) ST.dec = d.dec.slice(0, 12).map(a => ({ id: a[0] | 0, x: +a[1], z: +a[2], t: FT[a[3]] ? a[3] : 'report', r: +a[4] || 0 }));
   if (Array.isArray(d.sc)) ST.sc = Object.fromEntries(d.sc.slice(0, 10).map(a => [String(a[0]).slice(0, 24), a[1] | 0]));
@@ -442,29 +444,45 @@ function posOf(e) {
   return simPlayers().find(p => p.name === e.k) || null;
 }
 const nm = k => SIMSIDE ? escapeHTML(k) : 'Ти';
-/* голосування: хто стоїть на килимку 🗳️ (або натиснув F біля нього) — той голос за поверх */
+/* лобі: голос за поверх і «Я готовий» — у вікні лобі (modeLobby); рахує сервер світу або сам гравець */
 function defFloor() {   // ніхто не голосував — граємо там, де більшість людей (нічия — поточний поверх)
   const n = FL.map(() => 0); for (const k of humansHere()) { const p = humanPos(k); const v = p ? floorAt(p.x, p.z) : -1; if (v >= 0) n[v]++; }
   const mx = Math.max(...n); return mx > 0 && n[ST.v] < mx ? n.indexOf(mx) : ST.v;
 }
-function chooseFloor() {
+function chooseFloor(final) {   // більшість голосів; нічия — випадково серед лідерів (у прев’ю — стабільно); без голосів — defFloor()
   const n = FL.map(() => 0), H = humansHere();
   for (const k of H) { const v = AU.votes[k]; if (v != null && n[v] != null) n[v]++; }
-  const mx = Math.max(...n), def = defFloor();
-  return { v: mx === 0 ? def : n[def] === mx ? def : n.indexOf(mx), vt: n };
+  const mx = Math.max(...n), def = defFloor(), top = n.map((c, i) => c === mx ? i : -1).filter(i => i >= 0);
+  return { v: mx === 0 ? def : top.length === 1 ? top[0] : final ? pick(top) : top.includes(ST.nv) ? ST.nv : top[0], vt: n };
 }
 function voteTick(dt) {
+  AU.vAcc = (AU.vAcc || 0) + dt;
   if ((AU.vT -= dt) > 0) return; AU.vT = .25;
+  const el = AU.vAcc; AU.vAcc = 0;
   const H = humansHere();
   for (const k in AU.votes) if (!H.includes(k)) delete AU.votes[k];
-  if (!ST.on) for (const k of H) { const p = humanPos(k), F = p && FL[floorAt(p.x, p.z)]; if (!F) continue; const pd = F.pads.find(q => dist2(p.x, p.z, q.x, q.z) < .75); if (pd) AU.votes[k] = pd.v; }
+  for (const k in AU.ready) if (!H.includes(k) || ST.on) delete AU.ready[k];
   const c = chooseFloor();
-  if (c.v !== ST.nv || c.vt.some((n, i) => n !== ST.vt[i])) { ST.nv = c.v; ST.vt = c.vt; pushState(); }
+  const lb = ST.on ? [] : H.map(k => [k, AU.ready[k] ? 1 : 0, AU.votes[k] != null ? AU.votes[k] : -1]);
+  // «Я готовий»: старт, коли готові всі люди в лобі; онлайн — ще й через 20 с після першого готового
+  const R = H.filter(k => AU.ready[k]);
+  if (!R.length) { AU.rdyT = 0; AU.rdy1 = ''; }
+  else if (SIMSIDE) AU.rdyT += el;
+  const ct = R.length && SIMSIDE ? Math.max(0, AUTO_T - AU.rdyT) : 0;
+  const ch = c.v !== ST.nv || c.vt.some((n, i) => n !== ST.vt[i]) || JSON.stringify(lb) !== JSON.stringify(ST.lb) || Math.ceil(ct) !== Math.ceil(ST.ct);
+  ST.nv = c.v; ST.vt = c.vt; ST.lb = lb; ST.ct = ct;
+  if (!ST.on && R.length && (R.length === H.length || (SIMSIDE && AU.rdyT >= AUTO_T))) { const k = R.includes(AU.rdy1) ? AU.rdy1 : R[0]; startRound(k, AU.role[k] === 'boss' ? 'boss' : 'hider'); return; }
+  if (ch) pushState();
 }
 function onReq(d, from) {
   const k = keyOf(from), e = ent(k);
-  if (d.k === 'start') { if (!ST.on) startRound(k, d.role === 'boss' ? 'boss' : 'hider'); return; }
   if (d.k === 'vote') { if (!ST.on && FL[d.v | 0] && humansHere().includes(k)) { AU.votes[k] = d.v | 0; AU.vT = 0; voteTick(0); emit({ k: 'voted', who: k, v: d.v | 0 }); } return; }
+  if (d.k === 'ready') {   // «Я готовий» / «Не готовий»; role — ким хоче грати наодинці з ботами
+    if (ST.on || !humansHere().includes(k)) return;
+    AU.role[k] = d.role === 'boss' ? 'boss' : 'hider';
+    if (d.on) { AU.ready[k] = 1; if (!AU.rdy1 || !AU.ready[AU.rdy1]) AU.rdy1 = k; } else delete AU.ready[k];
+    AU.vT = 0; voteTick(0); return;
+  }
   if (!ST.on || !e) return;
   const p = posOf(e);
   if (d.k === 'leave') { dropOut(e, SIMSIDE ? `🚪 ${escapeHTML(k)} пішов з офісу.` : ''); return; }
@@ -497,7 +515,7 @@ function onReq(d, from) {
 function startRound(starter, role) {
   const H = humansHere(); if (!H.length) return;
   if (!H.includes(starter)) H.unshift(starter);
-  const ch = chooseFloor(); ST.v = ch.v; ST.nv = ch.v; AU.votes = {}; ST.vt = FL.map(() => 0);
+  const ch = chooseFloor(true); ST.v = ch.v; ST.nv = ch.v; AU.votes = {}; ST.vt = FL.map(() => 0); AU.ready = {}; AU.rdy1 = ''; AU.rdyT = 0; ST.lb = []; ST.ct = 0;
   const F = RF();
   ST.ro = []; ST.dec = []; AU.bot = {}; AU.mv = {}; AU.ws = {}; AU.gone = {}; AU.sus = []; AU.click = {}; AU.ram = {}; AU.bump = {}; AU.claim = {};
   const mk = (k, n, boss, bot) => ({ k, n, boss, bot, p: '', r: 0, c: false, pr: 100, x: 0, z: 0, f: 0, w: false, mv: false, dc: false, fl: 0, rc: 0 });
@@ -1080,7 +1098,7 @@ function signPlane(txt, col, w, h, bg) {
   }
   return A.dynamic(new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false })));
 }
-/* ---------- Поверх: підлоги кімнат, стіни з дверима, таблички, ліфт, килимки для голосування, меблі ---------- */
+/* ---------- Поверх: підлоги кімнат, стіни з дверима, таблички, ліфт, стійка лобі, меблі ---------- */
 function floorBox(g, x0, z0, x1, z1, col, y) { const m = mesh(new THREE.BoxGeometry(x1 - x0, .02, z1 - z0), col, false, true); m.position.set((x0 + x1) / 2, y || .05, (z0 + z1) / 2); g.add(m); return m; }
 function wallMeshes(g, F) {
   const P = F.pal;
@@ -1160,18 +1178,9 @@ function buildFloor(i) {
   // табличка «БОС» і розсувні скляні двері кабінету
   const bs = signPlane('👔 БОС', '#FF5C7A', 1.6, .5, 'rgba(46,35,70,.9)'); bs.position.set(F.door.x, 2.85, F.door.z + .14); g.add(bs);
   V.doors[i] = put(scene, mesh(new THREE.BoxGeometry(1.7, 2.1, .06), mat('#BFE9FF', { transparent: true, opacity: .45 }), false), F.door.x, 1.05, F.door.z + .12); A.dynamic(V.doors[i]);
-  // стійки старту й вибору ролі
-  for (const [p, t, c] of [[F.board, '▶ СТАРТ', '#7FE08A'], [F.role, '🎭 РОЛЬ', '#FFD27A']]) {
-    put(g, mesh(new THREE.BoxGeometry(.08, 1.4, .08), '#4E4A6E'), p.x, .7, p.z);
-    const sp = signPlane(t, c, 1.5, .5, 'rgba(46,35,70,.92)'); sp.position.set(p.x, 1.55, p.z + .05); g.add(sp);
-  }
-  // килимки для голосування: на кожному — номер поверху
-  for (const pd of F.pads) {
-    const T = FL[pd.v];
-    put(g, mesh(flat(new THREE.CylinderGeometry(.6, .6, .04, 20)), T.col, false, true), pd.x, .07, pd.z);
-    put(g, mesh(new THREE.TorusGeometry(.6, .05, 4, 24), bulb(T.col), false), pd.x, .1, pd.z).rotation.x = Math.PI / 2;
-    const s = signPlane(T.n.match(/\d+/)[0], T.col, .8, .4, 'rgba(46,35,70,.85)'); s.rotation.x = -Math.PI / 2; s.position.set(pd.x, .11, pd.z); g.add(s);
-  }
+  // стійка «🗳️ ЛОБІ»: F поруч — знову відкрити вікно лобі (голос за поверх і «Я готовий»)
+  { const p = F.board; put(g, mesh(new THREE.BoxGeometry(.08, 1.4, .08), '#4E4A6E'), p.x, .7, p.z);
+    const sp = signPlane('🗳️ ЛОБІ', '#7FE08A', 1.5, .5, 'rgba(46,35,70,.92)'); sp.position.set(p.x, 1.55, p.z + .05); g.add(sp); }
   for (const f of F.furn) { const m = furnMesh(f.t); m.position.set(f.x, 0, f.z); m.rotation.y = f.rot; g.add(m); }
   return g;
 }
@@ -1184,7 +1193,7 @@ buildIsland = function (s) {
 A.on('world', () => {
   for (const F of FL) {
     for (const w of F.walls) { const horiz = w.z1 === w.z2; for (const [a, b] of wallParts(w)) for (let t = a; t <= b + .01; t += .5) addStatic(horiz ? t : w.x1, horiz ? w.z1 : t, .3, 2.5); }
-    for (const p of [F.board, F.role]) addStatic(p.x, p.z, .25, 1.4);
+    addStatic(F.board.x, F.board.z, .25, 1.4);
   }
   for (const f of FURN) for (const c of circles(f)) addStatic(c.x, c.z, c.r, FT[f.t].h);
 });
@@ -1194,7 +1203,7 @@ function onEvent(e) {
   if (SIMSIDE || !e) return;
   const here = running && inIsl(pl.x, pl.z), hr = running && onRound(), mine = e.who != null && e.who === myKey();
   if (e.k === 'msg') { if (here) toast(e.txt); }
-  else if (e.k === 'voted') { if (mine) { toast(`🗳️ Голос за <b>${FL[e.v].ic} ${FL[e.v].n}</b>. Більшість голосів — туди й поїдемо.`); sfx('ui'); } }
+  else if (e.k === 'voted') { /* голоси видно у вікні лобі */ }
   else if (e.k === 'start') {
     if (!here) return;
     V.joined = !!me() || ST.ro.some(q => q.k === myKey());
@@ -1260,7 +1269,7 @@ function onEvent(e) {
   else if (e.k === 'end') finish(e);
 }
 function finish(e) {
-  V.work = null; V.ram = null; V.lastRes = e;
+  V.work = null; V.ram = null; V.lastRes = e; V.lobbyHide = false;   // після раунду знову відкриваємо лобі
   const row = (e.ro || []).find(r => r[0] === myKey()), F = FL[e.v | 0] || FL[0];
   if (inOffice(pl.x, pl.z) && running) { pl.x = F.spawn.x; pl.z = F.spawn.z; }
   if (!row || !running) { if (running && inIsl(pl.x, pl.z) && e.win !== 'none') toast(`🏁 Раунд скінчився: ${e.win === 'boss' ? 'бос усіх знайшов' : 'офісники вціліли'}.`); return; }
@@ -1278,7 +1287,7 @@ function finish(e) {
     txt = win ? `🎉 Ти пересидів боса! ${e.why ? e.why + ' ' : ''}Офісники перемагають.` : caught ? `😵 Бос ${escapeHTML(e.bn)} переміг. Наступного разу ховайся краще!` : `👔 Бос ${escapeHTML(e.bn)} переміг.`;
   }
   P.coins += coins; addXP(xp);
-  banner(txt); toast(`Нагорода: <b>+${coins} 🪙</b> · +${xp} досвіду. Ще раунд — табличка ▶ СТАРТ (F), поверх — килимки 🗳️. Роль боса переходить по колу.`);
+  banner(txt); toast(`Нагорода: <b>+${coins} 🪙</b> · +${xp} досвіду. Ще раунд — у вікні лобі: голос за поверх і ✅ «Я готовий». Роль боса переходить по колу.`);
   sfx(/🎉|👔 Усі/.test(txt) ? 'level' : 'ding'); refreshHUD(); save();
 }
 
@@ -1369,10 +1378,38 @@ function render(dt) {
   FL.forEach((F, i) => { const D = V.doors[i]; if (!D) return; const tx = F.door.x + (ST.on && ST.ph === 'meet' && ST.v === i ? 0 : 1.35); D.position.x = lerp(D.position.x, tx, Math.min(1, dt * 5)); });
 }
 
+/* ---------- Вікно лобі (core modeLobby): картки поверхів із картинками, голоси, хто готовий ---------- */
+const solo = () => ST.lb.length <= 1;   // сам у лобі — граєш з ботами, роль обираєш сам
+const roleTxt = () => V.pref === 'boss' ? '👔 <b>бос</b> проти ботів-офісників' : '🙈 <b>офісник</b> проти бота-боса';
+const inLobby = () => running && !pl.dead && !ST.on && floorAt(pl.x, pl.z) >= 0;
+function lobbyDef() {
+  const k = myKey(), mine = ST.lb.find(r => r[0] === k), rdy = !!(mine && mine[1]), H = ST.lb.length, R = ST.lb.filter(r => r[1]).length;
+  let info;
+  if (solo()) info = `Граєш сам: ${roleTxt()} (змінити — вкладка 🙈 Хованки). Тисни «Я готовий» — і ліфт рушає!`;
+  else if (ST.ct > 0) info = `🚀 Старт за <b>${Math.ceil(ST.ct)} с</b> · готові ${R}/${H}. Хто не відповість — поїде з усіма.`;
+  else info = `Чекаємо, поки всі будуть готові (${R}/${H}). Роль боса — по колу.`;
+  return {
+    title: '🙈 Сховайся від боса · лобі', sub: `Обери поверх — клікни по картці. Більшість голосів — туди й поїдемо (нічия — жереб). Наступний: <b>${FL[ST.nv].ic} ${FL[ST.nv].n}</b>.`,
+    maps: FL.map((F, i) => ({ n: `${F.ic} ${F.n}`, img: `addons/hideboss/map${i + 1}.jpg`, about: F.about + (F.night ? ' · 🌙 ніч' : '') })),
+    votes: ST.vt, mine: mine ? mine[2] : -1, ready: rdy,
+    players: ST.lb.map(r => ({ n: r[0] === 'me' ? 'Ти' : r[0], ready: !!r[1], vote: r[2] })), info,
+    onVote: i => req('vote', { v: i }),
+    onReady: () => { const m = ST.lb.find(r => r[0] === myKey()); req('ready', { on: !(m && m[1]), role: V.pref }); },
+    onHide: () => { V.lobbyHide = true; lobbyUI(); toast('🗳️ Лобі сховано. Відкрити знову — <b>F</b> біля стійки «🗳️ ЛОБІ» або вкладка 🙈 Хованки → 🗳️ Лобі.'); },
+  };
+}
+function lobbyUI() {
+  if (typeof modeLobby !== 'function') return;
+  const want = inLobby() && !V.lobbyHide && !panel && !document.getElementById('hb-intro');
+  if (want) { modeLobby(lobbyDef()); V.lobbyOpen = true; }
+  else if (V.lobbyOpen) { V.lobbyOpen = false; modeLobby(null); }   // закриваємо лише своє вікно
+}
+function openLobby() { V.lobbyHide = false; closePanel(); lobbyUI(); }
+
 /* ---------- Кожен кадр ---------- */
 function clientTick(dt) {
   render(dt);
-  if (!running) { syncBar(); return; }
+  if (!running) { syncBar(); lobbyUI(); return; }
   const fv = floorAt(pl.x, pl.z);
   if (fv >= 0 && !pl.dead) {
     const F = FL[fv];
@@ -1383,7 +1420,7 @@ function clientTick(dt) {
     updWork(dt); updRam(dt); bossMass(); updSmoke(dt);
     if (amHider() && myProp() && hero) hero.root.visible = false;
   }
-  syncBar(); hud(); guide(); blindfold();
+  syncBar(); hud(); guide(); blindfold(); lobbyUI();
 }
 function updWork(dt) {
   if (!V.work) return;
@@ -1567,10 +1604,7 @@ getInteract = function () {
       if (e.p) return { l: `🎭 Зняти маскування (${FT[e.p].ic} ${FT[e.p].n})`, fn: () => req('dis', { i: -1 }) };
       return null;
     }
-    const pd = !ST.on && F.pads.find(q => near(q, .95));
-    if (pd) return { l: `🗳️ Голосувати за «${FL[pd.v].ic} ${FL[pd.v].n}» (${ST.vt[pd.v] || 0} голос.)`, fn: () => req('vote', { v: pd.v }) };
-    if (!ST.on && near(F.board, 1.9)) return { l: `▶ Почати раунд на «${FL[ST.nv].n}» (${V.pref === 'boss' ? 'я — 👔 бос' : 'я — 🙈 офісник'})`, fn: () => { req('start', { role: V.pref }); sfx('ding'); } };
-    if (near(F.role, 1.9)) return { l: `🎭 Хочу бути: ${V.pref === 'boss' ? '👔 БОСОМ → змінити на офісника' : '🙈 ОФІСНИКОМ → змінити на боса'} (коли граєш сам)`, fn: () => { V.pref = V.pref === 'boss' ? 'hider' : 'boss'; toast(V.pref === 'boss' ? '👔 Граєш босом проти ботів-офісників (якщо ти сам).' : '🙈 Граєш офісником проти бота-боса (якщо ти сам).'); sfx('ui'); } };
+    if (!ST.on && near(F.board, 1.9)) return { l: '🗳️ Відкрити лобі: голос за поверх і «Я готовий»', fn: () => { openLobby(); sfx('ui'); } };
     if (ST.on && near(F.board, 1.9)) return { l: `⏳ Раунд іде на «${RF().n}» (${mmss(left())}) — чекай наступного`, fn: () => { } };
   }
   return _getInteract.apply(this, arguments);
@@ -1579,17 +1613,18 @@ getInteract = function () {
 /* ---------- Підказки: підписи місць, «що робити зараз» і стрілка до цілі ---------- */
 const PLACES = [];
 FL.forEach((F, v) => {
-  PLACES.push({ id: 'start:' + v, v, p: F.board, y: 2.3, t: () => '▶ СТАРТ (F)', on: () => !ST.on });
-  PLACES.push({ id: 'role:' + v, v, p: F.role, y: 2.3, t: () => V.pref === 'boss' ? '🎭 Роль: 👔 бос' : '🎭 Роль: 🙈 офісник', on: () => !ST.on });
-  F.pads.forEach(pd => PLACES.push({ id: 'pad:' + v + ':' + pd.v, v, p: pd, y: .9, pad: 1, t: () => `${FL[pd.v].n.match(/\d+/)[0]}${ST.vt[pd.v] ? ' · ' + ST.vt[pd.v] : ''}${ST.nv === pd.v ? ' ✓' : ''}`, on: () => !ST.on }));
+  PLACES.push({ id: 'start:' + v, v, p: F.board, y: 2.3, t: () => '🗳️ ЛОБІ (F)', on: () => !ST.on && V.lobbyHide });
   for (const r of F.rooms) if (r.id !== 'hall' || v === 1) PLACES.push({ id: 'room:' + v + ':' + r.id, v, p: { x: F.x + (r.x0 + r.x1) / 2, z: F.z + (r.z0 + r.z1) / 2 }, y: 2.4, room: 1, rect: [F.x + Math.min(r.x0, r.x1), F.z + Math.min(r.z0, r.z1), F.x + Math.max(r.x0, r.x1), F.z + Math.max(r.z0, r.z1)], t: () => r.n });
 });
 function nearestF(filter) { let b = null, bd = 1e9; const F = FL[floorAt(pl.x, pl.z)]; for (const f of F ? F.furn : []) if (filter(f)) { const d = dist2(pl.x, pl.z, f.x, f.z); if (d < bd) { bd = d; b = f; } } return b; }
 function goal() {
   const fv = floorAt(pl.x, pl.z), F = FL[fv] || FL[0], N = FL[ST.nv];
-  if (!ST.on) return { id: 'start:' + fv, tg: F.board, txt: `Підійди до <b>▶ СТАРТ</b> і натисни <b>F</b>. Поїдемо на <b>${N.ic} ${N.n}</b> — голосуй, ставши на килимок 🗳️. ${Object.keys(NET.players).length ? 'Бос — по черзі.' : `Сам граєш ${V.pref === 'boss' ? '<b>босом</b> проти ботів' : '<b>офісником</b> проти бота-боса'} (табличка 🎭 РОЛЬ).`}` };
+  if (!ST.on) {
+    if (V.lobbyHide) return { id: 'start:' + fv, tg: F.board, txt: `Лобі сховане. <b>F</b> біля стійки <b>🗳️ ЛОБІ</b> (або вкладка 🙈 Хованки → 🗳️ Лобі) — голос за поверх і ✅ «Я готовий». Наступний: <b>${N.ic} ${N.n}</b>.` };
+    return { id: 'lobby', txt: `Обери поверх у вікні лобі й натисни <b>✅ Я готовий</b>. ${solo() ? `Сам граєш ${roleTxt()}.` : 'Старт — коли готові всі.'}` };
+  }
   const e = me();
-  if (!e || !onRound()) return { txt: `Раунд іде на «${RF().n}» (${mmss(left())}) — ти глядач. Дочекайся наступного й натисни ▶ СТАРТ.` };
+  if (!e || !onRound()) return { txt: `Раунд іде на «${RF().n}» (${mmss(left())}) — ти глядач. Дочекайся наступного — відкриється лобі.` };
   const R = RF();
   if (e.boss) {
     if (ST.ph === 'meet') return { txt: `🙈 Нарада ще ${Math.ceil(left())} с. Потім — шукай офісників серед меблів!` };
@@ -1612,11 +1647,10 @@ function guide() {
     css.textContent = `.hb-lbl{position:absolute;left:0;top:0;padding:3px 9px;border-radius:10px;background:rgba(46,35,70,.78);color:#fff;font:700 12px/1.3 system-ui,sans-serif;white-space:nowrap;transform:translate(-50%,-100%);transition:opacity .2s}
       .hb-lbl.goal{background:#FFE066;color:#2E2346;font-size:14px;box-shadow:0 0 0 3px rgba(255,224,102,.35),0 6px 16px rgba(0,0,0,.3);animation:hbB .8s ease-in-out infinite alternate}
       .hb-lbl.boss{background:#C2335A}
-      .hb-lbl.pad{background:rgba(46,35,70,.9);font-size:11px}
       .hb-lbl.room{background:rgba(255,255,255,.8);color:#4E3A7C;font-size:11px;padding:2px 8px}
       @keyframes hbB{to{margin-top:-6px}}`;
     document.head.appendChild(css); document.body.appendChild(V.lbl);
-    for (const P of PLACES) { P.el = document.createElement('div'); P.el.className = 'hb-lbl' + (P.room ? ' room' : P.pad ? ' pad' : ''); V.lbl.appendChild(P.el); }
+    for (const P of PLACES) { P.el = document.createElement('div'); P.el.className = 'hb-lbl' + (P.room ? ' room' : ''); V.lbl.appendChild(P.el); }
     V.glbl = document.createElement('div'); V.glbl.className = 'hb-lbl goal'; V.lbl.appendChild(V.glbl);
     V.gArrow = new THREE.Group(); const sh = mesh(new THREE.ConeGeometry(.28, .7, 3), bulb('#FFE066'), false); sh.rotation.z = -Math.PI / 2; sh.position.x = 1.25; V.gArrow.add(sh); scene.add(V.gArrow);
     V.gMark = new THREE.Mesh(new THREE.TorusGeometry(.6, .07, 6, 24), new THREE.MeshBasicMaterial({ color: '#FFE066', transparent: true, opacity: .9, depthWrite: false })); V.gMark.rotation.x = Math.PI / 2; scene.add(V.gMark);
@@ -1661,7 +1695,7 @@ function intro(force) {
   el.style.cssText = 'position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(20,12,40,.55);padding:16px';
   el.innerHTML = `<div style="max-width:480px;width:100%;max-height:90vh;overflow:auto;background:#2E2346;color:#fff;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)">
     <div style="font:800 20px system-ui;margin-bottom:8px">🙈 Сховайся від боса — як грати</div>
-    <div>1. 🏢 Три поверхи хмарочоса: ${FL.map(F => `${F.ic} <b>${F.n.split(' · ')[1]}</b>`).join(', ')}. Стань на килимок 🗳️ у ліфтовому холі — голос за поверх. Потім <b>▶ СТАРТ</b> (F). Сам — проти ботів (табличка 🎭 РОЛЬ).</div>
+    <div>1. 🏢 Три поверхи хмарочоса: ${FL.map(F => `${F.ic} <b>${F.n.split(' · ')[1]}</b>`).join(', ')}. У вікні <b>лобі</b> клікни по картці поверху — голос, потім <b>✅ Я готовий</b>. Сам — проти ботів (роль: вкладка 🙈 Хованки).</div>
     <div>2. 🙈 <b>Офісник</b>: F (або 1) біля меблів — маскуєшся. Рух у маскуванні повільний і хитає предмет — бос помітить!</div>
     <div>3. 📉 <b>Продуктивність</b> тане — F біля 💻 комп’ютера 3 с (тебе видно). 📄 <b>2 / R</b> — фейковий звіт. 🚬 <b>4</b> — перекур-ривок.</div>
     <div>4. 🛞 <b>ТАРАН</b>: у маскуванні 🪑 крісла, 🚰 кулера чи 🛒 візка натисни <b>3</b> — розженись у бік курсора й збий боса з ніг (2 с не ловить). Але якщо бос сам врізався в тебе — ти «бздинькаєш» і видаєш себе!</div>
@@ -1701,7 +1735,7 @@ function hud() {
     h = `🏢 ${RF().n} · раунд ${ST.rn} · ${role} · ${tm} · 👥 вціліли ${al}/${all}${b && (!e || !e.boss) ? ` · 👔 ${escapeHTML(b.n)}${ST.stun > 0 ? ' 💫' : ''}` : ''}${sub ? `<br><span style="font-weight:600;font-size:12px">${sub}</span>` : ''}`;
   } else {
     const sc = Object.entries(ST.sc).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, p]) => `${escapeHTML(n === 'me' ? 'Ти' : n)} ${p}`).join(' · ');
-    h = `🙈 Сховайся від боса · ${FL[fv].ic} ${FL[fv].n}<br><span style="font-weight:600;font-size:12px">${ST.on ? `⏳ раунд іде на «${RF().n}»` : `наступний поверх: <b>${FL[ST.nv].ic} ${FL[ST.nv].n}</b> · 🗳️ ${FL.map((F, i) => `${F.n.match(/\d+/)[0]}: ${ST.vt[i] || 0}`).join(' · ')}`}${sc ? ` · 🏆 ${sc}` : ''}</span>`;
+    h = `🙈 Сховайся від боса · ${FL[fv].ic} ${FL[fv].n}<br><span style="font-weight:600;font-size:12px">${ST.on ? `⏳ раунд іде на «${RF().n}»` : `наступний поверх: <b>${FL[ST.nv].ic} ${FL[ST.nv].n}</b> · 🗳️ ${FL.map((F, i) => `${F.n.match(/\d+/)[0]}: ${ST.vt[i] || 0}`).join(' · ')} · ✅ ${ST.lb.filter(r => r[1]).length}/${ST.lb.length}${ST.ct > 0 ? ` · 🚀 ${Math.ceil(ST.ct)} с` : ''}`}${sc ? ` · 🏆 ${sc}` : ''}</span>`;
   }
   const gt = V.goal && V.goal.txt ? `👉 ${V.goal.txt}` : ''; V.goalEl.style.display = gt ? '' : 'none'; if (V.goalEl.innerHTML !== gt) V.goalEl.innerHTML = gt;
   if (V.hud.innerHTML !== h) V.hud.innerHTML = h;
@@ -1732,19 +1766,20 @@ if (!SIMSIDE && typeof scheduleStep === 'function') {
 /* ---------- Режим у паузі, вкладка, картка в меню ---------- */
 function goHide(v) {
   const F = FL[v != null ? v : ST.on ? ST.v : ST.nv] || FL[0], f = $('#fade'); closePanel(); if (f) f.style.opacity = 1; sfx('travel');
-  setTimeout(() => { pl.x = F.spawn.x; pl.z = F.spawn.z; pl.y = 0; pl.falling = false; pl.jump = null; pl.safe = { x: F.spawn.x, z: F.spawn.z }; camPos.set(pl.x, 20, pl.z + 15); camLook.set(pl.x, .5, pl.z); if (f) f.style.opacity = 0; toast(`🛗 Дзинь! ${F.ic} <b>${F.n}</b>. Голосуй за поверх на килимках 🗳️, старт — табличка ▶ СТАРТ (F).`); intro(); }, 260);
+  setTimeout(() => { pl.x = F.spawn.x; pl.z = F.spawn.z; pl.y = 0; pl.falling = false; pl.jump = null; pl.safe = { x: F.spawn.x, z: F.spawn.z }; camPos.set(pl.x, 20, pl.z + 15); camLook.set(pl.x, .5, pl.z); if (f) f.style.opacity = 0; toast(`🛗 Дзинь! ${F.ic} <b>${F.n}</b>. Обери поверх у вікні лобі й натисни ✅ «Я готовий».`); V.lobbyHide = false; intro(); }, 260);
   return true;
 }
-function leaveHide() { if (amIn()) { if (typeof confirm === 'function' && !window.__ADDON_TEST && !confirm('Раунд іде. Вийти з офісу?')) return false; req('leave'); } V.work = null; V.ram = null; if (hero) hero.root.visible = true; if (V.bar) { V.bar = ''; if (typeof modeBar === 'function') modeBar(null); } return true; }
+function leaveHide() { if (amIn()) { if (typeof confirm === 'function' && !window.__ADDON_TEST && !confirm('Раунд іде. Вийти з офісу?')) return false; req('leave'); } V.work = null; V.ram = null; V.lobbyHide = false; if (V.lobbyOpen) { V.lobbyOpen = false; modeLobby(null); } if (hero) hero.root.visible = true; if (V.bar) { V.bar = ''; if (typeof modeBar === 'function') modeBar(null); } return true; }
 if (A.mode) A.mode({ id: 'hideboss', ic: '🙈', n: 'Сховайся від боса', sub: 'хованки на поверсі хмарочоса: бос проти офісників-меблів', go: () => goHide(), here: () => running && inIsl(pl.x, pl.z), leave: leaveHide });
 A.tab('hideboss', '🙈 Хованки', () => {
   const d = A.data(), here = inIsl(pl.x, pl.z);
   const sc = Object.entries(ST.sc).sort((a, b) => b[1] - a[1]);
   return `<h3>🙈 Сховайся від боса · Хованки</h3>
     <p style="font-size:13px;line-height:1.5;margin:4px 0 10px">Prop Hunt на 2–6 гравців на поверсі хмарочоса. Бос шукає ледачих офісників, що прикинулись меблями. Сам — граєш проти ботів.</p>
-    <div class="btns"><button class="btn alt" data-hb="help">❓ Як грати</button>${here ? (ST.on ? '' : '<button class="btn" data-hb="hider">🙈 Раунд офісником</button><button class="btn" data-hb="boss">👔 Раунд босом</button>') : '<button class="btn" data-hb="go">🙈 В офіс</button>'}</div>
+    <div class="btns"><button class="btn alt" data-hb="help">❓ Як грати</button>${here ? (ST.on ? '' : '<button class="btn" data-hb="lobby">🗳️ Лобі</button>') : '<button class="btn" data-hb="go">🙈 В офіс</button>'}</div>
+    <div class="btns" style="margin-top:6px"><span style="font-size:13px;align-self:center">🎭 Сам проти ботів граю:</span><button class="btn${V.pref === 'boss' ? ' alt' : ''}" data-hb="hider">🙈 офісником</button><button class="btn${V.pref === 'boss' ? '' : ' alt'}" data-hb="boss">👔 босом</button></div>
     <h3 style="margin-top:12px">🏢 Поверхи</h3>
-    <div class="list" style="font-size:13px;line-height:1.5">${FL.map((F, i) => `<div>${F.ic} <b>${F.n}</b>${ST.nv === i && !ST.on ? ' · <b style="color:#7FE08A">наступний</b>' : ''}${ST.on && ST.v === i ? ' · <b style="color:#FFD27A">зараз граємо</b>' : ''} — ${F.about}. ${here && !ST.on ? `<button class="btn alt" data-hb="vote" data-v="${i}" style="padding:2px 8px;font-size:12px">🗳️ ${ST.vt[i] || 0}</button>` : ''}</div>`).join('')}</div>
+    <div class="list" style="font-size:13px;line-height:1.5">${FL.map((F, i) => `<div>${F.ic} <b>${F.n}</b>${ST.nv === i && !ST.on ? ' · <b style="color:#7FE08A">наступний</b>' : ''}${ST.on && ST.v === i ? ' · <b style="color:#FFD27A">зараз граємо</b>' : ''} — ${F.about}.${!ST.on && ST.vt[i] ? ` 🗳️ ${ST.vt[i]}` : ''}</div>`).join('')}</div>
     <div class="list" style="margin-top:10px;font-size:13px;line-height:1.55">
       <div>🙈 <b>Офісник</b>: F / 1 біля меблів — маскуєшся. Рух у маскуванні повільний і хитає предмет. 📄 2 / R — фейковий звіт (1 раз). 🚬 4 — перекур-ривок (${SMOKE_CD} с).</div>
       <div>🛞 <b>Фізичний тролінг</b>: у маскуванні крісла, кулера чи поштового візка — 3: таран! Збив боса — він ${STUN} с лежить і не ловить. Але врізався бос у тебе — ти «бздинькаєш» і видаєш себе.</div>
@@ -1757,7 +1792,7 @@ A.tab('hideboss', '🙈 Хованки', () => {
 }, e => {
   const b = e.target.closest('[data-hb]'); if (!b) return;
   const a = b.dataset.hb;
-  if (a === 'help') { closePanel(); intro(true); } else if (a === 'go') goHide(); else if (a === 'vote') { req('vote', { v: +b.dataset.v }); setTimeout(() => { if (panel) renderPanel(); }, 50); } else { V.pref = a; req('start', { role: a }); closePanel(); }
+  if (a === 'help') { closePanel(); intro(true); } else if (a === 'go') goHide(); else if (a === 'lobby') openLobby(); else { V.pref = a; toast(a === 'boss' ? '👔 Сам граєш <b>босом</b> проти ботів-офісників.' : '🙈 Сам граєш <b>офісником</b> проти бота-боса.'); sfx('ui'); renderPanel(); }
 });
 if (!SIMSIDE && typeof document !== 'undefined') {
   const box = document.querySelector('#main-menu .mm-container');
@@ -1777,6 +1812,6 @@ if (!SIMSIDE && typeof document !== 'undefined') {
 A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(() => goHide(), 700); });
 if (window.__ADDON_TEST) {
   const F0 = FL[0];
-  window.__hideboss = { FL, ROOMS: F0.rooms, WALLS: F0.walls, navFree, cellOf, navOf, ST, AU, V, FURN, FT, DESKS, BOARD: F0.board, ROLE: F0.role, SPAWN: F0.spawn, OFF: F0.off, CARPET: F0.carpet, BOSS_SPOT: F0.bossSpot, MEET, DUR, STUN, RAM_CD, BELL_T, FLAG_T,
-    req, goal, intro, me, bossE, alive, hiders, bossTarget, bossClick, fdist, workSpot, hideSpots, route, endRound, inOffice, floorAt, roomAt, inRoomR, propR, canRoll, startRamC, bossBell, syncBar, BAR, chooseFloor, goHide };
+  window.__hideboss = { FL, ROOMS: F0.rooms, WALLS: F0.walls, navFree, cellOf, navOf, ST, AU, V, FURN, FT, DESKS, BOARD: F0.board, SPAWN: F0.spawn, OFF: F0.off, CARPET: F0.carpet, BOSS_SPOT: F0.bossSpot, MEET, DUR, STUN, RAM_CD, BELL_T, FLAG_T,
+    req, goal, intro, me, bossE, alive, hiders, bossTarget, bossClick, fdist, workSpot, hideSpots, route, endRound, inOffice, floorAt, roomAt, inRoomR, propR, canRoll, startRamC, bossBell, syncBar, BAR, chooseFloor, goHide, lobbyDef, openLobby, inLobby };
 }

@@ -25,6 +25,7 @@ const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; calm(); T.fr
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exit(1); } console.log('ok -', m); };
 const body = () => w.document.querySelector('#pbody');
 const at = p => { T.pl.x = p.x; T.pl.z = p.z; T.pl.y = 0; };
+const lob = () => w.document.getElementById('mlobby');
 const barOn = () => !!T.MODEBAR && !w.document.getElementById('modebar').hidden;
 assert(T.ADDONS.list.every(a => a.ok), 'аддон завантажився: ' + T.ADDONS.list.map(a => a.name + (a.ok ? '' : ' ✗ ' + a.err)).join(', '));
 assert(w.document.querySelector('#mm-deadline h2').textContent === 'ДЕДЛАЙН' && w.document.querySelector('#mm-deadline .mm-subtitle').textContent === 'О 18:00', 'у меню картка «ДЕДЛАЙН · О 18:00»');
@@ -38,7 +39,7 @@ F.LAY.forEach((Lx, i) => {
   const st = T.STATICS.filter(o => Math.abs(o.x - Lx.x) <= Lx.hx + .5 && Math.abs(o.z - Lx.z) <= Lx.hz + .5).length;
   assert(st > 300 && Lx.walls.length > 20 && Lx.obs.length > 40, `${Lx.n}: стіни й меблі тверді (${st} статик, ${Lx.walls.length} стін)`);
   F.useVar(i);
-  const pts = { START: F.START.p, SEND: F.SEND.p, PRINTER: F.PRINTER.p, COFFEE: F.COFFEE.p, ...Object.fromEntries(['staple', 'stamp', 'number', 'scan'].map(s => [s, F.STEPS[s].at.p])), tube0: F.TUBE[0].p, tube1: F.TUBE[1].p, stA: F.STAIRS.a, stB: F.STAIRS.b, ...Object.fromEntries(F.DESKS.map(d => ['desk' + d.i, d.p])), ...Object.fromEntries(F.PADS.map((p, k) => ['pad' + k, p])) };
+  const pts = { START: F.START.p, SEND: F.SEND.p, PRINTER: F.PRINTER.p, COFFEE: F.COFFEE.p, ...Object.fromEntries(['staple', 'stamp', 'number', 'scan'].map(s => [s, F.STEPS[s].at.p])), tube0: F.TUBE[0].p, tube1: F.TUBE[1].p, stA: F.STAIRS.a, stB: F.STAIRS.b, ...Object.fromEntries(F.DESKS.map(d => ['desk' + d.i, d.p])) };
   const bad = Object.entries(pts).filter(([, p]) => F.blocked(p.x, p.z, .3) || !F.reachable(p.x, p.z)).map(([k]) => k);
   assert(!bad.length, `${Lx.n}: усі ${Object.keys(pts).length} робочих точок вільні й досяжні${bad.length ? ' ✗ ' + bad.join(',') : ''}`);
   assert(Lx.zwp.length > 15 && F.navPath(F.START.p.x, F.START.p.z, F.PRINTER.p.x, F.PRINTER.p.z).length > 3, `${Lx.n}: зомбі мають ${Lx.zwp.length} точок блукання і шлях від ресепшну до принтера`);
@@ -47,9 +48,12 @@ F.useVar(0);
 T.startGame(true); T.P.tut = -1; T.pl.hp = 9999; step(.3);
 T.keydown('Escape'); step(.05); body().querySelector('[data-mode="deadline"]').click(); step(.5);
 assert(Math.hypot(T.pl.x - F.START.p.x, T.pl.z - F.START.p.z) < 1.5 && F.L.n === 'Поверх 42 · Опенспейс', 'Esc → «Дедлайн о 18:00» переносить у хол поверху 42');
-assert(F.goal().id === 'start' && w.document.getElementById('dl-intro'), 'до старту: інструкція й підказка «▶ СТАРТ»');
+assert(F.goal().id === 'start' && w.document.getElementById('dl-intro'), 'до старту: інструкція й підказка про лобі');
+assert(lob() && lob().querySelectorAll('[data-lv]').length === 3 && /Поверх 57 · Банк/.test(lob().textContent) && lob().querySelector('.rdy'), '🗳️ вхід у режим — відкрилось вікно лобі: 3 картки поверхів і «Я готовий»');
+assert([...lob().querySelectorAll('.map')].every((e, i) => e.innerHTML.includes(`addons/deadline/map${i + 1}.jpg`)), 'у картках — картинки addons/deadline/map1..3.jpg');
+assert(!F.LAY.some(q => q.pads || q.v.pads) && F.L.lifts.length === 3 && !('PADS' in F), 'панелей голосування на підлозі більше немає');
 w.document.querySelector('#dl-intro button').click(); assert(!w.document.getElementById('dl-intro') && T.P.addons.deadline.intro2 === 1, 'інструкцію закрив — більше не показується');
-step(.1); assert(/СТАРТ/.test(w.document.getElementById('deadline-goal').textContent) && /Поверх 42/.test(w.document.getElementById('deadline-hud').textContent), 'у HUD назва поверху й рядок «👉 що робити зараз»');
+step(.1); assert(/Я готовий/.test(w.document.getElementById('deadline-goal').textContent) && /Поверх 42/.test(w.document.getElementById('deadline-hud').textContent), 'у HUD назва поверху й рядок «👉 що робити зараз»');
 assert(!barOn(), 'у холі до старту — звичайний хотбар');
 // стіни офісу й скляний фасад тримають
 at({ x: F.L.x - 10, z: F.L.z - 1.5 }); step(.1); for (let k = 0; k < 20; k++) { T.pl.z -= .12; step(.02); }
@@ -89,9 +93,16 @@ const drive = (maxIt, stop) => {
   }
 };
 // ---------- Раунд 1: поверх 42 ----------
+// «Сховати» — вікно зникає, підказка веде до стійки «🗳️ ЛОБІ», там F відкриває його знову
+lob().querySelector('.hide').click(); step(.1);
+assert(!lob() && F.V.lobHide && /F/.test(w.document.getElementById('deadline-goal').textContent) && F.goal().tg, '«Сховати» — лобі закрилось, підказка: F біля стійки «🗳️ ЛОБІ»');
 at(F.START.p); step(.1);
-let it = T.getInteract(); assert(it && /аврал/.test(it.l) && /Поверх 42/.test(it.l), 'на ресепшні F — «Почати аврал · Поверх 42»'); it.fn(); step(.2);
+let it = T.getInteract(); assert(it && /Лобі/.test(it.l) && /Поверх 42/.test(it.l), 'на ресепшні F — «🗳️ Лобі · Поверх 42»'); it.fn(); step(.1);
+assert(lob() && !F.V.lobHide, 'F біля стійки — вікно лобі знову відкрите');
+assert(/Ти/.test(lob().querySelector('.who').textContent) && /⏳/.test(lob().querySelector('.who').textContent), 'у списку гравців — «⏳ Ти»');
+lob().querySelector('.rdy').click(); step(.2);
 assert(F.ST.on && F.ST.vi === 0 && F.ST.steps[0] === 'data' && F.ST.steps[1] === 'print' && F.ST.steps[F.ST.steps.length - 1] === 'send' && F.ST.steps.length === 6, `раунд почався: ${F.ST.steps.join(' → ')}`);
+assert(!lob(), 'раунд почався — вікно лобі закрилось');
 assert(/17:55/.test(w.document.getElementById('deadline-hud').textContent) && /Чекліст/.test(w.document.getElementById('deadline-list').textContent), 'у HUD годинник 17:55 і чекліст');
 assert(barOn() && /🪠/.test(w.document.getElementById('modebar').textContent) && /Вантуз/.test(w.document.getElementById('modebar').textContent), 'набір режиму: 🪠 Вантуз · 📘 Кинути звіт · ☕ Кава-ривок замість хотбара');
 assert(F.ST.desk.filter(Boolean).length === F.ST.need && F.ST.need === 3, 'дані лежать у 3 колег');
@@ -154,11 +165,15 @@ const d = T.P.addons.deadline;
 assert(!F.ST.on && d.wins === 1 && d.rounds === 1 && d.stars >= 1 && d.floors[0] === 1, `звіт здано до 18:00 на 42-му — перемога ${'⭐'.repeat(d.stars)}`);
 step(.1); assert(!barOn() && !T.MODEBAR, 'раунд скінчився — звичайний хотбар повернувся (modeBar(null))');
 assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').textContent), 'після перемоги без голосів ліфт пропонує вищий поверх 57');
-// ---------- Голосування: панель 63 → раунд на стартапі ----------
+// ---------- Голосування у вікні лобі: картка 63 → раунд на стартапі ----------
 {
-  at(F.PADS[2]); step(.3);
-  assert(F.ST.vo[2] === 1 && F.ST.nx === 2, '🗳️ став на панель «63» — голос за стартап');
-  at(F.START.p); step(.1); it = T.getInteract(); assert(it && /Поверх 63/.test(it.l), 'СТАРТ показує, що раунд буде на 63-му'); it.fn(); step(.3);
+  step(.1); assert(lob(), 'після раунду вікно лобі відкрилось знову');
+  lob().querySelector('[data-lv="0"]').click(); step(.2);
+  assert(F.ST.vo.join() === '1,0,0' && F.ST.nx === 0 && lob().querySelector('[data-lv="0"]').classList.contains('mine'), '🗳️ клік по картці 42 — голос (лічильник 1, картка позначена)');
+  F.lobbyDef().onVote(2); step(.2);
+  assert(F.ST.vo.join() === '0,0,1' && F.ST.nx === 2 && /🗳️ 1/.test(lob().querySelector('[data-lv="2"]').textContent), '🗳️ передумав — голос за стартап (рахує автор раунду)');
+  at(F.START.p); step(.1); it = T.getInteract(); assert(it && /Поверх 63/.test(it.l), 'стійка лобі показує, що раунд буде на 63-му');
+  lob().querySelector('.rdy').click(); step(.3);
   assert(F.ST.on && F.ST.vi === 2 && F.L.n === 'Поверх 63 · Стартап' && Math.hypot(T.pl.x - F.START.p.x, T.pl.z - F.START.p.z) < 1.5, '🛗 ліфт переніс на 63-й поверх — раунд почався там');
   assert(F.ST.need === 4 && F.ST.vo.join() === '0,0,0', 'складність зросла (даних 4), голоси скинуто');
   seen.length = 0; drive(140);
@@ -169,17 +184,22 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
 {
   T.openPanel(Object.keys(T.ADDONS.tabs).find(k => /deadline/.test(k))); step(.05);
   assert(/Звітів здано: 2|звітів здано: 2/.test(body().textContent), 'вкладка «⏰ Дедлайн» показує статистику');
-  body().querySelector('[data-dl="v1"]').click(); step(.05); T.closePanel(); step(.1);
-  assert(F.ST.nx === 1, '🗳️ голос за банк з вкладки');
-  at(F.START.p); step(.1); T.getInteract().fn(); step(.3);
+  assert(!lob(), 'поки відкрита вкладка — вікно лобі не заважає');
+  F.lobbyDef().onHide(); step(.05);   // сховане вікно відкриває кнопка у вкладці
+  T.openPanel(Object.keys(T.ADDONS.tabs).find(k => /deadline/.test(k))); step(.05);
+  body().querySelector('[data-dl="lobby"]').click(); step(.1);
+  assert(!T.panel && lob() && !F.V.lobHide, 'кнопка «🗳️ Лобі» у вкладці відкриває вікно лобі');
+  lob().querySelector('[data-lv="1"]').click(); step(.1);
+  assert(F.ST.nx === 1, '🗳️ голос за банк у вікні лобі');
+  lob().querySelector('.rdy').click(); step(.3);
   assert(F.ST.on && F.ST.vi === 1 && F.L.n === 'Поверх 57 · Банк' && Math.hypot(T.pl.x - F.START.p.x, T.pl.z - F.START.p.z) < 1.5, 'раунд у банку');
   seen.length = 0; drive(25, () => F.ST.si >= 3);
   assert(F.ST.si >= 2 && seen.includes('desk@data'), 'у банку підказки ведуть до кас і принтера бек-офісу');
   F.ST.t = F.ST.dur - 1; step(.5); assert(/17:59:5/.test(w.document.getElementById('deadline-hud').textContent), 'годинник показує 17:59:5x');
   const c0 = T.P.coins; step(1.5);
   assert(!F.ST.on && d.rounds === 3 && d.wins === 2 && T.P.coins > c0, `18:00 — дедлайн зірвано (+${T.P.coins - c0} 🪙 утішних)`);
-  assert(F.goal().id === 'start' && !barOn(), 'після поразки підказка знову веде до ▶ СТАРТ, хотбар звичайний');
+  step(.1); assert(F.goal().id === 'start' && !barOn() && lob(), 'після поразки — знову лобі, хотбар звичайний');
 }
 // вихід ліфтом у хаб
-{ const E = F.L.exit; at(E); step(.05); it = T.getInteract(); assert(it && /хаб/.test(it.l), 'біля ліфта F — «⬇️ Ліфт у хаб»'); it.fn(); step(.5); assert(F.floorOf(T.pl.x, T.pl.z) < 0, 'ліфт відвіз у хаб'); }
+{ const E = F.L.exit; at(E); step(.05); it = T.getInteract(); assert(it && /хаб/.test(it.l), 'біля ліфта F — «⬇️ Ліфт у хаб»'); it.fn(); step(.5); assert(F.floorOf(T.pl.x, T.pl.z) < 0 && !lob(), 'ліфт відвіз у хаб — вікно лобі закрилось'); }
 console.log('ALL OK'); process.exit(0);

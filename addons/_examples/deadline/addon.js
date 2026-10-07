@@ -2,7 +2,7 @@
    П'ятниця, 17:55. Квартальний звіт мав бути вчора, а здати його треба до 18:00 — за 5 хвилин.
    - Три поверхи (кожен — свій острів-хмарочос): «Поверх 42 · Опенспейс», «Поверх 57 · Банк» (сховище, операційний зал,
      кільцева галерея), «Поверх 63 · Стартап» (атріум зі скляним мостом, мішки-крісла, мейл-рум, гірка). У ліфтовому холі
-     гравці голосують, ставши на панель ліфта; без голосів після перемоги ліфт везе на наступний поверх.
+     гравці у вікні лобі голосують за поверх (картки з картинками) і тиснуть «Я готовий»; без голосів після перемоги ліфт везе вище.
    - Ланцюжок завдань (порядок і варіанти щораунду інші):
      📄 дані від колег → 🖨️ принтер → 3 з 5: 📎 степлер · 🔏 печатка · 🗂️ реєстраційний номер · 📠 скан · ✍️ підпис начальника
      (без ☕ кави не підписує!) → 📤 лоток «Відправка».
@@ -23,7 +23,7 @@ const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);
 const ISL_R = 28, DH = 1.1, CZ = 2;
 /* поточний поверх: усі ці змінні перемикає useVar() */
 let OX = 0, OZ = 0, HX = 20, HZ = 14, L = null;
-let WALLS = [], ROOMS = [], DESKS = [], OBS = [], ZWP = [], BPATH = [], CHAIRS = [], PADS = [], TUBE = [], STAIRS = null, NAV = null, RN = {}, NAMES = [];
+let WALLS = [], ROOMS = [], DESKS = [], OBS = [], ZWP = [], BPATH = [], CHAIRS = [], LIFTS = [], TUBE = [], STAIRS = null, NAV = null, RN = {}, NAMES = [];
 let START, SEND, PRINTER, STAPLER, COFFEE, VALVE, PANEL, ARCHIVE, RACK, SCANNER, STAMP, BOSS_DESK, CLOCK;
 const LAY = [];
 const W = (x, z) => ({ x: OX + x, z: OZ + z });
@@ -32,7 +32,7 @@ const floorOf = (x, z) => { for (let i = 0; i < LAY.length; i++) if (dist2(x, z,
 const st = (ox, oz, px, pz, r) => ({ o: W(ox, oz), p: W(px, pz), r, l: { x: ox, z: oz }, pl: { x: px, z: pz } });
 const V = { lbl: null, glbl: null, gArrow: null, gMark: null, goal: null, hud: null, list: null, goalEl: null, act: null, joined: false, auto: false, dark: null, music: -1,
   hm: new Map(), zm: new Map(), fm: new Map(), cols: [], boss: null, clock: null, clockK: 1, prLight: null, srvLight: null, fan: null, recep: null, acc: null, built: [],
-  plg: [], plCd: 0, cof: 3, dashT: 0, rid: -1, barOn: false, flyM: null, caps: [], tpT: 0, chewT: 0, padEl: [], sendT: 0, vote: -1, rl: [], inRoom: null };
+  plg: [], plCd: 0, cof: 3, dashT: 0, rid: -1, barOn: false, flyM: null, caps: [], tpT: 0, chewT: 0, sendT: 0, vote: -1, rl: [], inRoom: null, lobHide: false, lobOpen: false, lobRid: -1 };
 
 /* ---------- Стіни й тверді меблі (для поверху, що зараз будується) ---------- */
 function wall(ax, az, bx, bz, doors, kind) {
@@ -59,7 +59,7 @@ const CHEW = 7;                                                                 
 const FIXT = { jam: 2.5, cm: 3, heat: 3, power: 2, rain: 2, excel: 3 };
 const CHAOS = { jam: '🖨️ Принтер зажував папір!', boom: '💥 Кавоварка вибухнула!', power: '⚡ Стрибок напруги — світло вимкнулось!', heat: '🔥 Сервер перегрівся!', rain: '💦 Спрацювали спринклери — папери летять!', meeting: '🧟 Раптова нарада! Коридори забиті зомбі-офісниками!', excel: '📊 Колега не може зробити ВПР в Excel — кличе на допомогу!' };
 const PLACES = [
-  { id: 'start', f: () => START.p, y: 2.2, t: '▶ СТАРТ (F)', on: () => !ST.on },
+  { id: 'start', f: () => START.p, y: 2.2, t: '🗳️ Лобі (F)', on: () => !ST.on },
   { id: 'send', f: () => SEND.p, y: 2.2, t: '📤 Відправка' },
   { id: 'printer', f: () => PRINTER.p, y: 2.2, t: '🖨️ Принтер' }, { id: 'staple', f: () => STAPLER.p, y: 1.9, t: '📎 Степлер' },
   { id: 'coffee', f: () => COFFEE.p, y: 2.3, t: '☕ Кавоварка' }, { id: 'rain', f: () => VALVE.p, y: 2, t: '🚿 Вентиль спринклерів' },
@@ -79,14 +79,14 @@ const VKEYS = ['cols', 'boss', 'clock', 'clockK', 'prLight', 'srvLight', 'fan', 
 function useVar(i) {
   L = LAY[i] || LAY[0];
   OX = L.x; OZ = L.z; HX = L.hx; HZ = L.hz; WALLS = L.walls; ROOMS = L.rooms; DESKS = L.desks; OBS = L.obs; ZWP = L.zwp; BPATH = L.bpath;
-  CHAIRS = L.chairs; PADS = L.pads; TUBE = L.tube; STAIRS = L.stairs; NAV = L.nav; RN = L.rn; NAMES = L.names;
+  CHAIRS = L.chairs; LIFTS = L.lifts; TUBE = L.tube; STAIRS = L.stairs; NAV = L.nav; RN = L.rn; NAMES = L.names;
   ({ START, SEND, PRINTER, STAPLER, COFFEE, VALVE, PANEL, ARCHIVE, RACK, SCANNER, STAMP, BOSS_DESK, CLOCK } = L.s);
   nameSteps();
   if (!SIMSIDE) for (const k of VKEYS) V[k] = L.v[k];
 }
 function begin(d) {
-  const Lx = Object.assign({ vi: LAY.length, walls: [], rooms: [], desks: [], obs: [], zwp: [], bpath: [], chairs: [], pads: [], tube: [], stairs: null, nav: null, s: {}, names: [], racks: [],
-    v: { cols: [], boss: null, clock: null, clockK: 1, prLight: null, srvLight: null, fan: null, recep: null, acc: null, pads: [] } }, d);
+  const Lx = Object.assign({ vi: LAY.length, walls: [], rooms: [], desks: [], obs: [], zwp: [], bpath: [], chairs: [], lifts: [], tube: [], stairs: null, nav: null, s: {}, names: [], racks: [],
+    v: { cols: [], boss: null, clock: null, clockK: 1, prLight: null, srvLight: null, fan: null, recep: null, acc: null } }, d);
   LAY.push(Lx); OX = Lx.x; OZ = Lx.z; HX = Lx.hx; HZ = Lx.hz; WALLS = Lx.walls; OBS = Lx.obs;
   return Lx;
 }
@@ -99,7 +99,7 @@ function seal(Lx, deco) {
   decoCommon(K, Lx);
   Lx.nav = { cell: .5, x0: OX - HX, z0: OZ - HZ, nx: Math.round(2 * HX / .5), nz: Math.round(2 * HZ / .5), block: null };
   useVar(Lx.vi); navBuild();
-  // які клітинки досяжні від стійки «СТАРТ» (у шахти атріуму чи в стіни зомбі не підуть)
+  // які клітинки досяжні від стійки «ЛОБІ» (у шахти атріуму чи в стіни зомбі не підуть)
   const nx = NAV.nx, reach = new Uint8Array(nx * NAV.nz), [si, sj] = cellOf(START.p.x, START.p.z), q = [si + sj * nx]; reach[q[0]] = 1;
   for (let h = 0; h < q.length; h++) { const c = q[h], ci = c % nx, cj = (c / nx) | 0; for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ni = ci + di, nj = cj + dj; if (ni < 0 || nj < 0 || ni >= nx || nj >= NAV.nz) continue; const n = ni + nj * nx; if (reach[n] || NAV.block[n]) continue; reach[n] = 1; q.push(n); } }
   Lx.reach = reach;
@@ -150,7 +150,7 @@ function mkV1() {
     ARCHIVE: st(-19.4, -7, -18.1, -7, .6), RACK: st(-1.5, -12.9, -1.5, -11.3, .75), SCANNER: st(2.45, -5.6, 1.2, -5.6, .5), STAMP: st(7.5, -9.6, 7.5, -8.2, .55),
     BOSS_DESK: W(-15.5, -10.3), CLOCK: W(-4, -CZ),
   };
-  Lx.pads = [W(-2, 12.9), W(0, 12.9), W(2, 12.9)]; Lx.exit = W(3.9, 12.9);
+  Lx.lifts = [W(-2, 12.9), W(0, 12.9), W(2, 12.9)]; Lx.exit = W(3.9, 12.9);
   Lx.tube = [st(-5.55, 3.6, -6.5, 3.6, .35), st(12.6, -3.6, 13.6, -3.6, .35)];                                     // опенспейс ↔ копіцентр
   Lx.stairs = { a: W(-19, -12.4), b: W(18.6, 12.4), da: [-19, -13.7, 0], db: [18.9, 13.7, Math.PI], ic: '🚪', n: 'Пожежні сходи', kind: 'stairs' };
   Lx.bpath = [W(-15.5, -11.6), W(-13.1, -11.6), W(-13.1, -4.6), W(-15.5, -3.6), W(-15.5, 0), W(-7, 0), W(-7, -4.7)];   // крісло начальника … голова столу в переговорній
@@ -213,7 +213,7 @@ function mkV2() {
     BOSS_DESK: W(-6, -11.2), CLOCK: W(-3, 3.5),
   };
   Lx.racks = [[15, 12.9], [18.5, 12.9], [15, 9.4]];
-  Lx.pads = [W(3, 13.1), W(5.5, 13.1), W(8, 13.1)]; Lx.exit = W(10.6, 13.1);
+  Lx.lifts = [W(3, 13.1), W(5.5, 13.1), W(8, 13.1)]; Lx.exit = W(10.6, 13.1);
   Lx.tube = [st(1, -12.9, 1, -11.7, .35), st(-21.4, 0, -20.3, 0, .35)];                                          // бек-офіс ↔ операційний зал
   Lx.stairs = { a: W(-20.4, -12.6), b: W(20.5, 4.6), da: [-20.4, -13.75, 0], db: [20.5, 5.75, Math.PI], ic: '🚪', n: 'Пожежні сходи', kind: 'stairs' };
   Lx.bpath = [W(-6, -12.6), W(-3.6, -12.6), W(-3.6, -9.3), W(-6, -9.3), W(-6, -6), W(-9, -6), W(-9, 5.6), W(0, 5.6)];   // керуючий: кабінет → перевірити сховище
@@ -275,7 +275,7 @@ function decoV2(K) {
   K.box(-3, .5, 13.5, 1.6, 1, .5, '#2E2346', true); K.glow(-3, .65, 13.24, 1.4, .6, .02, '#6BE7FF');
   K.box(-3, .4, 9, .8, .8, .5, '#8C6A4E', true); K.cyl(-3.2, .95, 9, .06, .06, .3, '#7FE08A', 6); K.cyl(-2.9, .95, 9.1, .06, .06, .3, '#FF8AD8', 6);
   K.plant(-11.2, 8.8, 1.1);
-  // хол: пост охорони (СТАРТ), «Інкасація» (Відправка), рослини
+  // хол: пост охорони (ЛОБІ), «Інкасація» (Відправка), рослини
   K.plant(-1.3, 9, 1.1); K.plant(11.3, 8.7, .9);
 }
 
@@ -319,7 +319,7 @@ function mkV3() {
     BOSS_DESK: W(14, -11.3), CLOCK: W(-1, -7),
   };
   Lx.racks = [[-10, -12.9], [-6.5, -12.9], [-10, -9.6]];
-  Lx.pads = [W(-9, 13), W(-6.5, 13), W(-4, 13)]; Lx.exit = W(-1.6, 13);
+  Lx.lifts = [W(-9, 13), W(-6.5, 13), W(-4, 13)]; Lx.exit = W(-1.6, 13);
   Lx.tube = [st(-21.4, -5.2, -20.3, -5.2, .35), st(1, 13.1, 1, 11.9, .35)];                                       // хотдеск ↔ принт-зона
   Lx.stairs = { a: W(8.4, -12.4), b: W(20.4, 12.3), da: [8.4, -13.4, 0], db: [20.4, 13.4, Math.PI], ic: '🛝', n: 'Гірка', kind: 'slide' };
   Lx.bpath = [W(14, -12.6), W(16.4, -12.6), W(16.4, -9.3), W(9, -9.3), W(9, -5.6), W(6, -5.6), W(6, 0), W(1.2, 0)];   // CEO: кабінет → стендап на скляному мосту
@@ -457,9 +457,9 @@ function makeKit(g) {
 /* ---------- Робочі точки поверху (для банку й стартапу; поверх 42 будується своїм кодом) ---------- */
 function decoStations(K, style) {
   const bank = style === 'bank', g = K.g, wood = bank ? '#7A5A2E' : '#2E2346', acc = bank ? '#C9A35E' : '#FF6BD6';
-  // ▶ СТАРТ — стійка ресепшну / пост охорони
+  // 🗳️ ЛОБІ — стійка ресепшну / пост охорони
   { const q = K.st(START, 2.8, .8); K.GB(q, 0, .52, 0, 2.8, 1.04, .8, wood); K.GB(q, 0, 1.07, .1, 3, .06, 1, '#FFFFFF'); K.GB(q, 0, .5, .41, 2.8, .6, .02, acc); K.GB(q, -.6, 1.3, -.2, .7, .42, .05, '#2E2346'); K.GC(q, .8, 1.15, .25, .08, .18, .14, '#FFD27A'); K.ob(START.l.x - Math.sin(K.ang(START)) * .8, START.l.z - Math.cos(K.ang(START)) * .8, .3);
-    if (g) { const p = K.fr(START, 0, -.85); V.recep = K.person(p.x, p.z, K.ang(START), '#F0D2B6', bank ? '#2E2346' : '#FF8AD8'); K.dyn(neonSign('▶ СТАРТ', '#7FE08A', 1.5, .4), START, 0, 1.55, .45); } }
+    if (g) { const p = K.fr(START, 0, -.85); V.recep = K.person(p.x, p.z, K.ang(START), '#F0D2B6', bank ? '#2E2346' : '#FF8AD8'); K.dyn(neonSign('🗳️ ЛОБІ', '#7FE08A', 1.5, .4), START, 0, 1.55, .45); } }
   // 📤 Відправка
   { const q = K.st(SEND, 1.2, .7); K.GB(q, 0, .5, 0, 1.2, 1, .7, bank ? '#5B4A2E' : '#5B3E9A'); for (let k = 0; k < 3; k++) { K.GB(q, 0, 1.06 + k * .16, 0, .7, .03, .5, '#FFD27A'); for (const sx of [-.33, .33]) K.GB(q, sx, 1.1 + k * .16, 0, .03, .1, .5, '#FFD27A'); }
     if (g) K.dyn(neonSign(bank ? '📤 ІНКАСАЦІЯ' : '📤 ВІДПРАВКА', '#FFD27A', 1.9, .4), SEND, 0, 1.75, .4); }
@@ -518,23 +518,17 @@ function alongPath(pts, s) {
   let d = clamp(s, 0, 1) * tot; for (let k = 0; k < seg.length; k++) { if (d <= seg[k] || k === seg.length - 1) { const t = seg[k] ? clamp(d / seg[k], 0, 1) : 0; return { x: lerp(pts[k].x, pts[k + 1].x, t), z: lerp(pts[k].z, pts[k + 1].z, t), a: Math.atan2(pts[k + 1].z - pts[k].z, pts[k + 1].x - pts[k].x) }; } d -= seg[k]; }
   return { x: pts[0].x, z: pts[0].z, a: 0 };
 }
-/* ---------- Спільне для всіх поверхів: ліфти з панелями голосування, пневмопошта, пожежні сходи/гірка ---------- */
+/* ---------- Спільне для всіх поверхів: ліфти холу, пневмопошта, пожежні сходи/гірка ---------- */
 function decoCommon(K, Lx) {
   const g = K.g;
   for (const T of TUBE) K.ob(T.l.x, T.l.z, .35);
   if (!g) return;
-  // ліфти на стіні за панелями (низькі, щоб не закривати огляд)
+  // ліфти холу — просто декор (голосування тепер у вікні лобі)
   const lift = (x, txt, col) => {
     const z = HZ - .2; K.box(x, .65, z, 1.9, 1.3, .12, '#C9CDD9'); K.box(x - .45, .62, z - .07, .86, 1.2, .03, '#9F98B8'); K.box(x + .45, .62, z - .07, .86, 1.2, .03, '#9F98B8');
     K.glow(x, 1.4, z - .08, .5, .14, .02, col); K.sign(txt, col, x, z - .2, 1.9, 1.75);
   };
-  PADS.forEach((p, k) => {
-    const lx = p.x - OX; lift(lx, `🛗 ${LAY[k].fl}`, LAY[k].pc);
-    const q = new THREE.Group(); q.position.set(p.x, 0, p.z); scene.add(A.dynamic(q));
-    put(q, mesh(flat(new THREE.CylinderGeometry(.78, .78, .05, 24)), '#2E2346', false), 0, .07, 0);
-    put(q, mesh(new THREE.TorusGeometry(.72, .07, 6, 28), bulb(LAY[k].pc), false), 0, .1, 0).rotation.x = Math.PI / 2;
-    Lx.v.pads[k] = q; K.floorTxt(LAY[k].fl, LAY[k].pc, lx, p.z - OZ + .05, 1.1);
-  });
+  LIFTS.forEach((p, k) => lift(p.x - OX, k === 1 ? '🛗 ЛІФТИ' : '🛗', '#BFE6FF'));
   lift(Lx.exit.x - OX, '⬇️ ХАБ', '#FFFFFF');
   // пневмопошта: дві колби й труба під стелею між ними
   const pipe = mat('#BFE6FF', { transparent: true, opacity: .45, depthWrite: false });
@@ -609,8 +603,9 @@ buildIsland = function (s) { if (s.biome !== 'officeday' || s.dlv == null) retur
 
 /* ---------- Стан раунду ---------- */
 const ST = { on: false, t: 0, dur: 300, lv: 0, steps: [], si: 0, need: 3, fed: 0, desk: [], held: {}, floor: [], zom: [], boss: { x: BPATH[0].x, z: BPATH[0].z, f: 0, i: 0, dir: 1, wait: 6, at: 'desk' },
-  coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, vi: 0, vo: [0, 0, 0], nx: 0, rhp: 100, fly: null, tb: [], xl: null, rid: 0, pf: 1 };
-const AU = { chaosT: 25, jamP: .45, boomP: .3, jammed: 0, boomed: 0, pwT: 0, rainT: 0, dropT: 0, idle: 0, stT: 0, fid: 0, zid: 0, wins: 0, away: {}, votes: {}, won: 0, vsig: '', excel: 1 };
+  coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, vi: 0, vo: [0, 0, 0], nx: 0, rhp: 100, fly: null, tb: [], xl: null, rid: 0, pf: 1, lp: [], rt: -1 };
+const AU = { chaosT: 25, jamP: .45, boomP: .3, jammed: 0, boomed: 0, pwT: 0, rainT: 0, dropT: 0, idle: 0, stT: 0, fid: 0, zid: 0, wins: 0, away: {}, votes: {}, ready: {}, rdyT: 0, won: 0, vsig: '', excel: 1 };
+const READY_WAIT = 20;                                                           // онлайн: старт через 20 с після першого «Я готовий», навіть якщо інші мовчать
 const TUBE_T = 2.6;
 const myKey = () => (NET.on && typeof WORLD !== 'undefined' && WORLD.on ? myName() : 'me');
 const keyOf = from => SIMSIDE ? String(from && from.name || '') : 'me';
@@ -621,7 +616,7 @@ const myHeld = () => heldOf(myKey());
 function setHeld(k, it, n, cup) { if (!it && !cup) delete ST.held[k]; else ST.held[k] = { it: it || '', n: it ? Math.max(1, n | 0) : 0, cup: cup ? 1 : 0 }; }
 function snap() {
   const F = ST.fly;
-  return { on: ST.on ? 1 : 0, t: r2(ST.t), dur: ST.dur, lv: ST.lv, st: ST.steps, si: ST.si, nd: ST.need, fd: ST.fed, dk: ST.desk, vi: ST.vi, vo: ST.vo, nx: ST.nx, rh: Math.round(ST.rhp), rid: ST.rid, pf: ST.pf,
+  return { on: ST.on ? 1 : 0, t: r2(ST.t), dur: ST.dur, lv: ST.lv, st: ST.steps, si: ST.si, nd: ST.need, fd: ST.fed, dk: ST.desk, vi: ST.vi, vo: ST.vo, nx: ST.nx, rh: Math.round(ST.rhp), rid: ST.rid, pf: ST.pf, lp: ST.lp, rt: ST.rt < 0 ? -1 : Math.ceil(ST.rt),
     h: Object.entries(ST.held).map(([k, v]) => [k, v.it, v.n, v.cup]), f: ST.floor.map(f => [f.id, f.it, f.n, r2(f.x), r2(f.z)]),
     z: ST.zom.map(z => [z.id, r2(z.x), r2(z.z), r2(z.f), z.stun > 0 ? 1 : 0, z.carry ? z.carry.it : '', z.carry ? z.carry.n : 0]),
     fl: F ? [F.id, r2(F.x0), r2(F.z0), r2(F.x1), r2(F.z1), r2(F.T), r2(F.t), F.by] : 0, tb: ST.tb.map(c => [c.id, c.it, c.to, r2(c.t)]), xl: ST.xl ? [ST.xl.i, r2(ST.xl.t)] : 0,
@@ -633,6 +628,8 @@ function applySnap(d) {
   Object.assign(ST, { on: !!d.on, t: +d.t || 0, dur: +d.dur || 300, lv: d.lv | 0, si: d.si | 0, need: d.nd | 0, fed: d.fd | 0, coffee: d.cf ? 1 : 0, jam: d.jm ? 1 : 0, pw: d.pw ? 1 : 0, heat: d.ht ? 1 : 0, cm: d.cm ? 1 : 0, rain: d.rn ? 1 : 0, fixes: d.fx | 0,
     nx: clamp(d.nx | 0, 0, LAY.length - 1), rhp: d.rh == null ? 100 : clamp(+d.rh, 0, 100), rid: d.rid | 0, pf: d.pf ? 1 : 0 });
   if (Array.isArray(d.vo)) ST.vo = [0, 1, 2].map(i => d.vo[i] | 0);
+  if (Array.isArray(d.lp)) ST.lp = d.lp.slice(0, 16).filter(Array.isArray).map(a => [String(a[0]), a[1] ? 1 : 0, a[2] >= 0 && a[2] < LAY.length ? a[2] | 0 : -1]);
+  ST.rt = d.rt == null || d.rt < 0 ? -1 : +d.rt;
   if (Array.isArray(d.st)) ST.steps = d.st.filter(s => STEPS[s]).slice(0, 10);
   if (Array.isArray(d.dk)) ST.desk = DESKS.map((_, i) => d.dk[i] ? 1 : 0);
   if (Array.isArray(d.h)) { ST.held = {}; for (const a of d.h.slice(0, 16)) if (a && (ITEM[a[1]] || a[3])) ST.held[String(a[0])] = { it: ITEM[a[1]] ? a[1] : '', n: a[2] | 0, cup: a[3] ? 1 : 0 }; }
@@ -671,16 +668,26 @@ function spawnZombie(life, at) {
   const p = at || pick(free.length ? free : ZWP);
   ST.zom.push({ id: ++AU.zid, x: p.x, z: p.z, f: 0, stun: 0, cd: 2, wp: Math.floor(Math.random() * ZWP.length), carry: null, life: life || 0 });
 }
-/* голоси за поверх: хто стоїть на панелі ліфта (або натиснув F) — той голос і тримається до старту */
+/* лобі: голоси за поверх і «Я готовий» — з вікна лобі (рахує сервер світу або сам гравець) */
 function countVotes() {
   const c = crew(), cnt = [0, 0, 0];
   for (const k in AU.votes) if (!SIMSIDE || c.some(p => p.name === k)) cnt[AU.votes[k]]++;
   ST.vo = cnt; ST.nx = pickVar();
+  ST.lp = c.map(p => [p.name, AU.ready[p.name] ? 1 : 0, AU.votes[p.name] != null ? AU.votes[p.name] : -1]);
 }
-function pickVar() {
+// найбільше голосів; нічия — жереб при старті (у прев'ю — поточний поверх або перший з рівних); без голосів — ротація
+function pickVar(roll) {
   const cnt = ST.vo, best = Math.max(...cnt);
-  if (best > 0) { const tied = [0, 1, 2].filter(i => cnt[i] === best); return tied.includes(ST.vi) ? ST.vi : tied[0]; }
+  if (best > 0) { const tied = [0, 1, 2].filter(i => cnt[i] === best); return roll ? pick(tied) : tied.includes(ST.vi) ? ST.vi : tied[0]; }
   return AU.won ? (ST.vi + 1) % LAY.length : ST.vi;      // ніхто не голосував: після перемоги ліфт везе вище, інакше — той самий поверх
+}
+/* усі люди в лобі готові (мін. 1) — старт; онлайн ще й таймер 20 с від першого «готового» */
+function lobbyCheck(dt) {
+  if (ST.on) return;
+  const c = crew(), rd = c.filter(p => AU.ready[p.name]).length;
+  if (c.length && rd === c.length) { startRound(); return; }
+  if (SIMSIDE && rd) { AU.rdyT += dt; ST.rt = Math.max(0, READY_WAIT - AU.rdyT); if (AU.rdyT >= READY_WAIT) startRound(); }
+  else { AU.rdyT = 0; ST.rt = -1; }
 }
 function switchVar(v) {
   ST.vi = v; useVar(v);
@@ -690,7 +697,7 @@ function switchVar(v) {
 }
 function onReq(d, from) {
   const k = keyOf(from), who = SIMSIDE ? escapeHTML(k) : 'Ти', h = heldOf(k);
-  if (d.k === 'start') { if (!ST.on) startRound(from); return; }
+  if (d.k === 'ready') { if (!ST.on) { if (d.on) AU.ready[k] = 1; else delete AU.ready[k]; countVotes(); emit({ k: 'ready', who: k, on: d.on ? 1 : 0 }); lobbyCheck(0); if (!ST.on) pushState(); } return; }
   if (d.k === 'vote') { const v = d.v | 0; if (!ST.on && v >= 0 && v < LAY.length && AU.votes[k] !== v) { AU.votes[k] = v; countVotes(); emit({ k: 'voted', who: k, v }); pushState(); } return; }
   if (d.k === 'drop') { if (h.it) { const p = posOf(k); toFloor(h.it, h.n, p.x, p.z); } setHeld(k, '', 0, 0); pushState(); return; }
   if (!ST.on) return;
@@ -772,8 +779,8 @@ function advance(k) {
   const done = cur(); ST.si++;
   emit({ k: 'step', done, next: cur(), who: k });
 }
-function startRound(from) {
-  countVotes(); const v = ST.nx; if (v !== ST.vi || L !== LAY[v]) switchVar(v);
+function startRound() {
+  countVotes(); const v = pickVar(true); if (v !== ST.vi || L !== LAY[v]) switchVar(v);
   const lv = SIMSIDE ? AU.wins : (A.data().wins | 0);
   const need = Math.min(5, 3 + lv), subs = shuffle(SUBS.slice()).slice(0, lv >= 3 ? 4 : 3);
   const desks = shuffle(DESKS.map(d => d.i)).slice(0, need);
@@ -781,8 +788,8 @@ function startRound(from) {
     coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, rhp: 100, fly: null, tb: [], xl: null, pf: 1, rid: ST.rid + 1, vo: [0, 0, 0] });
   Object.assign(ST.boss, { x: BPATH[0].x, z: BPATH[0].z, i: 0, dir: 1, wait: 8, at: 'desk' });
   for (let i = 0; i < Math.min(5, 2 + lv); i++) spawnZombie();
-  Object.assign(AU, { chaosT: rand(22, 30), jammed: 0, boomed: 0, pwT: 0, rainT: 0, dropT: 0, idle: 0, away: {}, votes: {}, won: 0 });
-  emit({ k: 'msg', big: 1, txt: `⏰ 17:55 · ${L.n}! Квартальний звіт — до 18:00!${from && from.name && SIMSIDE ? ' ' + escapeHTML(from.name) + ' б’є на сполох.' : ''}` });
+  Object.assign(AU, { chaosT: rand(22, 30), jammed: 0, boomed: 0, pwT: 0, rainT: 0, dropT: 0, idle: 0, away: {}, votes: {}, ready: {}, rdyT: 0, won: 0 }); ST.lp = []; ST.rt = -1;
+  emit({ k: 'msg', big: 1, txt: `⏰ 17:55 · ${L.n}! Квартальний звіт — до 18:00!` });
   pushState();
 }
 function endRound(win, why, by) {
@@ -793,7 +800,7 @@ function endRound(win, why, by) {
   AU.won = win ? 1 : 0;
   for (const z of ST.zom) z.carry = null;
   Object.assign(ST, { held: {}, floor: [], jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fly: null, tb: [], xl: null, rhp: 100 });
-  ST.zom.splice(2); countVotes();
+  ST.zom.splice(2); AU.ready = {}; AU.rdyT = 0; ST.rt = -1; countVotes();
   emit(res); pushState();
 }
 function chaos(w) {
@@ -898,9 +905,9 @@ function authTick(dt) {
   if (!ST.on && !ST.zom.length) { spawnZombie(); spawnZombie(); }
   if (c.length || ST.on) { updBoss(dt, c); updZombies(dt, c); }
   if (!ST.on) {
-    // голосування на панелях ліфтів
-    for (const p of c) PADS.forEach((q, i) => { if (dist2(p.x, p.z, q.x, q.z) < .9 && AU.votes[p.name] !== i) { AU.votes[p.name] = i; emit({ k: 'voted', who: p.name, v: i }); } });
-    countVotes(); const sig = ST.vo.join() + ST.nx; if (sig !== AU.vsig) { AU.vsig = sig; pushState(); }
+    // лобі: голоси, «готові», таймер старту
+    countVotes(); lobbyCheck(dt); if (ST.on) return;
+    const sig = ST.vo.join() + ST.nx + JSON.stringify(ST.lp) + (ST.rt < 0 ? -1 : Math.ceil(ST.rt)); if (sig !== AU.vsig) { AU.vsig = sig; pushState(); }
     if (SIMSIDE && c.length && (AU.stT -= dt) <= 0) { AU.stT = .3; pushState(); } return;
   }
   ST.t += dt;
@@ -987,13 +994,13 @@ function buildV1(g, K) {
   });
   plant(-19.2, 2.8); plant(-19.2, 13.2); plant(-5.8, 13.2, 1.2);
   { const q = grp(-19.75, 8.2, Math.PI / 2); GB(q, 0, 1.3, 0, 3, 1.1, .05, '#FFFFFF'); for (let k = 0; k < 6; k++) GB(q, -1.1 + k * .45, 1.3 + (k % 2) * .25, .04, .3, .22, .02, ['#FFE066', '#FF8AD8', '#7FE08A'][k % 3]); }   // дошка зі стікерами
-  /* --- РЕСЕПШН: стійка (СТАРТ), лоток «Відправка», диван для гостей --- */
+  /* --- РЕСЕПШН: стійка (ЛОБІ), лоток «Відправка», диван для гостей --- */
   rug(0, 10.5, 6, 5, '#D9CFF0');
   B(START.l.x, .52, START.l.z, 2.8, 1.04, .8, '#7A5BC9', true, true); B(START.l.x, 1.07, START.l.z + .1, 3, .06, 1, '#FFFFFF'); B(START.l.x, .5, START.l.z + .41, 2.8, .6, .02, '#B07CF0');
   monitor(START.l.x - .6, START.l.z - .2, -1);
   { const h = buildOffice('#F0D2B6', '#FF8AD8'); h.root.position.set(START.o.x, 0, START.o.z - .85); scene.add(A.dynamic(h.root)); V.recep = h; }
   C(START.l.x + .8, 1.15, START.l.z + .25, .08, .18, .14, '#FFD27A');                                   // дзвоник
-  const ss = neonSign('▶ СТАРТ', '#7FE08A', 1.5, .4); ss.position.set(START.o.x, 1.55, START.o.z + .45); scene.add(A.dynamic(ss));
+  const ss = neonSign('🗳️ ЛОБІ', '#7FE08A', 1.5, .4); ss.position.set(START.o.x, 1.55, START.o.z + .45); scene.add(A.dynamic(ss));
   B(SEND.l.x, .5, SEND.l.z, 1.2, 1, .7, '#5B3E9A', true, true);
   for (let k = 0; k < 3; k++) { B(SEND.l.x, 1.06 + k * .16, SEND.l.z, .7, .03, .5, '#FFD27A'); for (const sx of [-.33, .33]) B(SEND.l.x + sx, 1.1 + k * .16, SEND.l.z, .03, .1, .5, '#FFD27A'); }
   const out = neonSign('📤 ВІДПРАВКА', '#FFD27A', 1.8, .4); out.position.set(SEND.o.x, 1.75, SEND.o.z + .4); scene.add(A.dynamic(out));
@@ -1274,7 +1281,8 @@ function onEvent(e) {
     ST.vi = clamp(e.v | 0, 0, LAY.length - 1); useVar(ST.vi);
     if (was) { V.act = null; toLobby(`🛗 Ліфт везе на ${L.n}!`); }
   }
-  else if (e.k === 'voted') { if (isMe(e.who)) { toast(`🗳️ Твій голос: <b>${LAY[e.v].n}</b>. Старт — ▶ СТАРТ (F).`); sfx('ui'); } else if (here) toast(`🗳️ ${nm} голосує за ${LAY[e.v].n}`); }
+  else if (e.k === 'voted') { if (isMe(e.who)) toast(`🗳️ Твій голос: <b>${LAY[e.v].n}</b>. Тепер — «✅ Я готовий».`); else if (here) toast(`🗳️ ${nm} голосує за ${LAY[e.v].n}`); }
+  else if (e.k === 'ready') { if (here && !isMe(e.who) && e.on) toast(`✅ ${nm} готовий до аврала`); }
   else if (e.k === 'take') { const d = DESKS[e.i]; if (d && here) { ftext(d.x, 2.4, d.z, '📄 +1', 'gold'); if (V.cols[e.i]) bubble(V.cols[e.i].ent, pick(['Ось мої цифри!', 'Тримай, тільки не загуби', 'Я це вчора мав здати…', 'Удачі з принтером!']), false, 2); sfx('page', d.x, d.z); } }
   else if (e.k === 'pick') { if (me) sfx('pick'); }
   else if (e.k === 'brewed') { if (me) { ftext(pl.x, 2.5, pl.z, '☕ Кава для начальника!', 'gold'); sfx('pour'); } }
@@ -1345,7 +1353,7 @@ function finish(e) {
   d.floors = d.floors || {}; if (win) d.floors[e.v | 0] = 1;
   const mm = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   banner(win ? `📤 Звіт здано о ${clockStr(ST.dur - left)}! ${'⭐'.repeat(stars)}${pf ? ' 💯' : ''} Запас: ${mm(left)}` : `🕕 ${e.why || '18:00 — дедлайн зірвано.'}`);
-  toast(`${win ? '🎉 Квартальний звіт прийнято!' : '😩 Начальник незадоволений.'}${pf ? ' 💯 <b>Бездоганний звіт</b> — ні укусу, ні плями: +30 🪙!' : ''} Нагорода: <b>+${coins} 🪙</b> · +${xp} досвіду. Наступний поверх — голосуй на панелях 🛗 біля ліфтів, старт — <b>▶ СТАРТ</b> (F).`);
+  toast(`${win ? '🎉 Квартальний звіт прийнято!' : '😩 Начальник незадоволений.'}${pf ? ' 💯 <b>Бездоганний звіт</b> — ні укусу, ні плями: +30 🪙!' : ''} Нагорода: <b>+${coins} 🪙</b> · +${xp} досвіду. Наступний раунд — у вікні лобі: обери поверх і тисни «✅ Я готовий».`);
   sfx(win ? (pf ? 'perfect' : 'level') : 'hurt'); refreshHUD(); save();
 }
 const clockStr = t => { const s = 17 * 3600 + 55 * 60 + Math.floor(Math.max(0, t)); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
@@ -1460,6 +1468,35 @@ function roomLabels(dt) {
   }
 }
 
+/* ---------- Лобі: вікно з картами поверхів, голос і «✅ Я готовий» (ядро modeLobby) ---------- */
+const ABOUT = ['Класика: коридор, опенспейс, переговорна, кабінет начальника, кухня й копіцентр.', 'Сховище, операційний зал з касами, кільцева галерея та бек-офіс.', 'Атріум зі скляним мостом, мейл-рум, бариста-бар, серверна й гірка 🛝.'];
+const nmLb = k => k === 'me' || isMe(k) ? 'Ти' : String(k);
+function lobbyMe() { const k = myKey(), e = ST.lp.find(a => a[0] === k || (k !== 'me' && isMe(a[0]))); return e || null; }
+function lobbyDef() {
+  const me = lobbyMe(), c = ST.lp.length, rd = ST.lp.filter(a => a[1]).length, nx = LAY[ST.nx];
+  const mine = me && me[2] >= 0 ? me[2] : V.vote, ready = !!(me && me[1]);
+  const tie = ST.vo.some(Boolean) && ST.vo.filter(v => v === Math.max(...ST.vo)).length > 1;
+  const info = ST.rt >= 0 ? `⏳ Старт за <b>${Math.ceil(ST.rt)} с</b> (або щойно всі будуть готові) · готові ${rd}/${c}`
+    : rd && rd < c ? `Чекаємо, поки всі будуть готові · ${rd}/${c}` : 'Чекаємо, поки всі будуть готові';
+  return { title: '⏰ Дедлайн о 18:00 · лобі', sub: `Обери поверх — клікни по картці. Коли всі в лобі готові — ліфт везе на поверх з найбільшою кількістю голосів. Зараз: <b>${nx.n}</b>${tie ? ' (нічия — жереб)' : ''}.`,
+    maps: LAY.map((q, i) => ({ n: q.n, img: `addons/deadline/map${i + 1}.jpg`, about: ABOUT[i] || '' })), votes: ST.vo, mine, ready,
+    players: ST.lp.map(a => ({ n: nmLb(a[0]), ready: !!a[1], vote: a[2] })), info,
+    onVote: i => { if (ST.on || i < 0 || i >= LAY.length) return; V.vote = i; req('vote', { v: i }); },
+    onReady: () => { if (!ST.on) req('ready', { on: !(lobbyMe() || [])[1] }); },
+    onHide: () => { V.lobHide = true; closeLobby(); toast('🗳️ Лобі сховано. Відкрити знову — <b>F</b> біля стійки «🗳️ ЛОБІ» або кнопка у вкладці ⏰.'); } };
+}
+function closeLobby() { if (V.lobOpen && typeof modeLobby === 'function') modeLobby(null); V.lobOpen = false; }
+function openLobby() { V.lobHide = false; lobby(); }
+// відкрилась панель (Esc, вкладка, інвентар) — вікно лобі ховаємо одразу: офлайн гра на паузі й кадри не йдуть
+if (!SIMSIDE && typeof openPanel === 'function') { const _op = openPanel; openPanel = function () { closeLobby(); return _op.apply(this, arguments); }; }
+// щокадру: поки ти в лобі (поверх «Дедлайну», раунд не йде) і вікно не сховане — показуємо/оновлюємо (ядро саме порівнює HTML)
+function lobby() {
+  if (typeof modeLobby !== 'function') return;
+  if (ST.rid !== V.lobRid) { V.lobRid = ST.rid; V.lobHide = false; }   // новий раунд — після нього вікно знову відкриється
+  const show = running && !pl.dead && !panel && !ST.on && inOffice(pl.x, pl.z) && !V.lobHide;
+  if (show) { modeLobby(lobbyDef()); V.lobOpen = true; } else closeLobby();
+}
+
 /* ---------- Кожен кадр ---------- */
 function clientTick(dt) {
   const t = gameTime;
@@ -1476,8 +1513,6 @@ function clientTick(dt) {
     if (xl && c.icon.material.map !== iconTex('📊')) c.icon.material.map = iconTex('📊'); else if (!xl && has && c.icon.material.map !== iconTex('📄')) c.icon.material.map = iconTex('📄');
     if (has || xl) { c.icon.position.y = 2.25 + Math.sin(t * (xl ? 8 : 3) + i) * .08; c.h.aR.rotation.x = -2.4 + Math.sin(t * (xl ? 12 : 6) + i) * .4; } else c.h.aR.rotation.x = -1.1 + Math.sin(t * 9 + i) * .08;
   }
-  // панелі голосування біля ліфтів
-  for (const [k, q] of (L.v.pads || []).entries()) if (q) { const mine = !ST.on && V.vote === k; q.scale.setScalar(ST.on ? .85 : 1 + (mine ? .08 + Math.sin(t * 6) * .06 : 0) + ST.vo[k] * .05); q.rotation.y += dt * (ST.vo[k] ? 1.5 : .3); }
   // начальник
   if (V.boss) {
     const B = ST.boss, h = V.boss, mv = B.at === 'walk';
@@ -1536,7 +1571,7 @@ function clientTick(dt) {
   if (!ST.cm && Math.random() < dt * 8) burst(COFFEE.o.x, 1.8, COFFEE.o.z, pick(['#4E4A6E', '#857C99', '#FF8A3C']), 1, 1, 1.2, 2);
   if (ST.rain && inOffice(pl.x, pl.z) && Math.random() < dt * 40) { burst(pl.x + rand(-8, 8), 3.2, pl.z + rand(-6, 6), '#8FD9FF', 2, .6, .6, -2); if (Math.random() < .12) burst(pl.x + rand(-6, 6), 1.5, pl.z + rand(-5, 5), '#FFFFFF', 1, 3, 1, 2, 1.6); }
   updAct(dt);
-  hud(); darkness(); guide();
+  hud(); darkness(); guide(); lobby();
   if (!running || pl.dead) return;
   const here = inOffice(pl.x, pl.z), fl = floorOf(pl.x, pl.z);
   // на «чужому» поверсі (раунд іде на іншому) — ліфт сам відвезе до команди
@@ -1544,8 +1579,7 @@ function clientTick(dt) {
   V.tpT = 0;
   if (!here) { V.act = null; V.vote = -1; if (myHeld().it || myHeld().cup) { if ((V.sendT -= dt) <= 0) { V.sendT = 1; req('drop'); } } return; }
   if (ST.on) V.joined = true;
-  if (!ST.on) { const k = PADS.findIndex(q => dist2(pl.x, pl.z, q.x, q.z) < .9); if (k >= 0 && V.vote !== k) { V.vote = k; if (!AUTH()) req('vote', { v: k }); } }
-  else V.vote = -1;
+  if (ST.on) V.vote = -1;
   pl.safe = { x: START.p.x, z: START.p.z - 1 };
 }
 function darkness() {
@@ -1589,7 +1623,8 @@ function goal() {
   const nearest = arr => arr.reduce((a, b) => !a || near(b) < near(a) ? b : a, null);
   if (!ST.on) {
     const nx = LAY[ST.nx];
-    return { id: 'start', tg: START.p, txt: `Підійди до <b>▶ СТАРТ</b> (${RN.atStart}) і натисни <b>F</b>. Поверх наступного раунду: <b>${nx.n}</b> — голосуй, ставши на панель 🛗 біля ліфтів.` };
+    return V.lobHide ? { id: 'start', tg: START.p, txt: `Лобі сховано — натисни <b>F</b> біля стійки «🗳️ ЛОБІ» (${RN.atStart}) або «🗳️ Лобі» у вкладці ⏰. Поверх раунду: <b>${nx.n}</b>.` }
+      : { id: 'start', txt: `🗳️ У вікні лобі обери поверх і натисни <b>«✅ Я готовий»</b>. Поверх раунду: <b>${nx.n}</b>.` };
   }
   if (V.act) return { txt: `${V.act.ic} ${V.act.l}… ${Math.min(100, Math.round(V.act.t / V.act.need * 100))}% — стій поруч!` };
   const signLater = ST.steps.indexOf('sign') >= ST.si && ST.steps.includes('sign') && !ST.coffee;
@@ -1643,11 +1678,9 @@ function guide() {
     const css = document.createElement('style');
     css.textContent = `.dl-lbl{position:absolute;left:0;top:0;padding:3px 9px;border-radius:10px;background:rgba(46,35,70,.78);color:#fff;font:700 12px/1.3 system-ui,sans-serif;white-space:nowrap;transform:translate(-50%,-100%);transition:opacity .2s}
       .dl-lbl.goal{background:#FFE066;color:#2E2346;font-size:14px;box-shadow:0 0 0 3px rgba(255,224,102,.35),0 6px 16px rgba(0,0,0,.3);animation:dlB .8s ease-in-out infinite alternate}
-      .dl-lbl.pad{background:rgba(46,35,70,.9);border:2px solid #FFE066}
       @keyframes dlB{to{margin-top:-6px}}`;
     document.head.appendChild(css); document.body.appendChild(V.lbl);
     for (const P of PLACES) { P.el = document.createElement('div'); P.el.className = 'dl-lbl'; V.lbl.appendChild(P.el); }
-    V.padEl = [0, 1, 2].map(() => { const e = document.createElement('div'); e.className = 'dl-lbl pad'; V.lbl.appendChild(e); return e; });
     V.glbl = document.createElement('div'); V.glbl.className = 'dl-lbl goal'; V.lbl.appendChild(V.glbl);
     V.gArrow = new THREE.Group(); const sh = mesh(new THREE.ConeGeometry(.28, .7, 3), bulb('#FFE066'), false); sh.rotation.z = -Math.PI / 2; sh.position.x = 1.25; V.gArrow.add(sh); scene.add(V.gArrow);
     V.gMark = new THREE.Mesh(new THREE.TorusGeometry(.6, .07, 6, 24), new THREE.MeshBasicMaterial({ color: '#FFE066', transparent: true, opacity: .9, depthWrite: false })); V.gMark.rotation.x = Math.PI / 2; scene.add(V.gMark);
@@ -1664,11 +1697,6 @@ function guide() {
     P.el.style.opacity = on ? (dist2(pl.x, pl.z, p.x, p.z) < 7 ? 1 : .55) : 0;
     if (on) { const t = txt(P); if (P.el.textContent !== t) P.el.textContent = t; pos(P.el, p.x, P.y, p.z); }
   }
-  V.padEl.forEach((e, k) => {
-    const p = PADS[k]; e.style.opacity = ST.on ? 0 : 1; if (ST.on) return;
-    const t = `🛗 ${LAY[k].n}${ST.vo[k] ? ' · 🗳️' + ST.vo[k] : ''}${ST.nx === k ? ' ◀' : ''}`; if (e.textContent !== t) e.textContent = t;
-    pos(e, p.x, 1.2 + (k % 2) * .7, p.z);
-  });
   V.glbl.style.opacity = g.tg ? 1 : 0;
   if (g.tg) {
     const P = PLACES.find(q => q.id === g.id), t = '👉 ' + (P ? txt(P) : { desk: '📄 Дані тут (F)', boss: '👔 Начальник', thief: '🧟 Злодій! (F)', chew: '🧟 Жує звіт! 🪠', catch: '📘 Лови тут!', floor: '📄 Підібрати (F)', zombie: '🧟 Прожени (F)', cm: '🔧 Кавоварка', jam: '🔧 Принтер', printer: '🖨️ Принтер', excel: '📊 Допомогти з Excel (F)' }[g.id] || 'Сюди');
@@ -1686,7 +1714,7 @@ function intro(force) {
   el.innerHTML = `<div style="max-width:500px;width:100%;background:#2E2346;color:#fff;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)">
     <div style="font:800 20px system-ui;margin-bottom:4px">⏰ Дедлайн о 18:00 — як грати</div>
     <div style="color:#FFE066;margin-bottom:6px">🏙️ ${L.n} · хмарочос у центрі міста</div>
-    <div>1. 🛗 Біля ліфтів — панелі поверхів: стань на панель, щоб проголосувати (42 · Опенспейс, 57 · Банк, 63 · Стартап). <b>▶ СТАРТ</b> (F) — годинник іде з 17:55.</div>
+    <div>1. 🗳️ <b>Лобі</b> — вікно з картами поверхів (42 · Опенспейс, 57 · Банк, 63 · Стартап): клікни картку, щоб проголосувати, і тисни <b>«✅ Я готовий»</b>. Коли всі готові — годинник іде з 17:55. Сховав вікно — F біля стійки «🗳️ ЛОБІ».</div>
     <div>2. 📄 Збери дані в колег (📄 над головою) → 🖨️ <b>принтер</b> → друкуй (F, тримайся поруч).</div>
     <div>3. Зі звітом пройди пункти чекліста праворуч: 📎 🔏 🗂️ 📠 ✍️ (начальнику спершу ☕ каву!) → 📤 «Відправка».</div>
     <div>4. 📘 <b>Звіт — гаряча картопля</b>: важкий (ходиш повільніше), його можна <b>кинути</b> напарнику через перегородки (клавіша <b>2</b>).</div>
@@ -1710,8 +1738,7 @@ getInteract = function () {
     }
     for (const f of ST.floor) if (near(f, 1.3) && (!h.it || (h.it === 'sheets' && f.it === 'sheets'))) return { l: `Підняти ${ITEM[f.it].ic} ${ITEM[f.it].n}${f.n > 1 ? ' ×' + f.n : ''}`, fn: () => req('pick', { id: f.id }) };
     if (!ST.on) {
-      if (near(START.p, 1.6)) return { l: `⏰ Почати аврал (17:55 → 18:00) · ${LAY[ST.nx].n}`, fn: () => { req('start'); sfx('ding'); } };
-      for (let k = 0; k < PADS.length; k++) if (near(PADS[k], 1.1)) return { l: `🗳️ Голосую за ${LAY[k].n}`, fn: () => { req('vote', { v: k }); V.vote = k; } };
+      if (near(START.p, 1.6)) return { l: `🗳️ Лобі: голос за поверх і «Я готовий» · ${LAY[ST.nx].n}`, fn: () => { openLobby(); sfx('ui'); } };
       if (near(L.exit, 1.3)) return { l: '⬇️ Ліфт у хаб', fn: () => { leaveDeadline(); goHub('⬇️ Ліфт приїхав у «Гущу». Дедлайн почекає… до 18:00.'); } };
     }
     else {
@@ -1816,19 +1843,19 @@ if (!SIMSIDE && typeof scheduleStep === 'function') {
 /* ---------- Режим у паузі, вкладка, картка в меню ---------- */
 function goDeadline() {
   const f = $('#fade'); closePanel(); if (f) f.style.opacity = 1; sfx('travel');
-  setTimeout(() => { toLobby(`⏰ ${L.n}! Жовта стрілка показує, куди йти. Голосуй за поверх на панелях 🛗, старт — ▶ СТАРТ (F).`); if (f) f.style.opacity = 0; intro(); }, 260);
+  V.lobHide = false;
+  setTimeout(() => { toLobby(`⏰ ${L.n}! Обери поверх у вікні лобі й тисни «✅ Я готовий».`); if (f) f.style.opacity = 0; intro(); }, 260);
   return true;
 }
-function leaveDeadline() { V.act = null; if (myHeld().it || myHeld().cup) req('drop'); V.barOn = false; if (typeof modeBar === 'function') modeBar(null); return true; }
+function leaveDeadline() { V.act = null; V.lobHide = false; closeLobby(); if (myHeld().it || myHeld().cup) req('drop'); V.barOn = false; if (typeof modeBar === 'function') modeBar(null); return true; }
 if (A.mode) A.mode({ id: 'deadline', ic: '⏰', n: 'Дедлайн о 18:00', sub: 'кооп на 1–4: три поверхи хмарочоса, звіт до 18:00', go: goDeadline, here: () => running && floorOf(pl.x, pl.z) >= 0, leave: leaveDeadline });
 A.tab('deadline', '⏰ Дедлайн', () => {
   const d = A.data(), here = floorOf(pl.x, pl.z) >= 0, fl = d.floors || {};
   return `<h3>⏰ Дедлайн о 18:00</h3>
     <p style="font-size:13px;line-height:1.5;margin:4px 0 10px">Кооператив на 1–4 гравці на високих поверхах хмарочоса в центрі міста. 17:55, п’ятниця. Квартальний звіт треба здати до 18:00 — а принтер жує папір, кавоварка вибухає, а зомбі-офісники на нараді гризуть звіти.</p>
-    <div class="btns"><button class="btn alt" data-dl="help">❓ Як грати</button>${here ? (ST.on ? '' : '<button class="btn" data-dl="start">⏰ Почати аврал</button>') : '<button class="btn" data-dl="go">🛗 На поверх</button>'}</div>
-    ${here && !ST.on ? `<div class="btns" style="margin-top:8px">${LAY.map((q, i) => `<button class="btn${ST.nx === i ? '' : ' alt'}" data-dl="v${i}">🗳️ ${q.n}${ST.vo[i] ? ' · ' + ST.vo[i] : ''}</button>`).join('')}</div>` : ''}
+    <div class="btns"><button class="btn alt" data-dl="help">❓ Як грати</button>${here ? (ST.on ? '' : '<button class="btn" data-dl="lobby">🗳️ Лобі</button>') : '<button class="btn" data-dl="go">🛗 На поверх</button>'}</div>
     <div class="list" style="margin-top:10px;font-size:13px;line-height:1.55">
-      <div>🏙️ <b>Поверхи</b>: 42 · Опенспейс (класичний офіс з коридором) · 57 · Банк (сховище, операційний зал, кільцева галерея) · 63 · Стартап (атріум зі скляним мостом, мейл-рум, бариста-бар, гірка). Голосуй на панелях 🛗 біля ліфтів.</div>
+      <div>🏙️ <b>Поверхи</b>: 42 · Опенспейс (класичний офіс з коридором) · 57 · Банк (сховище, операційний зал, кільцева галерея) · 63 · Стартап (атріум зі скляним мостом, мейл-рум, бариста-бар, гірка). Поверх обирають голосуванням у вікні 🗳️ Лобі; раунд стартує, коли всі готові (онлайн — щонайпізніше за 20 с після першого «готового»).</div>
       <div>📄 <b>Дані</b> — у колег з 📄 над головою (F біля столу). Неси в 🖨️ принтер, друкуй (тримайся поруч 4 с).</div>
       <div>📋 <b>Чекліст</b> щораунду інший: 3 з 5 — 📎 степлер, 🔏 печатка, 🗂️ реєстраційний номер, 📠 скан, ✍️ підпис начальника (спершу ☕ кава!). Потім 📤 «Відправка».</div>
       <div>📘 <b>Звіт — гаряча картопля</b>: важкий (повільніше ходиш), кидай напарнику дугою через перегородки (клавіша 2). Зомбі перехоплюють і <b>жують</b> звіт — 0% цілості = передрук.</div>
@@ -1840,7 +1867,7 @@ A.tab('deadline', '⏰ Дедлайн', () => {
     <p class="muted" style="font-size:12px;margin-top:10px">Раундів: ${d.rounds || 0} · звітів здано: ${d.wins || 0} · бездоганних: ${d.perfect || 0} · поверхи підкорено: ${LAY.map((q, i) => fl[i] ? q.fl + '✅' : q.fl + '⬜').join(' ')} · найбільший запас: ${d.best ? Math.floor(d.best / 60) + ':' + String(d.best % 60).padStart(2, '0') : '—'} · найкраща оцінка: ${'⭐'.repeat(d.stars || 0) || '—'} · хаосу приборкано: ${d.fixes || 0}</p>`;
 }, e => {
   const b = e.target.closest('[data-dl]'); if (!b) return; const a = b.dataset.dl;
-  if (a === 'help') { closePanel(); intro(true); } else if (a === 'go') goDeadline(); else if (a[0] === 'v') { req('vote', { v: +a[1] }); V.vote = +a[1]; renderPanel(); } else { req('start'); closePanel(); }
+  if (a === 'help') { closePanel(); intro(true); } else if (a === 'go') goDeadline(); else if (a === 'lobby') { closePanel(); openLobby(); }
 });
 if (!SIMSIDE && typeof document !== 'undefined') {
   const box = document.querySelector('#main-menu .mm-container');
@@ -1859,5 +1886,5 @@ if (!SIMSIDE && typeof document !== 'undefined') {
   }
 }
 A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(goDeadline, 700); });
-if (window.__ADDON_TEST) window.__deadline = { ST, AU, V, LAY, get L() { return L; }, get DESKS() { return DESKS; }, get START() { return START; }, get SEND() { return SEND; }, get PRINTER() { return PRINTER; }, get COFFEE() { return COFFEE; }, get TUBE() { return TUBE; }, get STAIRS() { return STAIRS; }, get PADS() { return PADS; }, get OBS() { return OBS; }, get WALLS() { return WALLS; },
-  STEPS, goal, intro, chaos, req, myHeld, myKey, blocked, navPath, clockStr, cur, useVar, floorOf, inOffice, firePlunger, throwReport, coffeeDash, reachable, roomAt, roomLabels };
+if (window.__ADDON_TEST) window.__deadline = { ST, AU, V, LAY, get L() { return L; }, get DESKS() { return DESKS; }, get START() { return START; }, get SEND() { return SEND; }, get PRINTER() { return PRINTER; }, get COFFEE() { return COFFEE; }, get TUBE() { return TUBE; }, get STAIRS() { return STAIRS; }, get LIFTS() { return LIFTS; }, get OBS() { return OBS; }, get WALLS() { return WALLS; },
+  STEPS, goal, intro, chaos, req, myHeld, myKey, blocked, navPath, clockStr, cur, useVar, floorOf, inOffice, firePlunger, throwReport, coffeeDash, reachable, roomAt, roomLabels, lobbyDef, openLobby };

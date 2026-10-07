@@ -144,4 +144,9 @@ step(9); assert(W.ST.ph === 'idle' && W.ST.v === 1, 'принт-рум віль�
   const pm = W.V.floors[1].v.prns[0].position; assert(Math.hypot(pm.x - W.PX, pm.z - W.PZ) < .2, 'модель принтера там, де зона');
   W.req('leave'); step(.1);
 }
+// назва кімнати ховається, коли стоїш у ній
+{ const D = W.VAR.find(d => Math.abs(T.pl.x - d.cx) < d.w / 2 && Math.abs(T.pl.z - d.cz) < d.d / 2) || W.VAR[0], r = D.rooms[1];
+  T.pl.x = D.cx + (r[1] + r[3]) / 2; T.pl.z = D.cz + (r[2] + r[4]) / 2; T.pl.y = 0; step(.2);
+  const lb = W.V.roomLbl.find(o => o.r === r), other = W.V.roomLbl.find(o => o.r !== r);
+  assert(lb && lb.e.style.opacity === '0' && other.e.style.opacity === '1', `у кімнаті «${r[0]}» її назва ховається, інші видно`); }
 console.log('ALL OK'); process.exit(0);

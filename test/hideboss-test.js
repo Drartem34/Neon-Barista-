@@ -191,4 +191,11 @@ assert(!H.inOffice(T.pl.x, T.pl.z) && H.floorAt(T.pl.x, T.pl.z) === 2, 'післ
 // Esc-меню веде в хол поверху наступного раунду
 H.goHide(1); step(.2); assert(H.floorAt(T.pl.x, T.pl.z) === 1, 'goHide(1) — ліфтом на 57-й (колл-центр)');
 T.openPanel('ax_hideboss'); step(.05); assert(/Хованки/.test(body().textContent) && /Табло/.test(body().textContent), 'вкладка «🙈 Хованки» з табло'); T.closePanel();
+// назва кімнати ховається, коли стоїш у ній
+{ const H = w.__hideboss, r = H.ROOMS.find(q => q.id !== 'hall' && Math.abs(q.x1 - q.x0) > 3) || H.ROOMS[1], F = H.FL ? (H.FL[0] || H.FL) : null;
+  const ox = F && F.x != null ? F.x : 0, oz = F && F.z != null ? F.z : 0;
+  T.pl.x = ox + (r.x0 + r.x1) / 2; T.pl.z = oz + (r.z0 + r.z1) / 2; T.pl.y = 0; step(.3);
+  const el = [...w.document.querySelectorAll('.hb-lbl.room')].find(e => e.textContent === r.n);
+  const other = [...w.document.querySelectorAll('.hb-lbl.room')].find(e => e.textContent !== r.n && e.style.display !== 'none' && e.style.opacity !== '0');
+  assert(el && (el.style.display === 'none' || el.style.opacity === '0') && other, `у кімнаті «${r.n}» її назва ховається, інші видно`); }
 console.log('ALL OK'); process.exit(0);

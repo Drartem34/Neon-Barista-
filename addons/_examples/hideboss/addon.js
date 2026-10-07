@@ -1582,7 +1582,7 @@ FL.forEach((F, v) => {
   PLACES.push({ id: 'start:' + v, v, p: F.board, y: 2.3, t: () => '▶ СТАРТ (F)', on: () => !ST.on });
   PLACES.push({ id: 'role:' + v, v, p: F.role, y: 2.3, t: () => V.pref === 'boss' ? '🎭 Роль: 👔 бос' : '🎭 Роль: 🙈 офісник', on: () => !ST.on });
   F.pads.forEach(pd => PLACES.push({ id: 'pad:' + v + ':' + pd.v, v, p: pd, y: .9, pad: 1, t: () => `${FL[pd.v].n.match(/\d+/)[0]}${ST.vt[pd.v] ? ' · ' + ST.vt[pd.v] : ''}${ST.nv === pd.v ? ' ✓' : ''}`, on: () => !ST.on }));
-  for (const r of F.rooms) if (r.id !== 'hall' || v === 1) PLACES.push({ id: 'room:' + v + ':' + r.id, v, p: { x: F.x + (r.x0 + r.x1) / 2, z: F.z + (r.z0 + r.z1) / 2 }, y: 2.4, room: 1, t: () => r.n });
+  for (const r of F.rooms) if (r.id !== 'hall' || v === 1) PLACES.push({ id: 'room:' + v + ':' + r.id, v, p: { x: F.x + (r.x0 + r.x1) / 2, z: F.z + (r.z0 + r.z1) / 2 }, y: 2.4, room: 1, rect: [F.x + Math.min(r.x0, r.x1), F.z + Math.min(r.z0, r.z1), F.x + Math.max(r.x0, r.x1), F.z + Math.max(r.z0, r.z1)], t: () => r.n });
 });
 function nearestF(filter) { let b = null, bd = 1e9; const F = FL[floorAt(pl.x, pl.z)]; for (const f of F ? F.furn : []) if (filter(f)) { const d = dist2(pl.x, pl.z, f.x, f.z); if (d < bd) { bd = d; b = f; } } return b; }
 function goal() {
@@ -1629,7 +1629,8 @@ function guide() {
   if (!show) { for (const [, el] of V.blbl) el.style.display = 'none'; return; }
   const pos = (el, x, y, z) => { const q = screenPos(x, y, z); el.style.display = q.vis ? '' : 'none'; el.style.transform = `translate(${Math.round(q.x)}px,${Math.round(q.y)}px) translate(-50%,-100%)`; };
   for (const P of PLACES) {
-    const on = P.v === fv && (!P.on || P.on()) && P.id !== g.id;
+    const inRoom = P.rect && pl.x > P.rect[0] && pl.x < P.rect[2] && pl.z > P.rect[1] && pl.z < P.rect[3];   // назва кімнати, в якій ти стоїш, ховається
+    const on = P.v === fv && (!P.on || P.on()) && P.id !== g.id && !inRoom;
     P.el.style.opacity = on ? (P.room ? .85 : dist2(pl.x, pl.z, P.p.x, P.p.z) < 8 ? 1 : .6) : 0;
     if (on) { const t = P.t(); if (P.el.textContent !== t) P.el.textContent = t; pos(P.el, P.p.x, P.y, P.p.z); } else P.el.style.display = 'none';
   }

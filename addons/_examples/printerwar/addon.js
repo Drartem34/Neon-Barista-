@@ -1014,8 +1014,11 @@ function labels(vh) {
   if (!show) return;
   const Dh = VAR[vh], at = (el, x, y, z) => { const q = screenPos(x, y, z); el.style.display = q.vis ? '' : 'none'; el.style.transform = `translate(${Math.round(q.x)}px,${Math.round(q.y)}px) translate(-50%,-100%)`; };
   // кімнати поверху
-  if (V.roomV !== vh) { V.roomV = vh; V.roomLbl.forEach(o => o.e.remove()); V.roomLbl = Dh.rooms.map(r => { const e = document.createElement('div'); e.style.cssText = 'position:absolute;left:0;top:0;padding:3px 9px;border-radius:10px;background:rgba(255,255,255,.75);color:#4E3A7C;font:700 11px system-ui,sans-serif;white-space:nowrap'; e.textContent = r[0]; V.lbl.insertBefore(e, V.lbl.firstChild); return { r, e }; }); }
-  for (const { r, e } of V.roomLbl) at(e, Dh.cx + (r[1] + r[3]) / 2, 1.6, Dh.cz + (r[2] + r[4]) / 2);
+  if (V.roomV !== vh) { V.roomV = vh; V.roomLbl.forEach(o => o.e.remove()); V.roomLbl = Dh.rooms.map(r => { const e = document.createElement('div'); e.style.cssText = 'position:absolute;left:0;top:0;padding:3px 9px;border-radius:10px;background:rgba(255,255,255,.75);color:#4E3A7C;font:700 11px system-ui,sans-serif;white-space:nowrap;transition:opacity .2s'; e.textContent = r[0]; V.lbl.insertBefore(e, V.lbl.firstChild); return { r, e }; }); }
+  for (const { r, e } of V.roomLbl) {   // назва кімнати, в якій ти стоїш, ховається
+    const lx = pl.x - Dh.cx, lz = pl.z - Dh.cz, inside = lx > Math.min(r[1], r[3]) && lx < Math.max(r[1], r[3]) && lz > Math.min(r[2], r[4]) && lz < Math.max(r[2], r[4]);
+    e.style.opacity = inside ? 0 : 1; at(e, Dh.cx + (r[1] + r[3]) / 2, 1.6, Dh.cz + (r[2] + r[4]) / 2);
+  }
   V.boardLbl.style.visibility = amIn() ? 'hidden' : ''; at(V.boardLbl, Dh.board.x, 2.8, Dh.board.z);
   const voting = ST.ph === 'idle' || ST.ph === 'lobby', cnt = [0, 0, 0]; for (const k in ST.votes) cnt[ST.votes[k]]++;
   V.padLbl.forEach((e, i) => { e.style.visibility = voting ? '' : 'hidden'; const t = `🗳️ ${VAR[i].fl} · ${VAR[i].n.split('· ')[1]}${cnt[i] ? ` (${cnt[i]})` : ''}${ST.votes[myKey()] === i ? ' ✔' : ''}`; if (e.textContent !== t) e.textContent = t; at(e, Dh.pads[i].x, .9 + i * .55, Dh.pads[i].z); });

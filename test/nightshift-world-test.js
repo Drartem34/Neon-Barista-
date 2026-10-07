@@ -84,7 +84,8 @@ const tp = (T, p, dx = 0, dz = 0) => { T.pl.x = p.x + dx; T.pl.z = p.z + dz; T.p
   const grabA = async () => {
     for (let k = 0; k < 80; k++) {
       const s = G.ST.pl[a.name]; if (s && s.dr) return true;
-      const z = F.ST.en.filter(e => !e.t && e.st !== 'flee' && F.FLOORS[2].SVC.every(q => Math.hypot(q.p.x - e.x, q.p.z - e.z) > 7))   // подалі від ліфтів, щоб було час рятувати.reduce((p, q) => !p || Math.hypot(q.x - a.pl.x, q.z - a.pl.z) < Math.hypot(p.x - a.pl.x, p.z - a.pl.z) ? q : p, null);
+      // найближчий зомбі подалі від ліфтів, щоб був час рятувати
+      const z = F.ST.en.filter(e => !e.t && e.st !== 'flee' && F.FLOORS[2].SVC.every(q => Math.hypot(q.p.x - e.x, q.p.z - e.z) > 7)).reduce((p, q) => !p || Math.hypot(q.x - a.pl.x, q.z - a.pl.z) < Math.hypot(p.x - a.pl.x, p.z - a.pl.z) ? q : p, null);
       if (z && Math.hypot(z.x - a.pl.x, z.z - a.pl.z) > 1.2) tp(a, z, .3, .3);
       await tick(AB, .25);
     }
@@ -136,7 +137,7 @@ const tp = (T, p, dx = 0, dz = 0) => { T.pl.x = p.x + dx; T.pl.z = p.z + dz; T.p
     it = b.getInteract(); if (!it || !/Обшукати/.test(it.l)) { console.log('  (не обшукав ' + i + ': ' + (it && it.l) + ')'); continue; } it.fn();
     for (let k = 0; k < 8 && !G.ST.cs[i]; k++) { tp(b, G.CARD_SPOTS[i]); await tick(AB, .25); }
   }
-  assert(G.ST.card === b.name && F.ST.card === b.name, '🔑 Батарейка знайшла картку — бачать обоє' + (G.ST.card ? '' : ' ' + JSON.stringify({ cs: G.ST.cs, me: G.ST.pl[b.name], card: G.ST.card, on: G.ST.on, en: G.ST.en.map(e => [e.st, e.lit, Math.round(Math.hypot(e.x - b.pl.x, e.z - b.pl.z))]) })));
+  assert(G.ST.card === b.name && F.ST.card === b.name, '🔑 Батарейка знайшла картку — бачать обоє' + (G.ST.card ? '' : ' ' + JSON.stringify({ cs: G.ST.cs, me: G.ST.pl[b.name], card: G.ST.card, on: G.ST.on, end: b.w.__nightshift.V.lastEnd, t: F.ST.t, en: G.ST.en.map(e => [e.st, e.lit, Math.round(Math.hypot(e.x - b.pl.x, e.z - b.pl.z))]) })));
   await tpB(G.NOTE_SPOTS[G.ST.noteAt]); await tick(AB, .4); it = b.getInteract(); assert(it && /стікер/.test(it.l), 'біля стікера'); it.fn(); await tick(AB, .6);
   assert(G.ST.ord && F.ST.ord && G.ST.ord.join() === F.ST.ord.join(), 'порядок рубильників знають обоє: ' + (G.ST.ord || []).join(','));
   await tpB(G.ELEC); await tick(AB, .4); it = b.getInteract(); assert(it && /карткою/.test(it.l), 'біля щитової з карткою'); it.fn(); await tick(AB, .6);

@@ -1094,7 +1094,7 @@ function scare(e, here) {
   }
 }
 function finish(e) {
-  const was = V.joined || inIsl(pl.x, pl.z); V.joined = false; V.act = null; mbar(false);
+  V.lastEnd = e; const was = V.joined || inIsl(pl.x, pl.z); V.joined = false; V.act = null; mbar(false);
   if (!was || !running) return;
   const win = !!e.win, esc = e.how === 'escape', mins = Math.floor((+e.t || 0) / (+e.dur || DUR) * 360 / 60);
   const coins = win ? (esc ? 90 : 70) : 10 + mins * 4, xp = win ? (esc ? 180 : 150) : 30 + mins * 8;

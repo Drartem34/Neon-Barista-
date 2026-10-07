@@ -434,7 +434,7 @@ function makeKit(g) {
     },
     floorTxt(txt, col, x, z, w) {
       if (!g) return; const c = document.createElement('canvas'); c.width = 512; c.height = 96; const x2 = c.getContext && c.getContext('2d');
-      if (x2 && x2.fillText) { x2.font = 'bold 60px sans-serif'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.lineWidth = 10; x2.strokeStyle = 'rgba(46,35,70,.55)'; x2.strokeText(txt, 256, 50); x2.fillStyle = col; x2.fillText(txt, 256, 50); }
+      if (x2 && x2.fillText) { x2.font = 'bold 60px sans-serif'; { const mw = x2.measureText ? (x2.measureText(txt) || {}).width : 0; if (mw > 490) x2.font = `bold ${Math.floor(60 * 490 / mw)}px sans-serif`; } x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.lineWidth = 10; x2.strokeStyle = 'rgba(46,35,70,.55)'; x2.strokeText(txt, 256, 50); x2.fillStyle = col; x2.fillText(txt, 256, 50); }
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 96 / 512), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: .85, depthWrite: false }));
       m.rotation.x = -Math.PI / 2; m.position.set(OX + x, .075, OZ + z); m.renderOrder = 1; scene.add(A.dynamic(m));
       roomLbl(txt, m);
@@ -1451,6 +1451,8 @@ function roomAt(x, z) {
 }
 function roomLabels(dt) {
   const here = running && !pl.dead ? roomAt(pl.x, pl.z) : null; V.inRoom = here;
+  // згасання за справжнім часом (кадр гри може бути обрізаний), але не повільніше за ігровий dt
+  const nowR = performance.now(), real = V.rlT ? Math.min(.25, (nowR - V.rlT) / 1000) : 0; V.rlT = nowR; dt = Math.max(dt, real);
   for (const e of V.rl) {
     const tg = here && e.vi === here.vi && e.n === here.n ? 0 : 1;
     e.k = tg > e.k ? Math.min(tg, e.k + dt / .2) : Math.max(tg, e.k - dt / .2);

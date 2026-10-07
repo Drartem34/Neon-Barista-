@@ -44,25 +44,43 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   const R = a.w.__race, Q = b.w.__race;
   for (const T of [a, b]) { T.pl.x = R.START.x + 1; T.pl.z = R.START.z; T.pl.y = 0; T.pl.hp = 9999; }
   await tick([a, b], 1);
+  // голосування: Суперник стає на майданчик №2 — сервер обирає «Атріум»
+  { const p = R.VARS[0].PADS[1]; b.pl.x = p.x; b.pl.z = p.z; await tick([a, b], 1.2); b.pl.x = R.START.x + 1; b.pl.z = R.START.z;
+    assert(R.ST.v === 1 && Q.ST.v === 1 && Object.values(R.ST.votes).includes(1), `голос на майданчику — сервер обрав «${R.VARS[R.ST.v].n}», бачать обоє`); }
+  await tick([a, b], .3);
   for (const T of [a, b]) { const it = T.getInteract(); assert(it && /Записатися/.test(it.l), 'F — записатися'); it.fn(); await tick([a, b], .5); }
   assert(R.ST.ph === 'lobby' && Q.ST.racers.length === 2, 'обоє в лобі (рахує сервер)');
   for (let i = 0; i < 40 && R.ST.ph !== 'race'; i++) await tick([a, b], .5);
   assert(R.ST.ph === 'race' && R.ST.racers.length === 4 && R.RC.on && Q.RC.on, 'двоє гравців + 2 боти, поїхали');
+  assert(R.floorAt(a.pl.x, a.pl.z) === 1 && R.floorAt(b.pl.x, b.pl.z) === 1, 'обох перенесло на поверх 57 (обраний голосуванням)');
+  { const mb = a.w.document.querySelector('#modebar'); assert(mb && !mb.hidden && /💣/.test(mb.textContent) && /🪠/.test(mb.textContent), 'у кріслі хотбар — лише 💣 і 🪠'); }
   const bot = R.ST.racers.find(r => r.bot), bx = bot.x;
   await tick([a, b], 1.5);
   assert(Math.abs(Q.ST.racers.find(r => r.k === bot.k).x - bx) > 2, 'боти їздять на сервері — бачать обоє');
-  // постріл степлером по суперникові
-  Q.RC.v = 0; R.RC.x = Q.RC.x - Math.cos(Q.RC.h) * 3; R.RC.z = Q.RC.z - Math.sin(Q.RC.h) * 3; R.RC.h = Q.RC.h; R.RC.spin = 0; Q.RC.spin = 0;
-  await tick([a, b], .6);
-  { const p = Object.values(a.NET.players).find(q => q.name === 'Суперник'); R.RC.h = Math.atan2(p.z - R.RC.z, p.x - R.RC.x); }
-  R.RC.item = 'stapler'; R.useItem(); let hit = false;
+  // ставлю Гонщика на d позаду Суперника й цілюсь у нього (крісло й гравець — разом, інакше «встає»)
+  const behind = async d => { Q.RC.v = 0; Q.RC.spin = 0; Q.RC.slow = 0; R.RC.spin = 0; R.RC.v = 0; R.RC.pull = null; R.RC.slow = 0;
+    R.RC.x = Q.RC.x - Math.cos(Q.RC.h) * d; R.RC.z = Q.RC.z - Math.sin(Q.RC.h) * d; R.RC.h = Q.RC.h; a.pl.x = R.RC.x; a.pl.z = R.RC.z; await tick([a, b], .6);
+    const p = Object.values(a.NET.players).find(q => q.name === 'Суперник'); R.RC.h = Math.atan2(p.z - R.RC.z, p.x - R.RC.x); R.RC.v = 0; Q.RC.spin = 0; Q.RC.slow = 0;
+    assert(R.RC.on && Q.RC.on, 'обоє в кріслах'); return p; };
+  // 📎 постріл степлером по суперникові
+  await behind(3); R.RC.item = 'stapler'; R.useItem(); let hit = false;
   for (let i = 0; i < 20 && !hit; i++) { await tick([a, b], .1); if (Q.RC.spin > 0) hit = true; }
   assert(hit, '📎 степлер Гонщика закрутив Суперника');
+  // 💣 бомба в Суперника (вибух рахує сервер)
+  { await tick([a, b], 1.2); const p = await behind(7); const b0 = R.RC.bombs; R.throwBomb({ x: p.x, z: p.z }); hit = false;
+    for (let i = 0; i < 25 && !hit; i++) { Q.RC.v = 0; await tick([a, b], .1); if (Q.RC.spin > 0 && Q.RC.slow > 0) hit = true; }
+    assert(R.RC.bombs === b0 - 1 && hit, '💣 бомба Гонщика вибухнула біля Суперника — закрутило й пригальмувало'); }
+  // 🪠 вантуз: чіпляє Суперника, мене тягне вперед
+  { await tick([a, b], 1.6); await behind(6); const sx = R.RC.x, sz = R.RC.z; R.RC.plCd = 0; R.shootPlunger(); let pulled = false, moved = 0; hit = false;
+    for (let i = 0; i < 25 && !(pulled && hit); i++) { Q.RC.v = 0; Q.RC.spin = 0; await tick([a, b], .05); if (R.RC.pull) pulled = true; if (Q.RC.slow > 0) hit = true; moved = Math.max(moved, Math.hypot(R.RC.x - sx, R.RC.z - sz)); }
+    for (let i = 0; i < 8; i++) { await tick([a, b], .05); moved = Math.max(moved, Math.hypot(R.RC.x - sx, R.RC.z - sz)); }
+    assert(pulled && hit && moved > 2 && R.RC.plCd > 0, `🪠 вантуз зачепив Суперника: Гонщика смикнуло вперед на ${moved.toFixed(1)} м, Суперника пригальмувало`); }
   // обоє проходять 3 кола
-  for (const [T, X] of [[a, R], [b, Q]]) { X.RC.lap = 2; const g = X.TR[X.N - 2]; X.RC.x = g.x; X.RC.z = g.z; X.RC.idx = X.N - 2; X.RC.prev = X.N - 2; X.RC.spin = 0; X.RC.h = Math.atan2(g.dz, g.dx); X.RC.v = 8; }
+  for (const [T, X] of [[a, R], [b, Q]]) { X.RC.lap = 2; const g = X.TR[X.N - 2]; X.RC.x = g.x; X.RC.z = g.z; X.RC.idx = X.N - 2; X.RC.prev = X.N - 2; X.RC.spin = 0; X.RC.h = Math.atan2(g.dz, g.dx); X.RC.v = 8; T.pl.x = g.x; T.pl.z = g.z; }
   for (let i = 0; i < 30 && (!R.RC.fin || !Q.RC.fin); i++) { for (const X of [R, Q]) { const q = X.TR[(X.RC.idx + 6) % X.N]; X.RC.h = Math.atan2(q.z - X.RC.z, q.x - X.RC.x); X.RC.v = 8; X.RC.spin = 0; } await tick([a, b], .1); }
   for (let i = 0; i < 20 && R.ST.ph !== 'end'; i++) await tick([a, b], .3);
   assert(R.ST.ph === 'end' && Q.ST.ph === 'end', 'обоє фінішували — гонка скінчилась');
   assert(R.ST.res.indexOf('Гонщик') >= 0 && a.P.addons.chairrace.races === 1 && b.P.addons.chairrace.races === 1, `результати в обох: ${R.ST.res.join(', ')}`);
+  assert(!R.RC.on && a.w.document.querySelector('#modebar').hidden && b.w.document.querySelector('#modebar').hidden, 'після фінішу в обох — звичайний хотбар');
   console.log('ALL OK'); cleanup(0);
 })().catch(e => { console.error(e); cleanup(1); });

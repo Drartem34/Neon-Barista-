@@ -1408,8 +1408,8 @@ function startRamC() {
   if (ST.ph !== 'hunt') { toast('🛞 Бос ще на нараді — нема кого таранити.'); return; }
   if (e.rc > 0 || V.ram) { toast(`🛞 Коліщатка ще гарячі: ${Math.ceil(e.rc)} с`); return; }
   const a = input.aimOk && dist2(input.ax, input.az, pl.x, pl.z) > .5 ? angTo(pl.x, pl.z, input.ax, input.az) : pl.face;
-  pl.face = a; V.ram = { a, t: RAM_T, hit: false }; e.rc = RAM_CD;
-  req('ram', { a: r2(a) });
+  pl.face = a; V.ram = { a, t: RAM_T, hit: false };
+  req('ram', { a: r2(a) }); e.rc = RAM_CD;   // перезарядку — після запиту (наодинці startRam сам перевіряє e.rc)
 }
 function updRam(dt) {
   if (!V.ram) return;
@@ -1473,7 +1473,7 @@ function maskToggle() {
 }
 /* засліплення боса під час наради */
 function blindfold() {
-  if (!V.blind) { V.blind = document.createElement('div'); V.blind.id = 'hb-blind'; V.blind.style.cssText = 'position:fixed;inset:0;z-index:1;pointer-events:none;display:none;align-items:center;justify-content:center;background:rgba(14,10,30,.94);color:#fff;font:800 22px/1.5 system-ui,sans-serif;text-align:center;padding:16px'; document.body.appendChild(V.blind); }
+  if (!V.blind) { V.blind = document.createElement('div'); V.blind.id = 'hb-blind'; V.blind.style.cssText = 'position:fixed;inset:0;z-index:1;pointer-events:none;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(14,10,30,.94);color:#fff;font:800 22px/1.5 system-ui,sans-serif;text-align:center;padding:16px'; document.body.appendChild(V.blind); }
   const on = running && amBoss() && ST.ph === 'meet' && onRound() && !panel;
   V.blind.style.display = on ? 'flex' : 'none';
   if (on) { const h = `🙈 НАРАДА<br><span style="font-size:15px;font-weight:600">«…і тому KPI мають рости». Ти нічого не бачиш ще <b>${Math.ceil(left())} с</b>.<br>Офісники ховаються серед меблів на поверсі «${RF().n}».</span>`; if (V.blind.innerHTML !== h) V.blind.innerHTML = h; }
@@ -1581,7 +1581,7 @@ const PLACES = [];
 FL.forEach((F, v) => {
   PLACES.push({ id: 'start:' + v, v, p: F.board, y: 2.3, t: () => '▶ СТАРТ (F)', on: () => !ST.on });
   PLACES.push({ id: 'role:' + v, v, p: F.role, y: 2.3, t: () => V.pref === 'boss' ? '🎭 Роль: 👔 бос' : '🎭 Роль: 🙈 офісник', on: () => !ST.on });
-  F.pads.forEach(pd => PLACES.push({ id: 'pad:' + v + ':' + pd.v, v, p: pd, y: .9, pad: 1, t: () => `🗳️ ${FL[pd.v].ic} ${FL[pd.v].n.match(/\d+/)[0]}${ST.vt[pd.v] ? ' · ' + ST.vt[pd.v] : ''}${ST.nv === pd.v ? ' ✓' : ''}`, on: () => !ST.on }));
+  F.pads.forEach(pd => PLACES.push({ id: 'pad:' + v + ':' + pd.v, v, p: pd, y: .9, pad: 1, t: () => `${FL[pd.v].n.match(/\d+/)[0]}${ST.vt[pd.v] ? ' · ' + ST.vt[pd.v] : ''}${ST.nv === pd.v ? ' ✓' : ''}`, on: () => !ST.on }));
   for (const r of F.rooms) if (r.id !== 'hall' || v === 1) PLACES.push({ id: 'room:' + v + ':' + r.id, v, p: { x: F.x + (r.x0 + r.x1) / 2, z: F.z + (r.z0 + r.z1) / 2 }, y: 2.4, room: 1, t: () => r.n });
 });
 function nearestF(filter) { let b = null, bd = 1e9; const F = FL[floorAt(pl.x, pl.z)]; for (const f of F ? F.furn : []) if (filter(f)) { const d = dist2(pl.x, pl.z, f.x, f.z); if (d < bd) { bd = d; b = f; } } return b; }

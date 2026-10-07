@@ -213,7 +213,7 @@ const F57 = mkFloor(1, { id: 'nightshift2', n: 'Поверх 57 · IT-старт
     f.CARD_SPOTS = [P(8.5, -10.6, { n: 'стіл CEO', ic: '💼' }), P(-20.4, 4.6, { n: 'холодильник', ic: '🧊' }), P(-12, -10.15, { n: 'шухляда оператора', ic: '🎧' }),
       P(1.2, 1.5, { n: 'стійка №7 у серверній', ic: '🖥️' }), P(-8, 3.6, { n: 'капсула для сну', ic: '🛌' }), P(16.6, 10.3, { n: 'стенд тестувальника', ic: '📱' })];
     f.NOTE_SPOTS = [P(-5, -8.6, { n: 'дошці в переговорній', m: L(-5.78, -10.5), y: 1.3, r: P2 }), P(-11.8, 13.6, { n: 'моніторі девелопера', m: L(-11.8, 12.25), y: 1.18 }), P(10, -1.2, { n: 'канбані в ігровій', m: L(10.78, -1.2), y: 1.3, r: -P2 })];
-    f.ITEMS = [[-15.2, -13.6], [-1, -13.6], [11.5, -7.5], [-20.5, -4.5], [0, -4.5], [20.5, -4.5], [-12.5, 0], [12.5, 4], [-20, -1.8], [-15.6, 8.2], [-7.6, 5.6], [4.2, 4.6], [9.8, 3.4], [17, 1], [-9, 14.3], [8.6, 10.2], [15.4, 14.3]].map(([x, z]) => L(x, z));
+    f.ITEMS = [[-15.2, -13.6], [-1, -13.6], [11.5, -7.5], [-20.5, -4.5], [0, -4.5], [20.5, -4.5], [-12.5, 0], [12.5, 4], [-20, -1.8], [-15.6, 8.2], [-8, -1.6], [4.2, 4.6], [9.8, 3.4], [17, 1], [-9, 14.3], [8.6, 10.2], [15.4, 14.3]].map(([x, z]) => L(x, z));
     f.CABS = [{ s: L(-7.5, -13.5), b: L(-6.45, -13.5), k: 'cab' }, { s: L(-9.6, 3), b: L(-9.6, 1), k: 'pod' }, { s: L(6.6, 12.5), b: L(6.6, 13.9), k: 'wc' }, { s: L(15.5, 6.5), b: L(14.45, 6.5), k: 'cab' },
       { s: L(13.4, 10.3), b: L(13.4, 11.6), k: 'desk' }, { s: L(11.5, -13.8), b: L(12.55, -13.8), k: 'cab' }, { s: L(-6.4, 3), b: L(-6.4, 1), k: 'pod' }];
     f.MON_DESKS = [[-17, -11.6, 0], [-10.2, -7.9, 0], [-11.8, 12.4, 0], [-18.8, 12.4, 0], [13.4, 12.4, 0], [19.8, 11.6, PI]];
@@ -260,7 +260,7 @@ const F63 = mkFloor(2, { id: 'nightshift3', n: 'Поверх 63 · Юридич�
       { n: '🛎️ Хол', x0: 4, x1: 20, z0: 7, z1: 17, t: ['#ECE6DA', '#CFC6B4', 2] },
     ];
     // кабінети партнерів: дубові столи, полиці з кодексами
-    for (const [x, c] of [[-18, '#2F4A3A'], [-14, '#2F3A4A'], [-10, '#4A2F3A']]) { F('bdesk', x, -13, PI); F('shelf', x, -16.6, 0, 2.6, { h: 2 }); F('plant', x + 1.4, -8, 0, 0, { big: 1 }); }
+    for (const [x, c] of [[-18, '#2F4A3A'], [-14, '#2F3A4A'], [-10, '#4A2F3A']]) { F('bdesk', x - .5, -13, PI); F('shelf', x, -16.6, 0, 2.6, { h: 2 }); F('plant', x + 1.4, -8, 0, 0, { big: 1 }); }
     F('locker', -8.45, -15.5, -P2);
     // конференц-зал
     F('mtable', -1, -12, 0, 8, { c: '#3A2418' }); for (const x of [-4, -2.5, -1, .5, 2]) { F('chair', x, -13.35, 0); F('chair', x, -10.65, PI); } F('tv', -1, -16.8, 0, 3); F('board', -7.85, -12, P2, 2.4);
@@ -279,20 +279,20 @@ const F63 = mkFloor(2, { id: 'nightshift3', n: 'Поверх 63 · Юридич�
     for (const x of [8.5, 10.2]) F('part', x, 2.95); for (const x of [7.75, 9.35, 11.1]) F('wc', x, 3.4); F('counter', 11.5, -1.5, -P2, 2.4, { mirror: 1 });
     F('shelf', 19.6, -1, -P2, 4); F('crate', 13, -3.2); F('crate', 13.9, -3.2); F('locker', 12.45, 0, P2); F('pallet', 18.6, 2.8);
     // помічники юристів
-    for (const [x, z] of [[.4, 9], [2.6, 9], [.4, 12.5], [2.6, 12.5]]) F('desk', x, z, 0, 0, { c: '#C9B08A' }); F('sofa', 1.5, 16.35, PI, 2.4); F('plant', -.4, 16.3);
+    for (const [x, z] of [[-.05, 9], [1.55, 9], [-.05, 12.5], [1.55, 12.5]]) F('desk', x, z, 0, 0, { c: '#C9B08A' }); F('sofa', 1.5, 16.35, PI, 2.4); F('plant', -.4, 16.3);
     // хол: мармурова рецепція, Феміда, дивани для клієнтів
     F('recep', 14.5, 10.5, 0, 0, { sign: 'ЗАКОН' }); F('chair', 14.5, 9.7, PI); F('statue', 5, 16); F('sofa', 19.35, 9.5, -P2, 2.4); F('ctable', 18.2, 9.5, P2); F('plant', 19.3, 7.6, 0, 0, { big: 1 }); F('plant', 4.6, 7.6, 0, 0, { big: 1 }); F('plant', 15.8, 16.3);
     f.SPAWN = L(9.5, 10.4); f.CLOCK = L(4.75, 9.5); f.CLOCK_S = -1; f.EXIT = L(15.3, 15.25); f.ELEC = L(-2.6, 14);
     f.VOTE = [L(7.6, 14.2), L(9.6, 14.2), L(11.6, 14.2)];
     f.PANEL_X = f.cx - 10.45; f.BRK_Z = [13, 14.2, 15.4];
-    f.CARD_SPOTS = [P(-18, -11.4, { n: 'стіл партнера А', ic: '💼' }), P(6.5, -2.4, { n: 'холодильник', ic: '🧊' }), P(-16.2, 6, { n: 'шухляда «Справи 1998»', ic: '📁' }),
+    f.CARD_SPOTS = [P(-18, -11.4, { n: 'стіл партнера А', ic: '💼' }), P(6, -2.3, { n: 'холодильник', ic: '🧊' }), P(-16.2, 6, { n: 'шухляда «Справи 1998»', ic: '📁' }),
       P(-15.5, 13.2, { n: 'посилка без адреси', ic: '📦' }), P(13.3, -15, { n: 'рідкісний кодекс', ic: '📜' }), P(14.5, 11.7, { n: 'стійка рецепції', ic: '🛎️' })];
-    f.NOTE_SPOTS = [P(-6.9, -12, { n: 'дошці в конференц-залі', m: L(-7.78, -12), y: 1.3, r: P2 }), P(2.6, 13.9, { n: 'моніторі помічника', m: L(2.6, 12.35), y: 1.18 }), P(.2, -2.6, { n: 'дошці на кухні', m: L(-.78, -2.6), y: 1.3, r: P2 })];
-    f.ITEMS = [[-18, -9.2], [-14, -15.5], [3.5, -14.8], [18.8, -11], [-19, 4], [-10.6, 7], [-7.8, -3], [-2.5, -5.5], [-2.5, 10.5], [5, -1.5], [10.4, -2.6], [18.4, -3], [6, 5.5], [6.2, 9.4], [-17.4, 12.4], [2.8, 15], [12.2, -8.4]].map(([x, z]) => L(x, z));
+    f.NOTE_SPOTS = [P(-6.9, -12, { n: 'дошці в конференц-залі', m: L(-7.78, -12), y: 1.3, r: P2 }), P(1.55, 13.9, { n: 'моніторі помічника', m: L(1.55, 12.35), y: 1.18 }), P(.2, -2.6, { n: 'дошці на кухні', m: L(-.78, -2.6), y: 1.3, r: P2 })];
+    f.ITEMS = [[-18, -9.2], [-14, -15.5], [3.5, -14.8], [18.8, -11], [-19, 4], [-10.6, 7], [-7.8, -3], [-2.5, -5.5], [-2.5, 10.5], [4.5, -3.2], [10.4, -2.6], [18.4, -3], [6, 5.5], [7.2, 8.6], [-17.4, 12.4], [2.8, 15], [12.2, -8.4]].map(([x, z]) => L(x, z));
     f.CABS = [{ s: L(-9.5, -15.5), b: L(-8.45, -15.5), k: 'cab' }, { s: L(9.35, 1.2), b: L(9.35, 3), k: 'wc' }, { s: L(13.5, 0), b: L(12.45, 0), k: 'cab' }, { s: L(-12.5, 16), b: L(-11.45, 16), k: 'cab' },
-      { s: L(.4, 11.3), b: L(.4, 12.5), k: 'desk' }, { s: L(-1, -10), b: L(-1, -12), k: 'desk' }];
-    f.MON_DESKS = [[.4, 9, 0], [2.6, 12.5, 0], [.4, 12.5, 0]];
-    f.PRINTER = L(-12, 11.9); f.PHONE = L(-13.2, -12.8);
+      { s: L(-.05, 11.3), b: L(-.05, 12.5), k: 'desk' }, { s: L(-1, -10), b: L(-1, -12), k: 'desk' }];
+    f.MON_DESKS = [[-.05, 9, 0], [1.55, 12.5, 0], [-.05, 12.5, 0]];
+    f.PRINTER = L(-12, 11.9); f.PHONE = L(-13.9, -12.8);
     f.SVC = [{ n: '🪜 Сходи в підвал', p: L(15, 1.6), kind: 'hatch' }, { n: '🛗 Поштовий ліфт', p: L(-18.5, 13.6), kind: 'lift', w: L(-19.6, 13.6), r: P2 }];
     f.EN_SPAWN = [L(-16.2, 6), L(-10.6, 0), L(-1, -14.6), L(13.3, -15), L(16, -1), L(-15.5, 16), L(9.5, -1), L(10, 15.5)];
     f.WAYS = [L(-18, -5.5), L(-8, -5.5), L(2, -5.5), L(12, -5.5), L(19, -5.5), L(-2.5, 0), L(-2.5, 8), L(-2.5, 15.5), L(4, 5.5), L(14, 5.5), L(19, 5.5),
@@ -327,7 +327,7 @@ const r2 = v => Math.round(v * 100) / 100;
 const plS = k => ST.pl[k] || (ST.pl[k] = { b: 100, l: 1, d: 0, h: 0, a: 0, g: 0, dr: 0, tk: 0, sh: 2, bs: 1, sg: 0, rt: 0 });
 function snap() {
   return { on: ST.on ? 1 : 0, t: r2(ST.t), dur: ST.dur, v: ST.v, nx: ST.nx, vt: ST.vt,
-    en: ST.en.map(e => [e.id, e.t, r2(e.x), r2(e.z), r2(e.face), (e.lit ? 1 : 0) | (e.st === 'chase' || e.st === 'hunt' ? 2 : 0) | (e.st === 'happy' ? 4 : 0) | (e.st === 'flee' ? 8 : 0) | (e.st === 'drag' ? 16 : 0)]),
+    en: ST.en.map(e => [e.id, e.t, r2(e.x), r2(e.z), r2(e.face), (e.lit ? 1 : 0) | (e.st === 'chase' || e.st === 'hunt' ? 2 : 0) | (e.st === 'happy' ? 4 : 0) | (e.st === 'flee' ? 8 : 0) | (e.st === 'drag' ? 16 : 0), e.to | 0]),
     pl: Object.entries(ST.pl).map(([k, s]) => [k, Math.round(s.b), s.l ? 1 : 0, s.d ? 1 : 0, s.h | 0, r2(s.a), s.g > 0 ? 1 : 0, s.dr | 0, s.tk | 0, s.sh | 0, s.bs | 0, r2(s.sg)]),
     cd: ST.card, cs: ST.cs, nt: ST.note, na: ST.noteAt, ord: ST.ord, ed: ST.edoor, fz: ST.fz, pw: ST.power, ex: ST.exit, bt: ST.bats, sp: ST.shp,
     lz: ST.lz.map(z => [z.id, r2(z.x), r2(z.z), Math.round(z.t * 10) / 10]), ms: ST.ms, gf: ST.gift };
@@ -343,7 +343,7 @@ function applySnap(d) {
   if (Array.isArray(d.ms)) ST.ms = d.ms.slice(0, 8).map(v => v | 0);
   ST.gift = Array.isArray(d.gf) ? [d.gf[0] | 0, String(d.gf[1])] : null;
   if (Array.isArray(d.lz)) ST.lz = d.lz.slice(0, 8).map(a => ({ id: a[0], x: +a[1], z: +a[2], t: +a[3] }));
-  if (Array.isArray(d.en)) ST.en = d.en.slice(0, 14).map(a => ({ id: a[0], t: a[1] ? 1 : 0, x: +a[2], z: +a[3], face: +a[4], lit: a[5] & 1 ? 1 : 0, st: a[5] & 16 ? 'drag' : a[5] & 4 ? 'happy' : a[5] & 8 ? 'flee' : a[5] & 2 ? 'chase' : 'wander' }));
+  if (Array.isArray(d.en)) ST.en = d.en.slice(0, 14).map(a => ({ id: a[0], t: a[1] ? 1 : 0, x: +a[2], z: +a[3], face: +a[4], lit: a[5] & 1 ? 1 : 0, st: a[5] & 16 ? 'drag' : a[5] & 4 ? 'happy' : a[5] & 8 ? 'flee' : a[5] & 2 ? 'chase' : 'wander', to: a[6] | 0 }));
   if (Array.isArray(d.pl)) { const o = {}; for (const a of d.pl.slice(0, 8)) o[String(a[0])] = { b: +a[1], l: a[2] ? 1 : 0, d: a[3] ? 1 : 0, h: a[4] | 0, a: +a[5], g: a[6] ? 1 : 0, dr: a[7] | 0, tk: a[8] | 0, sh: a[9] | 0, bs: a[10] | 0, sg: +a[11] || 0 }; ST.pl = o; }
 }
 function pushState() { if (SIMSIDE) A.send('st', snap()); }
@@ -1190,7 +1190,7 @@ function clientTick(dt) {
   pl.safe = { x: SPAWN.x, z: SPAWN.z };
   const s = mySt();
   // голосування: стоїш на плиті — голос за поверх
-  if (!ST.on) { const fi = floorAt(pl.x, pl.z), f = FLOORS[fi]; if (f) { const i = f.VOTE.findIndex(p => dist2(pl.x, pl.z, p.x, p.z) < .8); if (i >= 0 && V.myVote !== i) { V.myVote = i; req('vote', { v: i, f: fi }); sfx('ui'); } } }
+  if (!ST.on) { const fi = floorAt(pl.x, pl.z), f = FLOORS[fi]; if (f) { const i = f.VOTE.findIndex(p => dist2(pl.x, pl.z, p.x, p.z) < .8); if (i >= 0 && V.myVote !== i) { V.myVote = i; V.voteT = 1; req('vote', { v: i, f: fi }); sfx('ui'); } else if (i >= 0 && !AUTH() && (V.voteT -= dt) <= 0) { V.voteT = 1; req('vote', { v: i, f: fi }); } } }   // (у світі — повтор раз на секунду: сервер міг ще не знати, що ти на плиті)
   // ліхтарик дивиться туди, куди мишка (або куди йдеш)
   if (!IS_TOUCH && input.aimOk && !amDown() && !amHid()) { V.fa = angTo(pl.x, pl.z, input.ax, input.az); pl.face = V.fa; } else V.fa = pl.face;
   V.noise = amDown() || amHid() ? 0 : pl.dashT > 0 ? 1.5 : pl.moving ? (keys.KeyZ ? .1 : .75) : 0;
@@ -1631,4 +1631,4 @@ A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(goNight, 700); });
 if (window.__ADDON_TEST) window.__nightshift = { ST, AU, V, FLOORS, useVar, get FL() { return FL; }, get CUR() { return CUR; }, get SPAWN() { return SPAWN; }, get CLOCK() { return CLOCK; }, get EXIT() { return EXIT; }, get ESC() { return ESC; }, get ELEC() { return ELEC; },
   get BREAKERS() { return BREAKERS; }, get CARD_SPOTS() { return CARD_SPOTS; }, get NOTE_SPOTS() { return NOTE_SPOTS; }, get ITEMS() { return ITEMS; }, get BAT_SPOTS() { return ITEMS; }, get CABS() { return CABS; }, get WAYS() { return WAYS; }, get EN_SPAWN() { return EN_SPAWN; },
   get SVC() { return SVC; }, get SENS() { return SENS; }, get WALLS() { return WALLS; }, get DOORS() { return DOORS; }, get ROOMS() { return ROOMS; }, get FURN() { return FURN; }, get FURN_L() { return FURN_L; }, get MONITORS() { return MONITORS; }, get NC() { return NC; },
-  goal, intro, req, onReq, litBy, los, inB, grid, cellOf, freeNear, addEnemy, startNight, endNight, myKey, solids, roomAt, floorAt, tally, lzAt, MB, throwShot };
+  goal, intro, req, onReq, litBy, dragged, takenBy, los, inB, grid, cellOf, freeNear, addEnemy, startNight, endNight, myKey, solids, roomAt, floorAt, tally, lzAt, MB, throwShot };

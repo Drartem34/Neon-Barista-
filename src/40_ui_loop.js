@@ -315,6 +315,31 @@ function refreshWeapon() {
 /* ---------- Набір режиму: аддон тимчасово підміняє хотбар своїми слотами (напр. лише 💣 і 🪠).
    modeBar({ slots: [{ id, ic, n, count: () => k, use: () => … }], sel }) — увімкнути; modeBar(null) — повернути звичайний.
    Поки набір увімкнено: зброя й напої сховані, 1…N — використати слот, Q і ПКМ напої не п'ють. Справжній інвентар не чіпаємо. */
+/* ---------- Лобі режиму: попап з картами (картинки), голосування й «Я готовий».
+   modeLobby({ title, sub, maps: [{ n, img, about }], votes: [k…], mine: i|-1, ready: bool, players: [{ n, ready, vote }],
+               info: 'текст (таймер)', onVote: i => …, onReady: () => …, onHide: () => … }) — показати/оновити; modeLobby(null) — закрити.
+   Аддон кличе це щокадру або при зміні стану: HTML оновлюється, лише коли щось змінилось. */
+let MLOBBY = null, mLobbyHTML = '';
+function modeLobby(def) {
+  let el = $('#mlobby');
+  if (!def) { MLOBBY = null; mLobbyHTML = ''; if (el) el.remove(); return; }
+  MLOBBY = def;
+  if (!el) {
+    el = document.createElement('div'); el.id = 'mlobby'; document.body.appendChild(el);
+    el.addEventListener('click', e => {
+      const m = MLOBBY; if (!m) return;
+      const v = e.target.closest('[data-lv]'); if (v) { if (m.onVote) m.onVote(+v.dataset.lv); sfx('ui'); return; }
+      if (e.target.closest('.rdy')) { if (m.onReady) m.onReady(); sfx('ding'); return; }
+      if (e.target.closest('.hide')) { if (m.onHide) m.onHide(); return; }
+    });
+  }
+  const esc = escapeHTML, vs = def.votes || [];
+  const h = `<div class="lb"><h3>${esc(def.title || 'Лобі')}</h3><div class="sub">${def.sub || 'Обери карту — клікни по картці. Потім «Я готовий».'}</div>
+    <div class="maps">${(def.maps || []).map((m, i) => `<button class="map${def.mine === i ? ' mine' : ''}" data-lv="${i}"><div class="im" style="background-image:url('${m.img || ''}'),linear-gradient(160deg,#6BB8FF,#B07CF0)"></div><div class="tx"><b>${esc(m.n)}</b><span>${m.about || ''}</span></div><div class="vc">🗳️ ${vs[i] || 0}</div></button>`).join('')}</div>
+    ${def.players && def.players.length ? `<div class="who">${def.players.map(p => `<i class="${p.ready ? 'ok' : ''}">${p.ready ? '✅' : '⏳'} ${esc(p.n)}${p.vote >= 0 && def.maps[p.vote] ? ' · ' + (p.vote + 1) : ''}</i>`).join('')}</div>` : ''}
+    <div class="row"><span>${def.info || ''}</span><span><button class="hide">Сховати</button> <button class="rdy${def.ready ? ' on' : ''}">${def.ready ? '⏳ Не готовий' : '✅ Я готовий'}</button></span></div></div>`;
+  if (h !== mLobbyHTML) { mLobbyHTML = h; el.innerHTML = h; }
+}
 let MODEBAR = null, modeBarHTML = '';
 function modeBar(def) { MODEBAR = def && def.slots && def.slots.length ? Object.assign({ sel: 0 }, def) : null; modeBarHTML = ''; renderModeBar(); }
 function modeBarUse(i) { const m = MODEBAR, s = m && m.slots[i]; if (!s) return false; m.sel = i; if (s.use) s.use(); renderModeBar(); return true; }
@@ -328,6 +353,7 @@ function renderModeBar() {
 $('#modebar').addEventListener('click', e => { const b = e.target.closest('[data-ms]'); if (b) modeBarUse(+b.dataset.ms); });
 function updHUDFrame() {
   if (MODEBAR) renderModeBar();
+  { const q = $('#quest'), md = !!curMode(); if (q && q.hidden !== md) q.hidden = md; }   // у міні-іграх квест-картки «Гущі» не видно
   $('#hpb').style.transform = `scaleX(${clamp(pl.hp / S.maxHP, 0, 1)})`;
   $('#hpt').textContent = Math.max(0, Math.ceil(pl.hp)) + ' / ' + S.maxHP;
   $('#stb').style.transform = `scaleX(${clamp(pl.st / S.maxSt, 0, 1)})`;

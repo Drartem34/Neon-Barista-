@@ -55,6 +55,7 @@
   font-weight:bold;color:#fff;font-size:1.2rem;
 }
 .mm-nickname { color:#fff;font-weight:600;font-size:1.05rem;letter-spacing:1px; }
+#main-menu .mm-container { flex-wrap:wrap !important;overflow:visible !important;transform:none !important;margin:0 auto; }   /* не каруселлю в один ряд */
 .mm-container {
   position:relative;z-index:5;
   --mmw:clamp(220px,27vw,330px);
@@ -212,6 +213,21 @@ body.jamwob #cv{animation:jamwob 1.6s ease-in-out infinite}
 .slot .sec{position:absolute;right:-6px;top:-6px;width:26px;height:26px;border-radius:9px;background:rgba(46,35,70,.9);font-size:14px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2)}
 #drinks{display:flex;gap:6px}
 #modebar{display:flex;gap:16px;padding-bottom:20px}
+/* Лобі режиму: голосування за карту з картинками й кнопка «Я готовий» */
+#mlobby{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(20,12,40,.45);pointer-events:auto}
+#mlobby .lb{background:#2E2346;color:#fff;border-radius:20px;padding:18px 20px;width:min(860px,100%);max-height:calc(100vh - 32px);overflow:auto;font:14px/1.45 system-ui,sans-serif;box-shadow:0 14px 40px rgba(0,0,0,.45)}
+#mlobby h3{margin:0;font-size:22px} #mlobby .sub{opacity:.8;font-size:13px;margin:2px 0 12px}
+#mlobby .maps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+#mlobby .map{position:relative;text-align:left;color:#fff;background:#4E3A7C;border:3px solid transparent;border-radius:16px;padding:0;overflow:hidden;cursor:pointer;font:inherit}
+#mlobby .map.mine{border-color:#FFE066;box-shadow:0 0 0 3px rgba(255,224,102,.3)}
+#mlobby .map .im{height:130px;background:center/cover no-repeat,linear-gradient(160deg,#6BB8FF,#B07CF0)}
+#mlobby .map .tx{padding:8px 10px 10px} #mlobby .map b{font-size:15px;display:block} #mlobby .map span{font-size:12px;opacity:.85}
+#mlobby .map .vc{position:absolute;top:8px;right:8px;background:rgba(46,35,70,.85);border-radius:10px;padding:2px 8px;font-weight:800}
+#mlobby .who{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px} #mlobby .who i{font-style:normal;background:rgba(255,255,255,.12);border-radius:10px;padding:3px 9px;font-size:12px} #mlobby .who i.ok{background:#3E8E5A}
+#mlobby .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:12px}
+#mlobby .rdy{font:800 17px system-ui,sans-serif;border:0;border-radius:14px;padding:12px 26px;cursor:pointer;background:#7FE08A;color:#1E3A24} #mlobby .rdy.on{background:#FFE066;color:#2E2346}
+#mlobby .hide{background:none;border:0;color:#fff;opacity:.7;cursor:pointer;font:inherit}
+body.touch #mlobby .map .im{height:90px}
 #modebar .slot{width:60px;height:60px;font-size:28px;color:#fff;cursor:pointer}
 #modebar .slot.sel{border-color:#FFE066;box-shadow:0 0 0 2px rgba(255,224,102,.45)}
 #modebar .slot.off{opacity:.45}

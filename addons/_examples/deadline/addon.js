@@ -331,11 +331,11 @@ function decoV3(K) {
   decoStations(K, 'startup');
   // атріум: дві шахти вниз (видно вогні нижніх поверхів), скляний міст, рослини
   for (const z0 of [-4.5, 1.4]) {
-    K.box(0, .02, z0 + 1.55, 8, .02, 3.1, '#120E26');
-    for (let k = 0; k < 7; k++) K.glow(-3.3 + k * 1.1, .03, z0 + .5 + (k % 3) * .9, .5, .01, .25, k % 2 ? '#FFD27A' : '#6BE7FF');
+    K.box(0, .07, z0 + 1.55, 8, .02, 3.1, '#120E26');
+    for (let k = 0; k < 7; k++) K.glow(-3.3 + k * 1.1, .085, z0 + .5 + (k % 3) * .9, .5, .01, .25, k % 2 ? '#FFD27A' : '#6BE7FF');
   }
-  K.box(0, .045, 0, 8, .02, 2.8, '#BFE6FF');
-  for (const x of [-3, -1, 1, 3]) K.box(x, .06, 0, .05, .02, 2.8, '#8E86B0');
+  K.box(0, .07, 0, 8, .02, 2.8, '#BFE6FF');
+  for (const x of [-3, -1, 1, 3]) K.box(x, .085, 0, .05, .02, 2.8, '#8E86B0');
   for (const [x, z] of [[-11, 6.2], [11, -6.2], [-11, -6.2]]) K.plant(x, z, 1.3);
   K.sign('SYNERGY · ХМАРА ВСЕ ЗБЕРЕЖЕ', '#FF6BD6', -7, -6.75, 5.4, 2.1);
   // хотдеск: мішки-крісла й «стіна ідей»
@@ -509,6 +509,13 @@ function decoStations(K, style) {
   }
 }
 
+/* маршрут пневмопошти від колби i до іншої: дві прямі під стелею */
+function tubePath(i) { const a = TUBE[i].o, b = TUBE[1 - i].o; return [a, { x: b.x, z: a.z }, b]; }
+function alongPath(pts, s) {
+  const seg = []; let tot = 0; for (let k = 0; k < pts.length - 1; k++) { const l = dist2(pts[k].x, pts[k].z, pts[k + 1].x, pts[k + 1].z); seg.push(l); tot += l; }
+  let d = clamp(s, 0, 1) * tot; for (let k = 0; k < seg.length; k++) { if (d <= seg[k] || k === seg.length - 1) { const t = seg[k] ? clamp(d / seg[k], 0, 1) : 0; return { x: lerp(pts[k].x, pts[k + 1].x, t), z: lerp(pts[k].z, pts[k + 1].z, t), a: Math.atan2(pts[k + 1].z - pts[k].z, pts[k + 1].x - pts[k].x) }; } d -= seg[k]; }
+  return { x: pts[0].x, z: pts[0].z, a: 0 };
+}
 /* ---------- Спільне для всіх поверхів: ліфти з панелями голосування, пневмопошта, пожежні сходи/гірка ---------- */
 function decoCommon(K, Lx) {
   const g = K.g;
@@ -533,8 +540,13 @@ function decoCommon(K, Lx) {
     const m = new THREE.Mesh(new THREE.CylinderGeometry(.2, .2, 2.4, 10), pipe); m.position.set(T.o.x, 1.3, T.o.z); g.add(m);
     K.box(T.l.x, .45, T.l.z, .6, .9, .5, '#4E4A6E'); K.glow(T.l.x, .95, T.l.z, .4, .08, .45, '#FFB35C');
   }
-  { const a = TUBE[0].o, b = TUBE[1].o, len = dist2(a.x, a.z, b.x, b.z), m = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, len, 8), pipe);
-    m.position.set((a.x + b.x) / 2, 2.5, (a.z + b.z) / 2); m.rotation.z = Math.PI / 2; m.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x); g.add(m); }
+  // труба йде під стелею вздовж стін «літерою Г»
+  const tp = tubePath(0), cu = mat('#E0A060');
+  for (let k = 0; k < tp.length - 1; k++) {
+    const a = tp[k], b = tp[k + 1], len = dist2(a.x, a.z, b.x, b.z) + .25; if (len < .3) continue;
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(.1, .1, len, 8), cu); m.position.set((a.x + b.x) / 2, 2.5, (a.z + b.z) / 2); m.rotation.z = Math.PI / 2; m.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x); g.add(m);
+  }
+  for (const T of TUBE) put(g, mesh(flat(new THREE.CylinderGeometry(.1, .1, .1, 8)), '#E0A060', false), T.o.x, 2.5, T.o.z);
   // пожежні сходи / гірка
   for (const [x, z, ry] of [STAIRS.da, STAIRS.db]) {
     const q = K.grp(x, z, ry);
@@ -1490,7 +1502,7 @@ function clientTick(dt) {
   // капсули пневмопошти під стелею
   while (V.caps.length < ST.tb.length) { const m = new THREE.Group(); put(m, mesh(flat(new THREE.CylinderGeometry(.13, .13, .45, 8)), '#FFB35C', false), 0, 0, 0).rotation.z = Math.PI / 2; scene.add(m); V.caps.push(m); }
   while (V.caps.length > ST.tb.length) scene.remove(V.caps.pop());
-  ST.tb.forEach((q, i) => { if (!AUTH()) q.t -= dt; const a = TUBE[1 - q.to].o, b = TUBE[q.to].o, s = clamp(1 - q.t / TUBE_T, 0, 1), m = V.caps[i]; m.position.set(lerp(a.x, b.x, s), 2.5, lerp(a.z, b.z, s)); m.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x); });
+  ST.tb.forEach((q, i) => { if (!AUTH()) q.t -= dt; const P2 = alongPath(tubePath(1 - q.to), 1 - q.t / TUBE_T), m = V.caps[i]; m.position.set(P2.x, 2.5, P2.z); m.rotation.y = -P2.a; });
   // годинник
   if (V.clock) {
     const s = 17 * 3600 + 55 * 60 + (ST.on ? ST.t : 0), sec = s % 60, min = (s / 60) % 60, hr = (s / 3600) % 12;

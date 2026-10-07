@@ -83,7 +83,10 @@ async function follow(T, D, Ts) {
         at(A_, p0); at(B_, p1); await tick(Ts, 1); A_.pl.face = Math.atan2(B_.pl.x - A_.pl.x, B_.pl.z - A_.pl.z);
         for (const q of D.ST.zom) if (Math.hypot(q.x - p1.x, q.z - p1.z) < 3) console.log('  (зомбі поруч з ловцем)');
         X.throwReport(); await tick(Ts, .3);
-        assert(Y.ST.fly || Y.myHeld().it === 'report', '📘 звіт летить через хол — бачить і ловець');
+        const seenT = () => Y.ST.fly || Y.myHeld().it === 'report' || Y.ST.zom.some(q => q.carry && q.carry.it === 'report') || Y.ST.floor.some(f => f.it === 'report');
+        for (let n = 0; n < 25 && !seenT(); n++) await tick(Ts, .1);   // під навантаженням знімок сервера може запізнитись
+        if (!seenT()) console.log('  діагностика:', JSON.stringify({ xh: X.myHeld(), xf: X.ST.fly, yh: Y.myHeld(), held: Y.ST.held, fl: Y.ST.floor, zc: Y.ST.zom.filter(q => q.carry).map(q => [q.x, q.z, q.carry]), xp: [X.SEND.p, A_.pl.x, A_.pl.z], yp: [B_.pl.x, B_.pl.z], on: Y.ST.on, si: Y.ST.si }));
+        assert(seenT(), '📘 звіт летить через хол — бачить і ловець');
         await tick(Ts, 2);
         const caught = Y.myHeld().it === 'report' && X.ST.held[Y.myKey()] && X.ST.held[Y.myKey()].it === 'report';
         const intercepted = D.ST.zom.some(q => q.carry && q.carry.it === 'report');

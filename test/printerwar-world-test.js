@@ -100,27 +100,13 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
     const D = Q.VAR[2]; b.pl.x = D.cx - 3; b.pl.z = D.cz + 4.5; await tick([a, b], .4); Q.req('molo', { a: Math.PI / 2 });
     for (let i = 0; i < 15 && !(W.ST.mf.length && Q.ST.mf.length); i++) await tick([a, b], .2);
     assert(W.ST.mf.length >= 1 && Q.ST.mf.length >= 1 && Q.ST.ps.find(p => p.k === 'Конкурент').mo === 1, '🍾 Молотов Конкурента — палаюча калюжа бачать обоє'); }
-  { // ✈️ літачки в ПК → шанс, що ПК заспамить серверну → 🔥 пожежа (друк стоїть), гасимо 🧯
-    const D = Q.VAR[2], pc = D.pcs.slice().sort((u, v) => Math.hypot(u.x - D.cx + 16.6, u.z - D.cz - 3) - Math.hypot(v.x - D.cx + 16.6, v.z - D.cz - 3))[0];
-    let fire = false, n = 0;
-    for (let i = 0; i < 160 && !fire; i++) {
-      for (const [T, X, who] of [[a, W, 'Друкар'], [b, Q, 'Конкурент']]) {
-        const me = X.ST.ps.find(p => p.k === who); T.pl.x = pc.x + 2.6; T.pl.z = pc.z + (T === a ? .15 : -.15);
-        if (me && me.pl > 0 && i % 4 === 0 && !X.ST.sf) { X.req('plane', { a: -Math.PI / 2 }); n++; }
-      }
-      await tick([a, b], .25); fire = !!(W.ST.sf && Q.ST.sf);
-    }
-    assert(fire, `🔥 після ${n} літачків у ПК серверна загорілась — бачать обоє`);
-    const sf = Q.ST.sf; let out = false;
-    for (let i = 0; i < 120 && !out; i++) { b.pl.x = sf.x + sf.r + 1.2; b.pl.z = sf.z; if (i % 3 === 0) Q.req('spray', { a: -Math.PI / 2 }); await tick([a, b], .25); out = !W.ST.sf && !Q.ST.sf; }
-    assert(out, '🧯 серверну загасили — друк іде далі (в обох)'); }
   { let sawZ = false, served = false; const cf = () => (Q.ST.ps.find(p => p.k === 'Конкурент').cf || []).reduce((s, v) => s + v, 0);
     const cf0 = cf();
     for (let i = 0; i < 160 && !served; i++) {
       const zA = W.ST.npc.find(n => n.zom), zB = zA && Q.ST.npc.find(n => n.id === zA.id && n.zom);
       if (zA && zB) { sawZ = true; b.pl.x = zB.x + .6; b.pl.z = zB.z; Q.req('coffee', { id: zB.id }); }
       else if (!zA && i % 3 === 0) {   // Друкар пуляє літачки в колегу, поки той не озвіріє
-        const n = W.ST.npc[0], me = W.ST.ps.find(p => p.k === 'Друкар'); if (n && me && me.pl > 0) { a.pl.x = n.x - 2.2; a.pl.z = n.z; a.pl.face = Math.PI / 2; await tick([a, b], .1); W.req('plane', { a: Math.atan2(n.x - a.pl.x, n.z - a.pl.z) }); }
+        const n = W.ST.npc[0]; for (const [T, X, who, dx] of [[a, W, 'Друкар', -2.2], [b, Q, 'Конкурент', 2.2]]) { const me = X.ST.ps.find(p => p.k === who); if (n && me && me.pl > 0) { T.pl.x = n.x + dx; T.pl.z = n.z; await tick([a, b], .1); X.req('plane', { a: Math.atan2(n.x - T.pl.x, n.z - T.pl.z) }); } }
       }
       await tick([a, b], .25); served = cf() < cf0;
     }
@@ -135,6 +121,20 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   { const fo = () => Q.ST.ps.find(p => p.k === 'Конкурент').fo, f0 = fo(); await tick([a, b], 2); const f1 = fo(); Q.req('spray', { a: 0 });
     let ok = false; for (let i = 0; i < 15 && !ok; i++) { await tick([a, b], .2); const f = W.ST.ps.find(p => p.k === 'Конкурент').fo; ok = f < f1 - 10; }
     assert(ok, `🧯 Конкурент пшикнув вогнегасником — заряд піни зменшився й у Друкаря (${Math.round(f0)}%)`); }
+  { // ✈️ літачки в ПК → шанс, що ПК заспамить серверну → 🔥 пожежа (друк стоїть), гасимо 🧯
+    const D = Q.VAR[2], pc = D.pcs.slice().sort((u, v) => Math.hypot(u.x - D.cx + 16.6, u.z - D.cz - 3) - Math.hypot(v.x - D.cx + 16.6, v.z - D.cz - 3))[0];
+    let fire = false, n = 0;
+    for (let i = 0; i < 160 && !fire; i++) {
+      for (const [T, X, who] of [[a, W, 'Друкар'], [b, Q, 'Конкурент']]) {
+        const me = X.ST.ps.find(p => p.k === who); T.pl.x = pc.x + 2.6; T.pl.z = pc.z + (T === a ? .15 : -.15);
+        if (me && me.pl > 0 && i % 4 === 0 && !X.ST.sf) { X.req('plane', { a: -Math.PI / 2 }); n++; }
+      }
+      await tick([a, b], .25); fire = !!(W.ST.sf && Q.ST.sf);
+    }
+    assert(fire, `🔥 після ${n} літачків у ПК серверна загорілась — бачать обоє`);
+    const sf = Q.ST.sf; let out = false;
+    for (let i = 0; i < 120 && !out; i++) { b.pl.x = sf.x + sf.r + 1.2; b.pl.z = sf.z; if (i % 3 === 0) Q.req('spray', { a: -Math.PI / 2 }); await tick([a, b], .25); out = !W.ST.sf && !Q.ST.sf; }
+    assert(out, '🧯 серверну загасили — друк іде далі (в обох)'); }
   // обоє йдуть — арена звільняється
   for (const T of [a, b]) { T.pl.x = 0; T.pl.z = 3; }
   for (let i = 0; i < 20 && W.ST.ph !== 'idle'; i++) await tick([a, b], .3);

@@ -1497,6 +1497,8 @@ function kickUI(dt) {
   if (V.kickEl.innerHTML !== h) V.kickEl.innerHTML = h;
   V.kickEl.style.transform = `translateX(-50%) scale(${V.kickHit > 0 ? 1.06 : 1})`;
 }
+// меню (Esc, інвентар…) відкрилось — лобі-попап ховаємо одразу (офлайн гра на паузі й кадр аддона не біжить)
+if (!SIMSIDE && typeof openPanel === 'function') { const _openPanel = openPanel; openPanel = function () { if (V.lbOn) { V.lbOn = false; modeLobby(null); } return _openPanel.apply(this, arguments); }; }
 if (!SIMSIDE && typeof addEventListener === 'function') addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat && running && !panel && ST.on && amDrag()) kickPress(); });
 
 /* ---------- F ---------- */

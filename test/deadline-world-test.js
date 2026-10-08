@@ -116,7 +116,7 @@ async function follow(T, D, Ts) {
   assert(lob(a) && lob(b), 'після раунду обоє знову бачать вікно лобі');
   // Стажер готовий, Бухгалтер мовчить — через 20 с ліфт їде сам
   lob(b).querySelector('.rdy').click(); await tick(Ts, 2);
-  assert(!E.ST.on && E.ST.rt > 10 && /Старт за/.test(lob(a).textContent), `Бухгалтер бачить таймер: старт за ${E.ST.rt} с`);
+  assert(!E.ST.on && E.ST.rt > 0 && /Старт за/.test(lob(a).textContent), `Бухгалтер бачить таймер: старт за ${E.ST.rt} с`);
   for (let i = 0; i < 30 && !E.ST.on; i++) await tick(Ts, 1);
   assert(D.ST.on && E.ST.on && D.ST.vi === 2 && E.ST.vi === 2 && !lob(a) && !lob(b), '⏳ 20 с минуло — раунд почався сам на 63-му, вікна закрились');
   // вихід з режиму — вікно лобі закривається

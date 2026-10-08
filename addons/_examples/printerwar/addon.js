@@ -504,7 +504,10 @@ const CHAOS = {
   wire(me, d) { if (!me.wi || me.hold) return; me.wi = 0; launch(me, posOf(me), +d.a || 0, 'wire'); pushState(); },
   molo(me, d) { if ((me.mo | 0) <= 0) return; me.mo--; launch(me, posOf(me), +d.a || 0, 'molo'); pushState(); },
   wireget(me) { const q = posOf(me); if (me.wi || !VAR[ST.v].pcs.some(c => dist2(q.x, q.z, c.x, c.z) < 1.7)) return; me.wi = 1; emit({ k: 'wire', who: me.k }); pushState(); },
-  cooler(me, d) { const q = posOf(me), c = VAR[ST.v].coolers[d.i | 0]; if (!c || dist2(q.x, q.z, c.x, c.z) > 2.2) return; if (!spill(d.i | 0, me.k)) emit({ k: 'msg', to: me.k, txt: '🚰 Кулер порожній — чекай нову бутль.' }); },
+  cooler(me, d) {   // F біля кулера; ch — у кулер врізалось крісло (своє, з розгону, або кинуте — тоді далі)
+    const q = posOf(me), c = VAR[ST.v].coolers[d.i | 0]; if (!c || dist2(q.x, q.z, c.x, c.z) > (d.ch ? 14 : 2.2)) return;
+    if (spill(d.i | 0, me.k)) { if (d.ch) emit({ k: 'msg', to: me.k, txt: '🪑💥 Крісло врізалось у кулер — калюжа!' }); } else if (!d.ch) emit({ k: 'msg', to: me.k, txt: '🚰 Кулер порожній — чекай нову бутль.' });
+  },
   spray(me, d) { doSpray(me, posOf(me), +d.a || 0); },
   coffee(me, d) { const q = posOf(me), n = ST.npc.find(n => n.id === d.id); if (n && dist2(q.x, q.z, n.x, n.z) < 2.8) serve(me, n); },
   refill(me) {
@@ -1271,9 +1274,15 @@ function updChaos(dt, here, me) {
     m.userData.fl.forEach((c, k) => { c.scale.y = (.7 + Math.abs(Math.sin(t * 9 + k * 1.7)) * .6) * fade; c.material.opacity = .9 * fade; }); m.userData.glow.material.opacity = .45 * fade;
     if (Math.random() < dt * (f.srv ? 14 : 6)) burst(f.x + rand(-f.r, f.r) * .6, .8, f.z + rand(-f.r, f.r) * .6, pick(['#FFB347', '#FF5C3C', '#5A5470']), 1, 1, .7, 2.5);
   });
+  // крісло з розгону (або кинуте) врізалось у кулер — перекинуло його
+  if (fight && here && me && (V.chT = (V.chT || 0) - dt) <= 0) for (const b of BODIES) {
+    if (b.fall || Math.hypot(b.vx || 0, b.vz || 0) < 4.5) continue;
+    const ci = VAR[ST.v].coolers.findIndex(c => dist2(c.x, c.z, b.x, b.z) < (b.r || .5) + 1.05);
+    if (ci >= 0 && (b === pl.ride || dist2(pl.x, pl.z, b.x, b.z) < 12)) { V.chT = 1.5; req('cooler', { i: ci, ch: 1 }); sfx('splash', b.x, b.z); break; }
+  }
   // калюжі з кулера (під струмом — жовті з іскрами)
   syncMap(V.wps, fight ? ST.wp : [], () => { const m = new THREE.Mesh(new THREE.CircleGeometry(1, 28), new THREE.MeshBasicMaterial({ color: '#7FC8FF', transparent: true, opacity: .55, depthWrite: false })); m.rotation.x = -Math.PI / 2; scene.add(m); return m; }, (m, w) => {
-    m.position.set(w.x, .05, w.z); m.scale.setScalar(w.r); m.material.color.set(w.el > 0 ? (Math.sin(t * 40) > 0 ? '#FFE066' : '#FFF8C4') : '#5FB4F5'); m.material.opacity = (w.el > 0 ? .8 : .7) * Math.min(1, w.t / 2);
+    m.position.set(w.x, .05, w.z); m.scale.setScalar(w.r); m.material.color.set(w.el > 0 ? (Math.sin(t * 40) > 0 ? '#FFC400' : '#3FA8FF') : '#5FB4F5'); m.material.opacity = (w.el > 0 ? .85 : .7) * Math.min(1, w.t / 2);
     if (w.el > 0 && Math.random() < dt * 25) burst(w.x + rand(-w.r, w.r) * .7, .2, w.z + rand(-w.r, w.r) * .7, '#FFF3A0', 2, 3, .2, 2);
   });
   if (!here || !me || !fight || pl.dead) { V.stunT = 0; return; }
@@ -1500,7 +1509,7 @@ function intro(force) {
     <div>5. <b>🫣 Купи паперу</b>: <b>F / 2</b> — заритися (штовхати тебе втричі важче, боти не помічають).</div>
     <div>6. <b>⚡ Картридж-турбо</b> — друк ×2 на 10 с. <b>🚨 Кнопка тривоги</b> на стіні — викликає начальника на того, хто друкує. <b>🔥 Комбо</b>: кожні 8 с безперервного друку — бонус.</div>
     <div>7. <b>✈️ Літачок</b> (1): влучиш у ПК — може заспамити серверну → <b>🔥 пожежа</b>, принтер стоїть, поки не загасять <b>🧯</b> (4). У колегу — шкала злості росте; повна — <b>🧟 «зайобуючий»</b> іде діставати лідера (і злить сусідів). Заспокоїти — <b>☕ кава</b> (6), та, яку він хоче.</div>
-    <div>8. <b>💦 Кулер</b> (F чи літачком) — калюжа; <b>🔌 дріт</b> з ПК (F біля столу) у калюжу — <b>⚡ струм</b>, усі в ній завмирають. <b>🍾 Молотов</b> (5) — палаюча калюжа. <b>💣 Румба</b> (7 / F біля неї) — їде до суперника біля принтера й вибухає. Крісло + 🧯 назад — реактивний політ!</div>
+    <div>8. <b>💦 Кулер</b> (F, літачком чи кріслом з розгону) — калюжа; <b>🔌 дріт</b> з ПК (F біля столу) у калюжу — <b>⚡ струм</b>, усі в ній завмирають. <b>🍾 Молотов</b> (5) — палаюча калюжа. <b>💣 Румба</b> (7 / F біля неї) — їде до суперника біля принтера й вибухає. Крісло + 🧯 назад — реактивний політ!</div>
     <div style="margin-top:6px;color:#BFE6FF">Поверх 57 — принтер на колесах їде колією. Поверх 63 — два принтери, працює лише зелений, перемикання кожні 25 с.</div>
     <div style="margin-top:8px;color:#FFE066">Жовта стрілка під ногами показує, куди бігти. Підказка — внизу екрана 👇</div>
     <button class="btn" style="margin-top:12px;width:100%">Зрозуміло, до принтера!</button></div>`;
@@ -1551,7 +1560,7 @@ A.tab('printerwar', '🖨️ Принтер', () => {
       <div>⚡ Картридж-турбо — друк ×2 10 с. 🚨 Кнопка тривоги — кличе начальника (хто біля принтера — мінус сторінки). 🔥 Комбо — кожні 8 с безперервного друку бонус.</div>
       <div>✈️ <b>Паперовий літачок</b> (1, 3 шт, новий кожні 8 с): у ПК — шанс, що той заспамить серверну й вона <b>🔥 загориться</b> — друк стоїть у всіх, доки не загасять. Гасиш — +8 📄.</div>
       <div>😠 <b>Колеги-офісники</b>: літачок / пачка / піна наповнюють шкалу злості над головою. Повна — <b>🧟 «зайобуючий»</b>: іде до лідера, цупить сторінки, стоїть у колі принтера й заводить сусідів (ланцюгова реакція). Заспокоїти — <b>☕ кава</b> (6) того сорту, що над ним; набрати — F біля кавомашини на кухні.</div>
-      <div>💦 <b>Кулер-пастка</b>: F чи літачком — ковзка калюжа; 🔌 дріт з ПК (F біля столу) у калюжу — <b>⚡ струм</b>, усі в ній завмирають.</div>
+      <div>💦 <b>Кулер-пастка</b>: F, літачком чи кріслом з розгону — ковзка калюжа; 🔌 дріт з ПК (F біля столу) у калюжу — <b>⚡ струм</b>, усі в ній завмирають.</div>
       <div>🧯 <b>Вогнегасник</b> (4): гасить пожежі, відкидає суперників і зомбі. Сидиш у кріслі й пшикаєш назад — <b>реактивне крісло</b>! 🍾 <b>Молотов</b> (5) — палаюча калюжа на 6 с. 💣 <b>Румба-камікадзе</b> (7 / F біля пилососа) — їде до суперника біля принтера (або до зомбі) і вибухає: −5 📄.</div>
       <div>🏆 1 місце — 110 🪙, 2 — 60, 3 — 35, 4 — 20.</div>
     </div>

@@ -190,6 +190,11 @@ const putMe = (p, face) => { T.pl.x = p.x; T.pl.z = p.z; T.pl.kx = T.pl.kz = 0; 
   putMe({ x: c.x - 1.2, z: c.z - .5 }); step(.1); assert(W.V.stunT > 0, 'я в калюжі під струмом — завмер');
   const x0 = T.pl.x; T.input.jx = 1; step(.4); T.input.jx = 0; assert(Math.abs(T.pl.x - x0) < .15, 'під струмом не рушиш з місця');
   step(5); assert(!W.ST.wp.length, 'струм розрядився — калюжа зникла');
+  // крісло з розгону в кулер — теж калюжа
+  W.AU.cool = {}; const ch = T.BODIES.filter(q => q.kind === 'chair' && W.varAt(q.x, q.z) === 0).sort((u, v) => Math.hypot(u.x - c.x, u.z - c.z) - Math.hypot(v.x - c.x, v.z - c.z))[0];
+  putMe({ x: c.x - 4, z: c.z }); let spilt = false;
+  for (let i = 0; i < 10 && !spilt; i++) { ch.x = c.x - 1.8; ch.z = c.z; ch.vx = 9; ch.vz = 0; step(.05); spilt = W.ST.wp.length > 0; }
+  assert(spilt, '🪑 крісло з розгону врізалось у кулер — калюжа'); W.ST.wp.length = 0;
 }
 { // #7 Молотов: палаюча калюжа; #6 вогнегасник гасить і відкидає; реактивне крісло
   away(); const b = W.ST.ps.find(p => p.bot); me.mo = 2; putMe(L(-13, 3), Math.PI / 2); b.x = D0.cx - 9.5; b.z = D0.cz + 3; b.stun = 9; b.vx = b.vz = 0;

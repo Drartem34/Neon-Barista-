@@ -1829,6 +1829,6 @@ if (!SIMSIDE && typeof document !== 'undefined') {
 A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(() => goHide(), 700); });
 if (window.__ADDON_TEST) {
   const F0 = FL[0];
-  window.__hideboss = { FL, ROOMS: F0.rooms, WALLS: F0.walls, navFree, cellOf, navOf, ST, AU, V, FURN, FT, DESKS, BOARD: F0.board, SPAWN: F0.spawn, OFF: F0.off, CARPET: F0.carpet, BOSS_SPOT: F0.bossSpot, MEET, DUR, STUN, RAM_CD, BELL_T, FLAG_T,
+  window.__hideboss = { FL, roleCard, ROOMS: F0.rooms, WALLS: F0.walls, navFree, cellOf, navOf, ST, AU, V, FURN, FT, DESKS, BOARD: F0.board, SPAWN: F0.spawn, OFF: F0.off, CARPET: F0.carpet, BOSS_SPOT: F0.bossSpot, MEET, DUR, STUN, RAM_CD, BELL_T, FLAG_T,
     req, goal, intro, me, bossE, alive, hiders, bossTarget, bossClick, fdist, workSpot, hideSpots, route, endRound, inOffice, floorAt, roomAt, inRoomR, propR, canRoll, startRamC, bossBell, syncBar, BAR, chooseFloor, goHide, lobbyDef, openLobby, inLobby };
 }

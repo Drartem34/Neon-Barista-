@@ -199,7 +199,7 @@ function sinkMon(m) {
 function sinkEnemy() {
   ST.enemy = false; ST.sunk++; ST.fires = [];
   const er = enR();
-  for (const m of riverMon()) if (inRect(er, m.x, m.z, -.3) && !m.rj) sinkMon(m);
+  for (const m of riverMon()) if (inRect(er, m.x, m.z, -1.2) && !inRect(OUR, m.x, m.z, -.3) && !m.rj) sinkMon(m);   // і тих, кого вибухом відкинуло на край
   if (ST.next > 8) ST.next = 8;
   emit({ k: 'sink' });
   emit({ k: 'msg', big: 1, txt: '💥 Пліт зомбі пішов на дно! Наступна хвиля — за 8 секунд.' });

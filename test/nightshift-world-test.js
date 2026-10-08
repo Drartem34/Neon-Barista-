@@ -57,6 +57,8 @@ const tp = (T, p, dx = 0, dz = 0) => { T.pl.x = p.x + dx; T.pl.z = p.z + dz; T.p
   // лобі-попап: голос кліком по картці, потім «✅ Я готовий» у кожного
   const lbOf = T => T.w.document.getElementById('mlobby'), cardOf = (T, i) => lbOf(T) && lbOf(T).querySelector(`[data-lv="${i}"]`), rdyOf = T => lbOf(T) && lbOf(T).querySelector('.rdy');
   assert(AB.every(T => lbOf(T) && lbOf(T).querySelectorAll('[data-lv]').length === 3), 'обом у лобі відкрився попап з трьома картками поверхів');
+  for (let k = 0; k < 40 && !(F.ST.lp.length === 2 && G.ST.lp.length === 2); k++) await tick(AB, .25);   // сервер бачить обох у лобі
+  assert(F.ST.lp.length === 2 && G.ST.lp.length === 2, 'у списку гравців попапу — обоє (⏳)' + (F.ST.lp.length === 2 ? '' : ' ' + JSON.stringify({ F: F.ST.lp, G: G.ST.lp, a: [a.pl.x, a.pl.z, a.running], b: [b.pl.x, b.pl.z, b.running], on: F.ST.on })));
   cardOf(a, 2).click(); cardOf(b, 2).click(); await tick(AB, 1.5);
   assert(F.ST.vt[2] === 2 && G.ST.nx === 2 && F.ST.nx === 2, `обоє клікнули «63» у попапі — сервер рахує «${F.FLOORS[2].n}» (бачать обоє)`);
   cardOf(b, 0).click(); await tick(AB, 1.5);
@@ -105,26 +107,49 @@ const tp = (T, p, dx = 0, dz = 0) => { T.pl.x = p.x + dx; T.pl.z = p.z + dz; T.p
     it = b.getInteract(); assert(it && /Вийти/.test(it.l), 'Батарейка виходить зі схованки'); it.fn(); await tick(AB, .3);
     const z = ze(); tp(b, { x: z.x + 2.2, z: z.z }); b.pl.face = Math.atan2(z.x - b.pl.x, z.z - b.pl.z);
     for (let k = 0; k < 24 && G.ST.pl[a.name].dr; k++) { const q = ze(); if (q) { if (!G.los(b.pl.x, b.pl.z, q.x, q.z)) tp(b, a.pl); b.pl.face = Math.atan2(q.x - b.pl.x, q.z - b.pl.z); } await tick(AB, .25); }   // стоїть поруч із другом і світить на зомбі
-    assert(!F.ST.pl[a.name].dr && F.ST.pl[a.name].d === 1 && !F.ST.pl[a.name].tk, 'Батарейка посвітила ліхтариком — зомбі кинув Ліхтаря (лежить, але не в підвалі)');
+    assert(!F.ST.pl[a.name].dr && F.ST.pl[a.name].d === 1 && !F.ST.pl[a.name].tk, 'Батарейка посвітила ліхтариком — зомбі кинув Ліхтаря (лежить, але не в підвалі)' + (F.ST.pl[a.name].dr ? ' ' + JSON.stringify({ a: G.ST.pl[a.name], b: G.ST.pl[b.name], z: ze(), bp: [b.pl.x, b.pl.z, b.pl.face], ap: [a.pl.x, a.pl.z] }) : ''));
   }
   guards = [b]; tp(b, a.pl, .6, 0); await tick(AB, .3);
-  it = b.getInteract(); assert(it && /Підняти/.test(it.l), 'біля друга F — «Підняти Ліхтар»'); it.fn();
+  it = b.getInteract(); assert(it && /Підняти/.test(it.l), 'біля друга F — «Підняти Ліхтар»' + (it && /Підняти/.test(it.l) ? '' : ' ' + JSON.stringify({ it: it && it.l, a: G.ST.pl[a.name], b: G.ST.pl[b.name], bp: [b.pl.x, b.pl.z], ap: [a.pl.x, a.pl.z] }))); it.fn();
   for (let k = 0; k < 20 && F.ST.pl[a.name].d; k++) { tp(b, a.pl, .6, 0); await tick(AB, .25); }
   assert(!F.ST.pl[a.name].d && !G.ST.pl[a.name].d, 'Батарейка підняла Ліхтаря — бачать обоє');
   assert(F.ST.pl[a.name].l === 1, 'піднятому ліхтарик вмикається сам');
   // 🍸 коктейль нічного бачення: Батарейка бере й п'є — сервер рахує, бачать обоє
   {
     const ci = G.ST.cks[0]; assert(ci != null && F.ST.cks.join() === G.ST.cks.join(), `на поверсі ${G.ST.cks.length} 🍸 — бачать обоє`);
-    guards = [a]; tp(b, G.ITEMS[ci]); await tick(AB, .4); it = b.getInteract(); assert(it && /коктейль нічного бачення/.test(it.l), 'Батарейка біля келиха: F — «Взяти коктейль нічного бачення»'); it.fn(); await tick(AB, .6);
+    if (!G.ST.pl[b.name].l) b.keydown('KeyL');   // після схованки ліхтарик вимкнений — інакше по дорозі схоплять
+    guards = [a, b]; tp(b, G.ITEMS[ci]); await tick(AB, .4); it = b.getInteract(); assert(it && /коктейль нічного бачення/.test(it.l), 'Батарейка біля келиха: F — «Взяти коктейль нічного бачення»'); it.fn(); await tick(AB, .6);
     assert(G.ST.pl[b.name].nc === 1 && F.ST.pl[b.name].nc === 1 && !F.ST.cks.includes(ci), 'у Батарейки 🍸 1 — келих зник в обох');
     b.keydown('Digit6'); await tick(AB, .6);
     assert(G.ST.pl[b.name].nc === 0 && G.ST.pl[b.name].nv > 3 && G.nvK() > .9 && F.nvK() === 0, 'Батарейка випила: у неї нічне бачення, у Ліхтаря — ні');
     for (let k = 0; k < 30 && G.ST.pl[b.name].nv > 0; k++) await tick(AB, .25);
     assert(!(G.ST.pl[b.name].nv > 0) && G.nvK() === 0, 'за 5 с нічне бачення минуло');
-    tp(b, a.pl, .6, 0); await tick(AB, .3);
+  }
+  // 💢 Батарейку хапають — вона сама вирветься (F / Пробіл часто-часто); сервер оглушує зомбі, бачать обоє
+  {
+    guards = []; if (G.ST.pl[b.name].l) b.keydown('KeyL'); await tick(AB, .3);
+    let zid = 0;
+    for (let k = 0; k < 80 && !zid; k++) {
+      zid = G.ST.pl[b.name].dr; if (zid) break;
+      const z = G.ST.en.filter(e => !e.t && e.st !== 'flee' && e.st !== 'stun' && G.SVC.every(q => Math.hypot(q.p.x - e.x, q.p.z - e.z) > 7)).reduce((p, q) => !p || Math.hypot(q.x - b.pl.x, q.z - b.pl.z) < Math.hypot(p.x - b.pl.x, p.z - b.pl.z) ? q : p, null);
+      if (z && Math.hypot(z.x - b.pl.x, z.z - b.pl.z) > 1.2) tp(b, z, .3, .3);
+      await tick(AB, .25);
+    }
+    assert(zid && F.ST.pl[b.name].dr === zid && G.ST.pl[b.name].d, 'Батарейку схопили за ногу (бачать обоє)');
+    await tick(AB, .3); assert(/ВИРВИСЬ/.test(b.getInteract().l) && b.w.document.getElementById('ns-kick').style.display !== 'none', 'у Батарейки — велика шкала «Тисни F / Пробіл»');
+    let tm = 0; for (let k = 0; k < 60 && G.ST.pl[b.name].dr; k++) { b.keydown(k % 2 ? 'Space' : 'KeyF'); await tick(AB, .1); tm += .1; }
+    const z = F.ST.en.find(e => e.id === zid);
+    assert(!G.ST.pl[b.name].dr && !G.ST.pl[b.name].d && !F.ST.pl[b.name].d && tm <= 4, `Батарейка натискала F/Пробіл і вирвалась сама за ${tm.toFixed(1)} с (бачать обоє)`);
+    assert(z && (z.st === 'stun' || z.st === 'flee'), `той зомбі оглушений (${z && z.st})`);
+    guards = [a, b]; if (!G.ST.pl[b.name].l) b.keydown('KeyL'); tp(b, a.pl, .6, 0); await tick(AB, .5);
   }
   // вдруге: Батарейка ховається, Ліхтаря дотягують до підвалу — потім вона викликає ліфт
-  guards = []; tp(b, G.CABS[1].s); await tick(AB, .4); it = b.getInteract(); assert(it && /Сховатися/.test(it.l), 'Батарейка знову в кабінці'); it.fn(); await tick(AB, .4);
+  guards = [b];
+  for (let r = 0; r < 3; r++) {   // якщо по дорозі схоплять — вирветься сама (F / Пробіл)
+    tp(b, G.CABS[1].s); await tick(AB, .4); if (!G.ST.pl[b.name].dr) break;
+    console.log('  (Батарейку схопили по дорозі — вириваємось)'); for (let k = 0; k < 60 && G.ST.pl[b.name].dr; k++) { b.keydown('Space'); await tick(AB, .1); }
+  }
+  guards = []; it = b.getInteract(); assert(it && /Сховатися/.test(it.l), 'Батарейка знову в кабінці' + (it && /Сховатися/.test(it.l) ? '' : ' ' + JSON.stringify({ it: it && it.l, b: G.ST.pl[b.name], bp: [b.pl.x, b.pl.z], s: G.CABS[1].s }))); it.fn(); await tick(AB, .4);
   a.keydown('KeyL'); await tick(AB, .3); F.ST.pl[a.name].g = 0;
   assert(await grabA(), 'Ліхтаря знову схопили');
   for (let k = 0; k < 120 && !G.ST.pl[a.name].tk; k++) await tick(AB, .25);

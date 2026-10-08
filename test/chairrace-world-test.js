@@ -69,8 +69,11 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   assert(Math.abs(Q.ST.racers.find(r => r.k === bot.k).x - bx) > 2, 'боти їздять на сервері — бачать обоє');
   // ставлю Гонщика на d позаду Суперника й цілюсь у нього (крісло й гравець — разом, інакше «встає»)
   const behind = async d => { Q.RC.v = 0; Q.RC.spin = 0; Q.RC.slow = 0; R.RC.spin = 0; R.RC.v = 0; R.RC.pull = null; R.RC.slow = 0;
-    R.RC.x = Q.RC.x - Math.cos(Q.RC.h) * d; R.RC.z = Q.RC.z - Math.sin(Q.RC.h) * d; R.RC.h = Q.RC.h; a.pl.x = R.RC.x; a.pl.z = R.RC.z; await tick([a, b], .6);
+    // точка траси на d метрів позаду (уздовж траси — щоб не винесло за скло поверху на повороті)
+    { let j = R.nearIdx(Q.RC.x, Q.RC.z), s = 0; while (s < d) { j = (j - 1 + R.N) % R.N; s += R.TR[j].l; } const g = R.TR[j];
+      R.RC.x = g.x; R.RC.z = g.z; R.RC.h = Math.atan2(g.dz, g.dx); R.RC.idx = j; R.RC.prev = j; } a.pl.x = R.RC.x; a.pl.z = R.RC.z; await tick([a, b], .6);
     const p = Object.values(a.NET.players).find(q => q.name === 'Суперник'); R.RC.h = Math.atan2(p.z - R.RC.z, p.x - R.RC.x); R.RC.v = 0; Q.RC.spin = 0; Q.RC.slow = 0;
+    if (!(R.RC.on && Q.RC.on)) console.log('DBG', R.RC.on, Q.RC.on, R.ST.ph, R.ST.t, JSON.stringify(R.ST.racers.map(r => [r.k, r.lap, r.fin])), JSON.stringify(R.ST.res));
     assert(R.RC.on && Q.RC.on, 'обоє в кріслах'); return p; };
   // 📎 постріл степлером по суперникові
   // (до 3 спроб: на трасі бувають зомбі-офісники й калюжі — постріл може перехопити випадкова перешкода)
@@ -79,12 +82,12 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
     for (let i = 0; i < 20 && !hit; i++) { await tick([a, b], .1); if (Q.RC.spin > 0) hit = true; } }
   assert(hit, '📎 степлер Гонщика закрутив Суперника');
   // 💣 бомба в Суперника (вибух рахує сервер)
-  { const b0 = R.RC.bombs; let used = 0; hit = false;
-    for (let tr = 0; tr < 3 && !hit && R.RC.bombs > 0; tr++) { await tick([a, b], 1.2); const p = await behind(7); const bb = R.RC.bombs; R.throwBomb({ x: p.x, z: p.z }); used += bb - R.RC.bombs;
+  { R.RC.bombs = Math.max(R.RC.bombs, 3); const b0 = R.RC.bombs; let used = 0; hit = false;
+    for (let tr = 0; tr < 3 && !hit && R.RC.bombs > 0; tr++) { await tick([a, b], 1.2); const p = await behind(7); R.RC.spin = 0; const bb = R.RC.bombs; R.throwBomb({ x: p.x, z: p.z }); used += bb - R.RC.bombs;
       for (let i = 0; i < 25 && !hit; i++) { Q.RC.v = 0; await tick([a, b], .1); if (Q.RC.spin > 0 && Q.RC.slow > 0) hit = true; } }
     assert(used >= 1 && R.RC.bombs === b0 - used && hit, '💣 бомба Гонщика вибухнула біля Суперника — закрутило й пригальмувало'); }
   // 🪠 вантуз: чіпляє Суперника, мене тягне вперед
-  { await tick([a, b], 1.6); await behind(6); const sx = R.RC.x, sz = R.RC.z; R.RC.plCd = 0; R.shootPlunger(); let pulled = false, moved = 0; hit = false;
+  { await tick([a, b], 1.6); await behind(6); R.RC.spin = 0; const sx = R.RC.x, sz = R.RC.z; R.RC.plCd = 0; R.shootPlunger(); let pulled = false, moved = 0; hit = false;
     for (let i = 0; i < 25 && !(pulled && hit); i++) { Q.RC.v = 0; Q.RC.spin = 0; await tick([a, b], .05); if (R.RC.pull) pulled = true; if (Q.RC.slow > 0) hit = true; moved = Math.max(moved, Math.hypot(R.RC.x - sx, R.RC.z - sz)); }
     for (let i = 0; i < 8; i++) { await tick([a, b], .05); moved = Math.max(moved, Math.hypot(R.RC.x - sx, R.RC.z - sz)); }
     assert(pulled && hit && moved > 2 && R.RC.plCd > 0, `🪠 вантуз зачепив Суперника: Гонщика смикнуло вперед на ${moved.toFixed(1)} м, Суперника пригальмувало`); }

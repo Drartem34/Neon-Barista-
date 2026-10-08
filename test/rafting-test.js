@@ -22,6 +22,7 @@ const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; T.frame(now)
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exit(1); } console.log('ok -', m); };
 const body = () => w.document.querySelector('#pbody');
 const RX = -112, RZ = 84;
+const rand2 = (a, b) => a + Math.random() * (b - a);
 assert(T.ADDONS.list.every(a => a.ok), 'аддони завантажились: ' + T.ADDONS.list.map(a => a.name + (a.ok ? '' : ' ✗ ' + a.err)).join(', '));
 assert(w.document.querySelector('#mm-rafting .mm-subtitle').textContent === 'Рафтинг-Запара', 'у головному меню картка «СПЛАВ · Рафтинг-Запара»');
 T.startGame(true); T.P.tut = -1; T.pl.hp = 9999; step(.3);
@@ -101,6 +102,36 @@ w.__raft.AU.chaosT = 999; w.__raft.AU.rapT = 999; T.P.ing.powder = 6; T.P.ing.ta
 it = T.getInteract(); assert(it && /бомбу/.test(it.l), 'біля столу F — «Зібрати бомбу»');
 for (let k = 0; k < 3; k++) { T.pl.iframes = 1e9; T.pl.hp = 9999; T.pl.x = RX - 7.9; T.pl.z = RZ + 3.4; T.pl.y = 0; step(.05); T.getInteract().fn(); for (let j = 0; j < 5; j++) { T.pl.x = RX - 7.9; T.pl.z = RZ + 3.4; step(.5); } }
 assert(T.P.ing.cbomb === 3 && T.P.ing.powder === 0, 'зібрано 3 бомби');
+// 🍾 коктейль Молотова: збираємо біля ящика з пляшками
+{ const R = w.__raft; T.P.ing.powder = 1; T.P.ing.syrup = 1; T.P.ing.molly = 0;
+  const at = () => { T.pl.x = R.SHELF.x; T.pl.z = R.SHELF.z - .8; T.pl.y = 0; T.pl.hp = 9999; T.pl.iframes = 1e9; };
+  at(); step(.1); it = T.getInteract(); assert(it && /Молотова/.test(it.l), 'біля ящика з пляшками F — «Зібрати коктейль Молотова»: ' + (it && it.l));
+  it.fn(); for (let j = 0; j < 4; j++) { at(); step(.5); }
+  assert(T.P.ing.molly === 1 && T.P.ing.powder === 0 && T.P.ing.syrup === 0, 'зібрано 🍾 коктейль Молотова (1 🧨 + 1 🍯)');
+  assert(/🍾 1/.test(hud().textContent), 'HUD: 🍾 1 (V — кинути)');
+  // пліт зомбі на місці; хвилі, абордаж і хаос на паузі — щоб перевірка була передбачуваною
+  Object.assign(R.AU, { jumpT: 999, chaosT: 999, rapT: 999, burst: 0 }); R.ST.sp = null;
+  for (let i = 0; i < 80 && !(R.enLand() && R.ST.next > 50); i++) { if (!R.ST.enemy && R.ST.next > 1) R.ST.next = .5; if (R.enLand()) R.ST.next = 999; T.pl.hp = 9999; T.pl.iframes = 1e9; T.pl.x = RX - 5.2; T.pl.z = RZ + 1.6; step(.5); }
+  assert(R.enLand(), 'пліт зомбі на місці');
+  const er = R.enR(), fx = er.x0 + 3.5, fz = er.z0 + 2.6;
+  for (const m of zs()) { m.x = er.x0 + rand2(1, 6); m.z = er.z1 - .9; m.stun = 9; m.rj = null; }   // решта зомбі — у дальньому кінці плота
+  R.spawnZombies(2); const [z1, z2] = zs().slice(-2);
+  Object.assign(z1, { x: fx, z: fz, stun: 9, rj: null }); Object.assign(z2, { x: fx + 1.4, z: fz, stun: 9, rj: null });
+  R.ST.hp = R.ST.max = 8; const hp0 = R.ST.hp;
+  T.pl.x = RX - 2; T.pl.z = RZ; T.pl.y = 0; T.input.aimOk = true; T.input.ax = fx; T.input.az = fz;
+  T.keydown('KeyV'); assert(T.P.ing.molly === 0 && R.V.bombs.some(b => b.kind === 'molly'), 'V — кинув «молотов» (пляшка летить)');
+  for (let i = 0; i < 30 && !R.ST.fires.length; i++) { T.pl.hp = 9999; step(.05); }
+  const f = R.ST.fires[0];
+  assert(f && Math.hypot(R.enR().x0 + f.ox - fx, R.enR().z0 + f.oz - fz) < 1 && R.V.fires.size === 1, '🔥 пляшка розбилась на плоту зомбі — пожежа, видно полум\'я');
+  assert(z1.state === 'fall', '🔥 зомбі в самому полум\'ї стрибнув у воду');
+  let fled = 0; for (let i = 0; i < 12; i++) { T.pl.hp = 9999; T.pl.iframes = 1e9; step(.2); const r = R.enR(); if (z2.state !== 'fall' && z2.x > r.x0 && z2.x < r.x1 && z2.z < r.z1) fled = Math.max(fled, Math.hypot(z2.x - (r.x0 + f.ox), z2.z - (r.z0 + f.oz))); }
+  assert(fled > R.FIRE_R + 1 && z2.state !== 'fall', `🔥 зомбі поруч утік від вогню на інший край плота (${fled.toFixed(1)} м від полум'я)`);
+  for (let i = 0; i < 30 && R.ST.fires.length; i++) { T.pl.hp = 9999; T.pl.iframes = 1e9; step(.25); }
+  assert(!R.ST.fires.length && R.V.fires.size === 0 && R.ST.hp === hp0 - 2, `пожежа догоріла за ${R.FIRE_T} с і з'їла 2 міцності плота (${hp0} → ${R.ST.hp})`);
+  // у воду — просто пшшш
+  T.P.ing.molly = 1; T.pl.x = RX - 2; T.pl.z = RZ; T.input.ax = RX; T.input.az = RZ - 3; T.keydown('KeyV'); step(1.2);
+  assert(!R.ST.fires.length && T.P.ing.molly === 0, '«молотов» у воду — пшшш, нічого не горить');
+  R.ST.hp = R.ST.max = 3; Object.assign(R.AU, { jumpT: 3 }); R.ST.next = 30; }
 // кидаємо бомби у пліт зомбі (G) — пліт тоне
 T.pl.x = RX - 2; T.pl.z = RZ; T.pl.face = Math.PI / 2; T.input.aimOk = true; T.input.ax = RX + 5; T.input.az = RZ;
 let sunk = false; const sk0 = w.__raft.ST.sunk; w.__raft.AU.chaosT = 999; w.__raft.ST.sp = null;

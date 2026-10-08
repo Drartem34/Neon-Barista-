@@ -84,6 +84,31 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
       await tick([a, b], .3);
     }
     assert(pressed && W.ST.ev === 'boss' && Q.ST.ev === 'boss' && W.ST.ac > 20, '🚨 Конкурент натиснув тривогу через сервер — «Начальник іде!» в обох'); }
+  // --- хаос через сервер: кулер-калюжа, колеги-зомбі + кава, Румба з бомбою, вогнегасник
+  { const D = Q.VAR[2], c = D.coolers[0]; a.pl.x = c.x + 1.2; a.pl.z = c.z; await tick([a, b], .4); W.req('cooler', { i: 0 });
+    for (let i = 0; i < 15 && !(W.ST.wp.length && Q.ST.wp.length); i++) await tick([a, b], .2);
+    assert(W.ST.wp.length === 1 && Q.ST.wp.length === 1 && Q.wetAt(c.x + 1, c.z), '💦 Друкар перекинув кулер — калюжу бачать обоє'); }
+  { let sawZ = false, served = false; const cf = () => (Q.ST.ps.find(p => p.k === 'Конкурент').cf || []).reduce((s, v) => s + v, 0);
+    const cf0 = cf();
+    for (let i = 0; i < 160 && !served; i++) {
+      const zA = W.ST.npc.find(n => n.zom), zB = zA && Q.ST.npc.find(n => n.id === zA.id && n.zom);
+      if (zA && zB) { sawZ = true; b.pl.x = zB.x + .6; b.pl.z = zB.z; Q.req('coffee', { id: zB.id }); }
+      else if (!zA && i % 3 === 0) {   // Друкар пуляє літачки в колегу, поки той не озвіріє
+        const n = W.ST.npc[0], me = W.ST.ps.find(p => p.k === 'Друкар'); if (n && me && me.pl > 0) { a.pl.x = n.x - 2.2; a.pl.z = n.z; a.pl.face = Math.PI / 2; await tick([a, b], .1); W.req('plane', { a: Math.atan2(n.x - a.pl.x, n.z - a.pl.z) }); }
+      }
+      await tick([a, b], .25); served = cf() < cf0;
+    }
+    assert(sawZ, '🧟 колега озвірів — «зайобуючого» бачать обидва');
+    assert(served, '☕ Конкурент пригостив зомбі кавою через сервер (кава витрачена)'); }
+  { let armed = false, sawArm = false;
+    for (let i = 0; i < 60 && !armed; i++) { const r = W.ST.rb; if (r && !r.arm) { a.pl.x = r.x + .7; a.pl.z = r.z; await tick([a, b], .1); W.req('arm'); } await tick([a, b], .25); if (Q.ST.rb && Q.ST.rb.arm === 'b' && Q.ST.rb.by === 'Друкар') sawArm = true; armed = Q.ST.ps.find(p => p.k === 'Друкар').bo === 0; }
+    for (let i = 0; i < 4 && !sawArm; i++) { await tick([a, b], .1); if (Q.ST.rb && Q.ST.rb.arm === 'b') sawArm = true; }
+    assert(armed && W.ST.ps.find(p => p.k === 'Друкар').bo === 0, `💣 Друкар прикрутив бомбу до Румби через сервер (Конкурент ${sawArm ? 'бачив Румбу-камікадзе' : 'бачить, що бомбу витрачено — Румба вибухнула миттєво'})`);
+    let gone = false; for (let i = 0; i < 80 && !gone; i++) { await tick([a, b], .25); gone = !(Q.ST.rb && Q.ST.rb.arm) && !(W.ST.rb && W.ST.rb.arm); }
+    assert(gone, '💥 Румба вибухнула (у обох)'); }
+  { const fo = () => Q.ST.ps.find(p => p.k === 'Конкурент').fo, f0 = fo(); await tick([a, b], 2); const f1 = fo(); Q.req('spray', { a: 0 });
+    let ok = false; for (let i = 0; i < 15 && !ok; i++) { await tick([a, b], .2); const f = W.ST.ps.find(p => p.k === 'Конкурент').fo; ok = f < f1 - 10; }
+    assert(ok, `🧯 Конкурент пшикнув вогнегасником — заряд піни зменшився й у Друкаря (${Math.round(f0)}%)`); }
   // обоє йдуть — арена звільняється
   for (const T of [a, b]) { T.pl.x = 0; T.pl.z = 3; }
   for (let i = 0; i < 20 && W.ST.ph !== 'idle'; i++) await tick([a, b], .3);

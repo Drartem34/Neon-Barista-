@@ -63,7 +63,7 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   for (let i = 0; i < 40 && R.ST.ph !== 'race'; i++) await tick([a, b], .5);
   assert(R.ST.ph === 'race' && R.ST.racers.length === 4 && R.RC.on && Q.RC.on, 'двоє гравців + 2 боти, поїхали');
   assert(R.floorAt(a.pl.x, a.pl.z) === 1 && R.floorAt(b.pl.x, b.pl.z) === 1, 'обох перенесло на поверх 57 (обраний голосуванням)');
-  { const mb = a.w.document.querySelector('#modebar'); assert(mb && !mb.hidden && /💣/.test(mb.textContent) && /🪠/.test(mb.textContent), 'у кріслі хотбар — лише 💣 і 🪠'); }
+  { const mb = a.w.document.querySelector('#modebar'); assert(mb && !mb.hidden && /💣/.test(mb.textContent) && /🪠/.test(mb.textContent) && /🧯/.test(mb.textContent) && /🍾/.test(mb.textContent), 'у кріслі хотбар режиму — 💣 🪠 🧯 🍾'); }
   const bot = R.ST.racers.find(r => r.bot), bx = bot.x;
   await tick([a, b], 1.5);
   assert(Math.abs(Q.ST.racers.find(r => r.k === bot.k).x - bx) > 2, 'боти їздять на сервері — бачать обоє');
@@ -75,6 +75,33 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
     const p = Object.values(a.NET.players).find(q => q.name === 'Суперник'); R.RC.h = Math.atan2(p.z - R.RC.z, p.x - R.RC.x); R.RC.v = 0; Q.RC.spin = 0; Q.RC.slow = 0;
     if (!(R.RC.on && Q.RC.on)) console.log('DBG', R.RC.on, Q.RC.on, R.ST.ph, R.ST.t, JSON.stringify(R.ST.racers.map(r => [r.k, r.lap, r.fin])), JSON.stringify(R.ST.res));
     assert(R.RC.on && Q.RC.on, 'обоє в кріслах'); return p; };
+  // 🍾 коктейль Молотова: калюжа палає в обох, Суперник у ній обпалюється — Гонщик бачить кіптяву
+  { let f = null, p = null, n0 = 0; const mine = X => p && X.ST.fires.find(q => Math.hypot(q.x - p.x, q.z - p.z) < 1.5);
+    // (до 3 спроб, як і з бомбою: на трасі бувають зомбі й калюжі)
+    for (let tr = 0; tr < 3 && !(f && Q.RC.nBurn > n0); tr++) {
+      await tick([a, b], tr ? 1.2 : .2); await behind(7); R.RC.spin = 0; R.RC.molly = 1; Q.RC.burnCd = 0; Q.RC.v = 0; n0 = Q.RC.nBurn; p = { x: Q.RC.x, z: Q.RC.z };
+      assert(R.throwMolly({ x: p.x, z: p.z }) && R.RC.molly === 0, '🍾 Гонщик кинув «молотов» під Суперника');
+      for (let i = 0; i < 30 && !(mine(R) && mine(Q) && Q.RC.nBurn > n0); i++) { Q.RC.v = 0; Q.RC.x = p.x; Q.RC.z = p.z; b.pl.x = p.x; b.pl.z = p.z; await tick([a, b], .1); }
+      f = mine(Q) && mine(R) ? mine(Q) : null;
+      if (!f) console.log('DBG molly', JSON.stringify({ p, q: [Q.RC.x, Q.RC.z], r: [R.RC.x, R.RC.z], rf: R.ST.fires, qf: Q.ST.fires, burn: Q.RC.nBurn, n0 }));
+    }
+    assert(f && Q.V.fires.has(f.id) && R.V.fires.has(f.id), `🔥 сервер запалив калюжу — полум'я бачать обоє`);
+    let seen = false; for (let i = 0; i < 20 && !seen; i++) { Q.RC.v = 0; await tick([a, b], .1); const qr = R.ST.racers.find(r => r.k === 'Суперник'); seen = qr && qr.burn > 0 && R.V.chairs.get('Суперник') && R.V.chairs.get('Суперник').soot.visible; }
+    assert(Q.RC.nBurn > n0 && seen, '🔥 Суперник стояв у калюжі — закрутило й обпалило, у Гонщика видно кіптяву на його кріслі');
+  // 🧯 реактив: Гонщик з піною в'їжджає у вогонь — гасить для всіх; Суперник бачить вогнегасник і шлейф
+    R.RC.foam = 3; R.RC.spin = 0; R.RC.burnCd = 0; R.RC.v = 0; R.RC.x = f.x; R.RC.z = f.z; a.pl.x = f.x; a.pl.z = f.z;
+    assert(R.toggleJet() && R.RC.jet, '🧯 Гонщик увімкнув реактивну піну');
+    const d0 = R.RC.nDouse; let jetSeen = false;
+    for (let i = 0; i < 25 && (mine(Q) || mine(R) || !jetSeen); i++) {
+      if (mine(R)) { R.RC.x = f.x; R.RC.z = f.z; a.pl.x = f.x; a.pl.z = f.z; R.RC.v = 0; }
+      R.RC.spin = 0; R.RC.foam = 3; if (!R.RC.jet) R.toggleJet(); await tick([a, b], .1);
+      const rr = Q.ST.racers.find(r => r.k === 'Гонщик'); jetSeen = jetSeen || !!(rr && rr.jet === 1 && Q.V.chairs.get('Гонщик') && Q.V.chairs.get('Гонщик').ext.visible); }
+    assert(jetSeen, '🧯 Суперник бачить у Гонщика вогнегасник і реактивний шлейф (прапорець jet з сервера)');
+    if (mine(Q)) console.log('DBG douse', JSON.stringify({ f, rf: R.ST.fires, r: [R.RC.x, R.RC.z, R.RC.jet, R.RC.on], d: R.RC.doused }));
+    assert(!mine(Q) && !mine(R) && R.RC.nDouse >= d0 + 1 && !Q.V.fires.has(f.id), '🧯 піною загасив калюжу — зникла в обох');
+    if (R.RC.jet) R.toggleJet(); await tick([a, b], .3);
+    assert(!Q.ST.racers.find(r => r.k === 'Гонщик').jet, 'реактив вимкнено — у Суперника шлейф зник'); }
+  if (process.env.DBG) console.log('  t', R.ST.t.toFixed(1), JSON.stringify(R.ST.racers.map(r => [r.k, r.lap])));
   // 📎 постріл степлером по суперникові
   // (до 3 спроб: на трасі бувають зомбі-офісники й калюжі — постріл може перехопити випадкова перешкода)
   let hit = false;

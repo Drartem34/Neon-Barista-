@@ -1,4 +1,5 @@
-// Тест «Дедлайну о 18:00» v2 на сервері світу: двоє гравців голосують за поверх, перекидаються звітом і здають його.
+// Тест «Дедлайну о 18:00» v3 на сервері світу: двоє гравців голосують за поверх, перекидаються звітом і здають його;
+// потім утрьох — таємний саботажник, пожежа й вогнегасник, «зайобуючий» колега, нарада.
 // Запуск: node test/deadline-world-test.js
 const fs = require('fs'), path = require('path'), os = require('os'), { spawn } = require('child_process');
 const { JSDOM } = require('jsdom');
@@ -122,5 +123,46 @@ async function follow(T, D, Ts) {
   // вихід з режиму — вікно лобі закривається
   b.leave(); await tick(Ts, 1);
   assert(!lob(b) && b.w.__deadline.floorOf(b.pl.x, b.pl.z) < 0, 'Стажер пішов у хаб — вікна лобі в нього немає');
+  // ---------- v3 онлайн: троє гравців → один з них САБОТАЖНИК (знає лише він), пожежа, 🧯, 😤 «зайобуючий», 🚨 нарада ----------
+  {
+    a.leave(); for (let i = 0; i < 16 && D.ST.on; i++) await tick(Ts, 1);
+    assert(!D.ST.on && !E.ST.on, 'усі пішли — раунд на 63-му скінчився сам');
+    const c = await client('Кадровичка'), G = c.w.__deadline, T3 = [a, b, c], Dx = [D, E, G];
+    await tick(T3, 1.5);
+    for (const T of T3) at(T, D.START.p); await tick(T3, 1.5);
+    assert(T3.every(T => lob(T)), 'троє в лобі 63-го — у кожного вікно лобі');
+    for (const T of T3) lob(T).querySelector('.rdy').click(); await tick(T3, 2);
+    assert(Dx.every(X => X.ST.on && X.ST.sk === 'p'), 'раунд утрьох: серед ГРАВЦІВ є саботажник (бачать усі)');
+    const sabs = T3.filter(T => T.w.__deadline.V.sab);
+    assert(sabs.length === 1, `саботажник рівно один (${sabs.length})`);
+    const S = sabs[0], SX = S.w.__deadline, crewT = T3.filter(T => T !== S), Y = crewT[0], YX = Y.w.__deadline, Z = crewT[1];
+    const role = T => { const r = T.w.document.getElementById('dl-role'); return r && r.style.display !== 'none' ? r.dataset.role : ''; };
+    assert(role(S) === 'sab' && crewT.every(T => role(T) === 'crew'), `🤫 картку «🕵️ Ти — САБОТАЖНИК» бачить лише ${S.P.name || 'він'}; решта — «сумлінний працівник»`);
+    assert(Dx.every(X => !JSON.stringify(X.ST.sh).includes(S.w.__deadline.myKey())), 'у знімку немає імені саботажника — лише хеш');
+    assert(/🕵️/.test(S.w.document.querySelector('#modebar [data-ms="6"]').textContent) && crewT.every(T => /🚨/.test(T.w.document.querySelector('#modebar [data-ms="6"]').textContent)), 'у саботажника 7-й слот — 🕵️, у решти — 🚨 Нарада');
+    // 🕵️ саботажник підпалює серверну — бачать усі
+    at(S, SX.RACK.p); await tick(T3, .3); at(S, SX.RACK.p); S.w.document.querySelector('#modebar [data-ms="6"]').click();
+    for (let j = 0; j < 40 && SX.V.act; j++) { at(S, SX.RACK.p); await tick(T3, .1); }
+    await tick(T3, .6);
+    assert(Dx.every(X => X.ST.fire > 0), `🔥 саботаж: серверна горить у всіх (${Dx.map(X => Math.round(X.ST.fire)).join('/')}%)`);
+    // 🧯 напарник гасить
+    { const C = YX.fireC(); for (let n = 0; n < 6 && YX.ST.fire > 0; n++) { at(Y, { x: C.x + 2, z: C.z + 1 }); await tick(T3, .15); const it = Y.getInteract(); if (it && /Гасити/.test(it.l)) it.fn(); await tick(T3, .6); } }
+    assert(Dx.every(X => X.ST.fire === 0), '🧯 напарник загасив серверну — у всіх вогонь згас');
+    // ✈️ літачки в колегу → 😤 «зайобуючий» у всіх
+    { const cp = YX.colPos(1); for (let n = 0; n < 3; n++) { at(Y, { x: cp.x + 2.5, z: cp.z }); Y.pl.face = -Math.PI / 2; await tick(T3, .2); YX.V.ppCd = 0; Y.w.document.querySelector('#modebar [data-ms="3"]').click(); await tick(T3, .9); } }
+    await tick(T3, .5);
+    assert(Dx.every(X => X.pestOf(1)) && D.V.cols[1] && !D.V.cols[1].h.root.visible && Z.w.document.querySelector('.dl-agw'), `✈️×3 — ${YX.NAMES[1]} став «зайобуючим» у всіх (стілець порожній, над ним — яку каву хоче)`);
+    // 🚨 нарада: Y скликає, Y і Z голосують за саботажника, він сам — «пропустити»
+    Y.w.document.querySelector('#modebar [data-ms="6"]').click(); await tick(T3, 1);
+    const mt = T => T.w.document.getElementById('dl-meet');
+    assert(T3.every(T => mt(T) && mt(T).style.display !== 'none' && mt(T).querySelectorAll('.dlm-c').length === 2), '🚨 нарада у всіх: по 2 підозрюваних (себе не видно) + «Пропустити»');
+    const sk = SX.myKey(), si = D.ST.mt.c.indexOf(sk);
+    for (const T of crewT) mt(T).querySelector(`[data-mv="${si}"]`).click(); mt(S).querySelector('[data-mv="-1"]').click();
+    await tick(T3, 1.5);
+    assert(Dx.every(X => !X.ST.mt && X.ST.sbC === 1) && T3.every(T => !mt(T) || mt(T).style.display === 'none'), `🕵️ спіймали саботажника (${sk}) — бачать усі, вікно наради закрилось`);
+    await tick(T3, .3);
+    assert(/🚨/.test(S.w.document.querySelector('#modebar [data-ms="6"]').textContent), 'спійманий саботажник більше не шкодить (слот 🕵️ зник)');
+    c.leave(); await tick(T3, .5);
+  }
   console.log('ALL OK'); cleanup(0);
 })().catch(e => { console.error(e); cleanup(1); });

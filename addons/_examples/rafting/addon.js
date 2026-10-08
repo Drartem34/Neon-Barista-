@@ -4,6 +4,8 @@
    - Вари каву на плоту й закидай нею зомбі (як завжди).
    - Вантуз-гарпун витягує з річки ящики й бочки… і зомбі з чужого плота прямо у воду.
    - З бочок — кавовий порох: на столі збирається бомба (G — кинути). 3–4 вибухи — і їхній пліт іде на дно.
+   - 🍾 Коктейль Молотова: ящик з пляшками на плоту (🧨 + 🍯) або улов з бочки. V — кинути: на плоту зомбі
+     кілька секунд горить пожежа (щоразу −1 міцність плота), зомбі тікають на інший край або стрибають у воду.
    - Важкі баки на плоту можна схопити (F) і жбурнути (Q/ЛКМ) на сусідній пліт — кеглі!
    - Пороги: пліт б'ється об каміння, усіх відкидає. Змило за борт — пливи назад (пробіл — підстрибнути).
      Вода крижана — у ній тане здоров'я.
@@ -12,7 +14,7 @@
    Інвентар той самий, що й у відкритому світі; нагороди — туди ж.
    У спільному світі (сервер світу) сплав один на всіх: хвилі, пліт і лут рахує сервер.
    Картинку для картки в меню поклади поруч: addons/rafting/rafting-bg.jpg */
-const A = Addon.info({ name: 'Еспресо-Сплав', version: '1.4', desc: 'Режим «Рафтинг-Запара»: 5 хвилин на плоту, хвилі зомбі з сусіднього плота, лут у річці, бомби, баки й коробки-снаряди, хаос-події й своя музика.' });
+const A = Addon.info({ name: 'Еспресо-Сплав', version: '1.5', desc: 'Режим «Рафтинг-Запара»: 5 хвилин на плоту, хвилі зомбі з сусіднього плота, лут у річці, бомби, баки й коробки-снаряди, хаос-події й своя музика.' });
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);   // хто рахує сплав: сервер світу або сам гравець
@@ -56,6 +58,10 @@ Object.assign(ING, {
   cbomb: { n: 'Кавова бомба', ic: '💣', c: '#4E4A6E' },
 });
 const BOMB_NEED = { powder: 2, tape: 1 };
+ING.molly = { n: 'Коктейль Молотова', ic: '🍾', c: '#5FAF6A' };
+const MOLLY_NEED = { powder: 1, syrup: 1 };
+const SHELF = { x: RX - 5.4, z: RZ + 4.95 };   // ящик з пляшками: тут збирається «молотов»
+const FIRE_T = 6, FIRE_R = 2, FIRE_DMG = 2.5;   // пожежа на плоту: скільки горить, радіус, раз на скільки секунд −1 міцність
 
 /* ---------- Острів-річка ---------- */
 A.island({ id: 'river', n: 'Еспресо-Сплав', sub: 'бурхлива річка · два плоти · 5 хвилин м’ясорубки', x: RX, z: RZ, r: ISL_R, top: '#6FD0E2', rock: '#7F8FC8', biome: 'river', tier: 1.5, noZone: true });
@@ -88,15 +94,16 @@ canCarry = function (m) { return !m.rj && _canCarry.apply(this, arguments); };
 if (!BARS.some(b => b.x === BAR.x && b.z === BAR.z)) BARS.push({ x: BAR.x, z: BAR.z });
 
 /* ---------- Стан сплаву ---------- */
-const ST = { on: false, t: 0, dur: 300, wave: 0, next: 0, hp: 4, max: 4, enemy: true, arr: 0, lv: 0, sunk: 0, crates: [], seq: 0, res: null, sp: null, roster: [] };
+const ST = { on: false, t: 0, dur: 300, wave: 0, next: 0, hp: 4, max: 4, enemy: true, arr: 0, lv: 0, sunk: 0, crates: [], seq: 0, res: null, sp: null, roster: [], fires: [] };
 const AU = { jumpT: 3, crateT: 2, rapT: 50, idle: 0, stT: 0, pend: 0, rapGo: -1, chaosT: 30, last: '', quake: 0, storm: [], prevOff: 0, prevZ: 0, spHit: false };   // лише в того, хто рахує
 const myId = () => (NET.on && typeof WORLD !== 'undefined' && WORLD.on ? NET.id : 'me');
-function snap() { return { on: ST.on ? 1 : 0, t: Math.round(ST.t * 10) / 10, dur: ST.dur, w: ST.wave, nx: Math.round(ST.next), hp: ST.hp, mx: ST.max, en: ST.enemy ? 1 : 0, arr: Math.round(ST.arr * 10) / 10, lv: Math.round(ST.lv * 10) / 10, sp: ST.sp, ro: ST.roster, sk: ST.sunk, cr: ST.crates.map(c => [c.id, c.x, c.z0, c.t0, c.k]) }; }
+function snap() { return { on: ST.on ? 1 : 0, t: Math.round(ST.t * 10) / 10, dur: ST.dur, w: ST.wave, nx: Math.round(ST.next), hp: ST.hp, mx: ST.max, en: ST.enemy ? 1 : 0, arr: Math.round(ST.arr * 10) / 10, lv: Math.round(ST.lv * 10) / 10, sp: ST.sp, ro: ST.roster, sk: ST.sunk, cr: ST.crates.map(c => [c.id, c.x, c.z0, c.t0, c.k]), fi: ST.fires.map(f => [f.id, r1c(f.ox), r1c(f.oz), r1c(f.t)]) }; }
 function applySnap(d) {
   const was = ST.on;
   Object.assign(ST, { on: !!d.on, t: +d.t || 0, dur: +d.dur || 300, wave: d.w | 0, next: +d.nx || 0, hp: d.hp | 0, max: d.mx | 0 || 4, enemy: !!d.en, arr: +d.arr || 0, lv: +d.lv || 0, sp: d.sp == null ? null : +d.sp, sunk: d.sk | 0 });
   ST.roster = Array.isArray(d.ro) ? d.ro.slice(0, 40).map(String) : [];
   if (Array.isArray(d.cr)) ST.crates = d.cr.slice(0, 40).map(a => ({ id: a[0], x: +a[1], z0: +a[2], t0: +a[3], k: a[4] === 'barrel' ? 'barrel' : 'box' }));
+  if (Array.isArray(d.fi)) ST.fires = d.fi.slice(0, 8).map(a => ({ id: a[0], ox: +a[1], oz: +a[2], t: +a[3] }));
   if (ST.on && !was) joinedRun();
 }
 function pushState() { if (SIMSIDE) A.send('st', snap()); }
@@ -130,11 +137,12 @@ function onReq(d, from) {
   else if (d.k === 'leave') { const k = keyOf(from), i = ST.roster.indexOf(k); if (ST.on && i >= 0) { ST.roster.splice(i, 1); emit({ k: 'msg', txt: SIMSIDE ? `🚪 ${escapeHTML(k)} покинув сплав.` : '🚪 Ти покинув сплав.' }); if (!ST.roster.length) endRun(false); else pushState(); } }
   else if (d.k === 'grab') grabCrate(+d.id, from);
   else if (d.k === 'bomb') bombAt(+d.x, +d.z, from);
+  else if (d.k === 'molly') mollyAt(+d.x, +d.z, from);
 }
 function startRun(from) {
   for (const m of riverMon()) removeMonster(m);
   ST.roster = SIMSIDE ? [...new Set([keyOf(from), ...simPlayers().filter(p => !p.dead && inRiver(p.x, p.z)).map(p => p.name)])].filter(Boolean) : ['me'];
-  Object.assign(ST, { on: true, t: 0, wave: 0, next: 7, hp: 4, max: 4, enemy: true, arr: 0, lv: 0, sunk: 0, crates: [], res: null, sp: null });
+  Object.assign(ST, { on: true, t: 0, wave: 0, next: 7, hp: 4, max: 4, enemy: true, arr: 0, lv: 0, sunk: 0, crates: [], res: null, sp: null, fires: [] });
   Object.assign(AU, { jumpT: 4, crateT: 1, rapT: rand(40, 55), idle: 0, stT: 0, pend: 0, rapGo: -1, chaosT: rand(28, 38), last: '', quake: 0, storm: [], prevOff: 0, prevZ: 0, spHit: false });
   ST.lv = 2.5;   // порожній пліт відпливає — перша хвиля припливе вже із зомбі
   for (const p of RAFT_PROPS) if (!p.alive) { p.alive = true; p.hp = p.max; if (p.mesh) p.mesh.visible = true; }
@@ -147,13 +155,13 @@ function endRun(win) {
   const res = { k: 'end', win: win ? 1 : 0, w: ST.wave, sk: ST.sunk, t: Math.round(ST.t), ro: ST.roster.slice() };
   ST.roster = [];
   for (const m of hostile()) sinkMon(m);
-  ST.crates = []; ST.enemy = true; ST.arr = 2.5; ST.lv = 0; ST.sp = null; ST.hp = ST.max = 4; AU.storm = []; AU.quake = 0;
+  ST.crates = []; ST.fires = []; ST.enemy = true; ST.arr = 2.5; ST.lv = 0; ST.sp = null; ST.hp = ST.max = 4; AU.storm = []; AU.quake = 0;
   emit(res); pushState();
 }
 function endLeave() {   // пліт відплив: прибираємо всіх, хто на ньому лишився (заспокоєних)
   const er = enR();
   for (const m of riverMon()) if (inRect(er, m.x, m.z, -1.5)) removeMonster(m);
-  ST.lv = 0; ST.enemy = false; pushState();
+  ST.lv = 0; ST.enemy = false; ST.fires = []; pushState();
 }
 function spawnWave() {
   ST.wave++;
@@ -189,7 +197,7 @@ function sinkMon(m) {
   addXP(Math.round(m.T.xp * .5), m.x, m.z);
 }
 function sinkEnemy() {
-  ST.enemy = false; ST.sunk++;
+  ST.enemy = false; ST.sunk++; ST.fires = [];
   const er = enR();
   for (const m of riverMon()) if (inRect(er, m.x, m.z, -.3) && !m.rj) sinkMon(m);
   if (ST.next > 8) ST.next = 8;
@@ -215,17 +223,75 @@ function bombAt(x, z, from) {
     if (ST.hp <= 0) sinkEnemy(); else pushState();
   }
 }
+/* 🍾 Коктейль Молотова: де розбився — там пожежа. На плоту зомбі горить FIRE_T с, щоразу −1 міцність;
+   зомбі в полум'ї тікають на інший край плота, а ті, кому зовсім гаряче, — стрибають у воду. */
+function mollyAt(x, z, from) {
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+  const prev = SIMSIDE ? SIM.actor : null;
+  if (SIMSIDE && from) SIM.actor = from.id;
+  try { for (const m of MON.slice()) if (!m.calm && m.state !== 'fall' && !m.carried && !m.rj && dist2(m.x, m.z, x, z) < FIRE_R) { applyHit(m, 6, 0, 0); m.stun = Math.max(m.stun, .6); } }
+  finally { if (SIMSIDE) SIM.actor = prev; }
+  const er = enR();
+  if (ST.on && enLand() && inRect(er, x, z, -.4)) {
+    if (ST.fires.length >= 4) ST.fires.shift();
+    const f = { id: ++ST.seq, ox: r1c(clamp(x, er.x0 + .6, er.x1 - .6) - er.x0), oz: r1c(clamp(z, er.z0 + .6, er.z1 - .6) - er.z0), t: FIRE_T, dmg: FIRE_DMG, burnT: .5 };
+    ST.fires.push(f); emit({ k: 'fire', id: f.id, ox: f.ox, oz: f.oz, by: from && from.name || '' });
+    scare(f, true); pushState();
+  } else emit({ k: 'fizz', x: r1c(x), z: r1c(z), wet: isWet(terrainAt(x, z)) ? 1 : 0 });
+}
+const fireXZ = (f, er = enR()) => ({ x: er.x0 + f.ox, z: er.z0 + f.oz });
+// зомбі поруч з вогнем: у самому полум'ї — стрибок у воду, поруч — тікають на дальній край плота
+function scare(f, first) {
+  const er = enR(), p = fireXZ(f, er), mid = (er.z0 + er.z1) / 2;
+  for (const m of riverMon()) {
+    if (m.calm || m.state === 'fall' || m.carried || m.rj || m.flee || !inRect(er, m.x, m.z, -.4)) continue;
+    const d = dist2(m.x, m.z, p.x, p.z); if (d > FIRE_R + .8) continue;
+    if (first && d < 1) { bubble(m, pick(['ГАРЯЧЕ! Я в басейн!', 'Мої штани горять!', 'Звільняюсь за власним!']), true, 1.4); sinkMon(m); continue; }
+    const tz = p.z < mid ? er.z1 - .9 : er.z0 + .9, tx = clamp(m.x + rand(-1, 1), er.x0 + .9, er.x1 - .9);
+    m.flee = { ox: tx - er.x0, oz: tz - er.z0, t: 3 };
+    if (Math.random() < .7) bubble(m, pick(['ГОРИМО!', 'Де вогнегасник?!', 'Це не тімбілдинг, це пожежа!', 'Евакуація! Без паніки! ААА!']), true, 1.4);
+  }
+}
+function fireTick(dt) {
+  if (!ST.fires.length && !riverMon().some(m => m.flee)) return;
+  if (!ST.enemy || ST.lv > 0 || ST.arr > 0) { if (ST.fires.length) { ST.fires = []; pushState(); } }
+  for (const f of ST.fires.slice()) {
+    f.t -= dt; f.dmg -= dt; f.burnT -= dt;
+    if (f.dmg <= 0 && f.t > -.01) {   // вогонь їсть пліт
+      f.dmg = FIRE_DMG; ST.hp--; emit({ k: 'hit', hp: ST.hp, fire: 1 });
+      if (ST.hp <= 0) { sinkEnemy(); return; }
+      pushState();
+    }
+    if (f.burnT <= 0) {   // хто стоїть у полум'ї — обпікається й тікає
+      f.burnT = .5; const p = fireXZ(f);
+      for (const m of riverMon()) if (!m.calm && m.state !== 'fall' && !m.rj && !m.carried && dist2(m.x, m.z, p.x, p.z) < FIRE_R) { applyHit(m, 3, 0, 0); }
+      scare(f, false);
+    }
+    if (f.t <= 0) { ST.fires = ST.fires.filter(q => q !== f); emit({ k: 'fireout', id: f.id }); pushState(); }
+  }
+  // тікають від вогню (по плоту, разом з його рухом)
+  const er = enR();
+  for (const m of riverMon()) {
+    if (!m.flee) continue;
+    const fl = m.flee; fl.t -= dt;
+    if (m.state === 'fall' || m.rj || m.carried || fl.t <= 0 || !inRect(er, m.x, m.z, -.6)) { m.flee = null; continue; }
+    const tx = er.x0 + fl.ox, tz = er.z0 + fl.oz, d = dist2(m.x, m.z, tx, tz);
+    if (d < .3) { m.flee = null; continue; }
+    const v = Math.min(d, 4.2 * dt); m.x += (tx - m.x) / d * v; m.z += (tz - m.z) / d * v; m.vx = m.vz = 0;
+    m.face = angTo(m.x, m.z, tx, tz); m.walk = (m.walk || 0) + dt * 10; m.stun = Math.max(m.stun, .12);
+  }
+}
 function grabCrate(id, from) {
   const i = ST.crates.findIndex(c => c.id === id); if (i < 0) return;
   const c = ST.crates[i]; ST.crates.splice(i, 1);
   const it = {}; let coins = 0;
-  if (c.k === 'barrel') { it.powder = randi(1, 2); if (Math.random() < .5) it.tape = 1; if (Math.random() < .4) it.bolts = 1; }
+  if (c.k === 'barrel') { it.powder = randi(1, 2); if (Math.random() < .5) it.tape = 1; if (Math.random() < .4) it.bolts = 1; if (Math.random() < .2) it.molly = 1; }
   else { it.beans = randi(1, 3); it.milk = randi(1, 2); if (Math.random() < .45) it.syrup = 1; if (Math.random() < .25) it.tears = 1; if (Math.random() < .2) coins = 10; if (Math.random() < .25) it.powder = 1; }
   emit({ k: 'got', id, to: from.id, it, c: coins, x: Math.round(crateZX(c).x * 10) / 10, z: Math.round(crateZX(c).z * 10) / 10 });
   pushState();
 }
 const crateZX = c => ({ x: c.x, z: c.z0 + FLOW * (ST.t - c.t0) });
-if (window.__ADDON_TEST) window.__raft = { ST, crateZX, enOff: () => enOff(), chaos: e => startChaos(e), AU };   // для автотестів
+if (window.__ADDON_TEST) window.__raft = { ST, crateZX, enOff: () => enOff(), chaos: e => startChaos(e), AU, enR: () => enR(), enLand: () => enLand(), spawnZombies: n => spawnZombies(n), mollyAt: (x, z) => mollyAt(x, z, { id: myId(), name: myName() }), SHELF, FIRE_T, FIRE_R, FIRE_DMG, get V() { return V; } };   // для автотестів
 
 function authTick(dt) {
   if (!ST.on) { if (ST.arr > 0) ST.arr = Math.max(0, ST.arr - dt); return; }
@@ -317,6 +383,7 @@ function authTick(dt) {
     if (u >= 15.6 && !AU.spHit) { AU.spHit = true; emit({ k: 'chaos', e: 'clash' }); for (const m of hostile()) m.stun = Math.max(m.stun, .8); AU.jumpT = 1; AU.burst = 1; }
     if (u > 19.5) { ST.sp = null; AU.spHit = false; pushState(); }
   }
+  fireTick(dt);
   for (let i = AU.storm.length - 1; i >= 0; i--) { const q = AU.storm[i]; q.t -= dt; if (q.t <= 0) { AU.storm.splice(i, 1); strike(q.en ? enR().x0 + q.x : q.x, q.z); } }
   AU.stT -= dt; if (AU.stT <= 0) { AU.stT = 1; pushState(); }
 }
@@ -433,6 +500,11 @@ function buildDecks() {
   for (const [a, b] of [[-.65, -.35], [.65, -.35], [-.65, .35], [.65, .35]]) put(tb, mesh(new THREE.BoxGeometry(.1, .85, .1), '#4E4A6E'), a, .42, b);
   put(tb, mesh(new THREE.SphereGeometry(.22, 8, 6), '#2E2346'), -.3, 1.1, 0);
   put(tb, mesh(flat(new THREE.CylinderGeometry(.2, .2, .4, 8)), '#E8505B'), .35, 1.1, 0);
+  // ящик з пляшками: тут збирається 🍾 коктейль Молотова
+  const sh = new THREE.Group(); sh.position.set(SHELF.x, 0, SHELF.z); scene.add(sh);
+  put(sh, mesh(new THREE.BoxGeometry(1.1, .55, .6), '#A3795C'), 0, .28, 0);
+  put(sh, mesh(new THREE.BoxGeometry(1.14, .06, .64), '#8C6447'), 0, .56, 0);
+  for (let i = 0; i < 4; i++) { const bx = -.36 + i * .24; put(sh, mesh(flat(new THREE.CylinderGeometry(.07, .08, .32, 7)), '#5FAF6A'), bx, .75, 0); put(sh, mesh(new THREE.BoxGeometry(.08, .1, .08), '#E8D7B0'), bx, .95, 0); }
   // пліт зомбі (рухається: припливає, тоне)
   const en = new THREE.Group(); scene.add(A.dynamic(en)); V.en = en;
   const ed = deck(EN, ['#9C93B8', '#8A82A8'], '#5E5880'); en.add(ed);
@@ -467,6 +539,7 @@ function buildZones() {
   // підсвічена підлога біля бару й столу для бомб (без написів)
   mk('bar', BAR.x, BAR.z + 1.55, 5.4, 2.2, '#FFFFFF');
   mk('bomb', TABLE.x + .25, TABLE.z - .15, 2.3, 1.7, '#FFFFFF');
+  mk('molly', SHELF.x, SHELF.z - .55, 1.8, 1.1, '#9FE6A8');
 }
 /* ---------- Меблі на плоту зомбі: щоразу інший «офіс на воді» (однаковий в усіх гравців) ---------- */
 function seeded(n) { let a = (n * 2654435761) >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -550,7 +623,15 @@ function onEvent(e) {
   if (SIMSIDE || !e) return;
   const here = running && inRiver(pl.x, pl.z);
   if (e.k === 'msg') { if (here) { if (e.big) banner(e.txt); else toast(e.txt); } }
-  else if (e.k === 'hit') { if (here) { ftext((EN.x0 + EN.x1) / 2, 2.5, RZ, `Пліт тріщить! ${'🟫'.repeat(Math.max(0, e.hp))}`, 'crit'); } V.hitT = .5; }
+  else if (e.k === 'hit') { if (here) { ftext((EN.x0 + EN.x1) / 2, 2.5, RZ, e.fire ? `🔥 Пліт горить! ${'🟫'.repeat(Math.max(0, e.hp))}` : `Пліт тріщить! ${'🟫'.repeat(Math.max(0, e.hp))}`, 'crit'); } V.hitT = .5; }
+  else if (e.k === 'fire') {   // 🍾 пляшка розбилась на плоту зомбі — пожежа
+    if (!AUTH() && !ST.fires.some(f => f.id === e.id)) ST.fires.push({ id: e.id, ox: +e.ox, oz: +e.oz, t: FIRE_T });
+    if (!here) return; const p = { x: enR().x0 + +e.ox, z: enR().z0 + +e.oz };
+    sfx('break', p.x, p.z); sfx('boom', p.x, p.z); burst(p.x, .6, p.z, '#FF7A2E', 26, 5, .8, 4); burst(p.x, .4, p.z, '#FFE066', 12, 3, .5, 2);
+    ftext(p.x, 2.8, p.z, '🔥 ПОЖЕЖА НА ПЛОТУ!', 'big'); if (dist2(pl.x, pl.z, p.x, p.z) < 12) shake = Math.max(shake, .3);
+  }
+  else if (e.k === 'fireout') { const f = ST.fires.find(q => q.id === e.id); if (here && f) { const p = { x: enR().x0 + f.ox, z: enR().z0 + f.oz }; burst(p.x, 1, p.z, '#8C8C99', 12, 1.5, 1.4, 2.5); } ST.fires = ST.fires.filter(q => q.id !== e.id); }
+  else if (e.k === 'fizz') { if (here) { burst(+e.x, .3, +e.z, e.wet ? '#FFFFFF' : '#FF7A2E', 14, 3, .7, 2.5); sfx(e.wet ? 'splash' : 'break', +e.x, +e.z); ftext(+e.x, 2.2, +e.z, e.wet ? 'Пшшш… «молотов» у воді' : '🍾 Дзинь! Тут нема чому горіти', 'calm'); } }
   else if (e.k === 'sink') { V.gone = 'sink'; if (V.en) { burst((EN.x0 + EN.x1) / 2, .5, RZ, '#8A82A8', 30, 6, 1.2, 5); if (here) { sfx('boom', RX + 5, RZ); shake = Math.max(shake, .5); } } }
   else if (e.k === 'got') {
     const v = V.crates.get(e.id); ST.crates = ST.crates.filter(c => c.id !== e.id);
@@ -628,7 +709,7 @@ function clientTick(dt) {
     v.m.position.set(lerp(v.fly.sx, w.x, k), Math.sin(k * Math.PI) * 2.2, lerp(v.fly.sz, w.z, k)); v.m.scale.setScalar(1 - k * .7);
     if (k >= 1) { scene.remove(v.m); V.crates.delete(id); }
   }
-  updBombs(dt);
+  updBombs(dt); updFires(dt, t);
   updZones(t); updPile(t);
   updStorm(dt);
   if (V.spit) { const on = ST.sp != null && ST.t - ST.sp < 15.2; V.spit.position.y = lerp(V.spit.position.y, on ? -.25 : -2.6, Math.min(1, dt * 1.5)); V.spit.position.x = (OUR.x1 + enR().x0) / 2; V.spit.visible = V.spit.position.y > -2.5; }
@@ -676,14 +757,20 @@ function clientTick(dt) {
   // збираю бомбу
   if (V.craft) {
     V.craft.t += dt;
-    if (!inRect(OUR, pl.x, pl.z, -.5)) { for (const k in BOMB_NEED) P.ing[k] = (P.ing[k] || 0) + BOMB_NEED[k]; V.craft = null; toast('Зійшов з плота — бомбу не дозібрано (інгредієнти повернуто).'); refreshHUD(); }
+    const ml = V.craft.what === 'molly', need = ml ? MOLLY_NEED : BOMB_NEED;
+    if (!inRect(OUR, pl.x, pl.z, -.5)) { for (const k in need) P.ing[k] = (P.ing[k] || 0) + need[k]; V.craft = null; toast(`Зійшов з плота — ${ml ? '«молотов»' : 'бомбу'} не дозібрано (інгредієнти повернуто).`); refreshHUD(); }
+    else if (ml && V.craft.t >= CRAFT_T) {
+      V.craft = null; P.ing.molly = (P.ing.molly || 0) + 1;
+      ftext(pl.x, 2.7, pl.z, `+1 🍾 (усього ${P.ing.molly}) · V — кинути`, 'gold');
+      toast(`🍾 Коктейль Молотова готовий! Усього: <b>${P.ing.molly}</b>. <b>V</b> — кинути на пліт зомбі: пожежа з'їдає міцність, а зомбі тікають від вогню.`); sfx('legend'); refreshHUD(); save();
+    }
     else if (V.craft.t >= CRAFT_T) {
       V.craft = null; P.ing.cbomb = (P.ing.cbomb || 0) + 1;
       ftext(pl.x, 2.7, pl.z, `+1 💣 (усього ${P.ing.cbomb}) · G — кинути`, 'gold');
       toast(`💣 Бомба готова! Усього: <b>${P.ing.cbomb}</b> (лежать на столі й видно в інвентарі → ресурси). <b>G</b> — кинути туди, де курсор.`); sfx('legend'); refreshHUD(); save();
     } else {
       V.craft.pt -= dt; if (V.craft.pt <= 0) { V.craft.pt = .5; ftext(pl.x, 2.5, pl.z, `🛠️ ${Math.round(V.craft.t / CRAFT_T * 100)}%`, 'calm'); }
-      if (Math.random() < dt * 8) burst(TABLE.x, 1.2, TABLE.z, '#FFD27A', 2, 1.5, .4, 1);
+      if (Math.random() < dt * 8) { const at = ml ? SHELF : TABLE; burst(at.x, 1.2, at.z, ml ? '#9FE6A8' : '#FFD27A', 2, 1.5, .4, 1); }
     }
   }
   // пороги: удар об камінь
@@ -707,7 +794,7 @@ function hud(show) {
   if (ST.on) {
     const left = Math.max(0, ST.dur - ST.t), mm = Math.floor(left / 60), ss = String(Math.floor(left % 60)).padStart(2, '0');
     const hp = ST.enemy ? (ST.arr > 0 ? 'припливає…' : '<span style="color:#FF8A7A">' + '■'.repeat(Math.max(0, ST.hp)) + '</span><span style="opacity:.35">' + '■'.repeat(Math.max(0, ST.max - ST.hp)) + '</span>') : 'на дні 💥';
-    html = `🛶 ЕСПРЕСО-СПЛАВ · ⏱ ${mm}:${ss} · 🌊 Хвиля ${ST.wave}${ST.next > 0 ? ` (наступна ${Math.ceil(ST.next)} с)` : ''}<br><span style="font-weight:600;font-size:12px">Пліт зомбі: ${hp} · <b style="color:#FFD27A">💣 ${P.ing.cbomb || 0}</b>${P.ing.cbomb ? ' (G)' : ''} · 🧨 ${P.ing.powder || 0}/2${V.craft ? ` · 🛠️ ${Math.round(V.craft.t / CRAFT_T * 100)}%` : ''}${!kitchenOk() ? ' · <span style="color:#FF8A7A">кавомашини розбиті!</span>' : ''}${inRun() && ST.roster.length > 1 ? ` · 👥 ${ST.roster.length}` : ''}</span>`;
+    html = `🛶 ЕСПРЕСО-СПЛАВ · ⏱ ${mm}:${ss} · 🌊 Хвиля ${ST.wave}${ST.next > 0 ? ` (наступна ${Math.ceil(ST.next)} с)` : ''}<br><span style="font-weight:600;font-size:12px">Пліт зомбі: ${hp} · <b style="color:#FFD27A">💣 ${P.ing.cbomb || 0}</b>${P.ing.cbomb ? ' (G)' : ''} · <b style="color:#9FE6A8">🍾 ${P.ing.molly || 0}</b>${P.ing.molly ? ' (V)' : ''}${ST.fires.length ? ' · 🔥 пліт горить!' : ''} · 🧨 ${P.ing.powder || 0}/2${V.craft ? ` · 🛠️ ${Math.round(V.craft.t / CRAFT_T * 100)}%` : ''}${!kitchenOk() ? ' · <span style="color:#FF8A7A">кавомашини розбиті!</span>' : ''}${inRun() && ST.roster.length > 1 ? ` · 👥 ${ST.roster.length}` : ''}</span>`;
   } else html = `🛶 Еспресо-Сплав · <span style="font-weight:600">ударь у дзвін 🔔 на плоту (F), щоб відчалити</span>`;
   if (V.hud.innerHTML !== html) V.hud.innerHTML = html;
 }
@@ -728,12 +815,18 @@ function throwBomb() {
 }
 function launchBomb(b) {
   b.m = new THREE.Group();
+  if (b.kind === 'molly') {   // 🍾 пляшка з ганчіркою, що горить
+    put(b.m, mesh(flat(new THREE.CylinderGeometry(.11, .14, .4, 8)), mat('#5FAF6A', { transparent: true, opacity: .85 }), false), 0, 0, 0);
+    put(b.m, mesh(new THREE.BoxGeometry(.12, .12, .12), '#E8D7B0', false), 0, .26, 0);
+    b.spark = put(b.m, mesh(new THREE.ConeGeometry(.1, .3, 6), bulb('#FF7A2E'), false), 0, .45, 0);
+    scene.add(b.m); V.bombs.push(b); return;
+  }
   put(b.m, mesh(new THREE.SphereGeometry(.24, 8, 6), '#2E2346'), 0, 0, 0);
   put(b.m, mesh(flat(new THREE.CylinderGeometry(.03, .03, .2, 5)), '#E8D7B0'), 0, .26, 0);
   b.spark = put(b.m, mesh(new THREE.SphereGeometry(.07, 6, 4), bulb('#FFD27A'), false), 0, .38, 0);
   scene.add(b.m); V.bombs.push(b);
 }
-A.onNet('bfx', d => { if (SIMSIDE || !d) return; const b = { sx: +d.sx, sz: +d.sz, sy: 1.6, tx: +d.tx, tz: +d.tz, t: 0, T: clamp(+d.T || .8, .3, 1.5) }; if ([b.sx, b.sz, b.tx, b.tz].every(Number.isFinite)) launchBomb(b); });
+A.onNet('bfx', d => { if (SIMSIDE || !d) return; const b = { sx: +d.sx, sz: +d.sz, sy: 1.6, tx: +d.tx, tz: +d.tz, t: 0, T: clamp(+d.T || .8, .3, 1.5), kind: d.kind === 'molly' ? 'molly' : '' }; if ([b.sx, b.sz, b.tx, b.tz].every(Number.isFinite)) launchBomb(b); });
 function updBombs(dt) {
   for (let i = V.bombs.length - 1; i >= 0; i--) {
     const b = V.bombs[i]; b.t += dt; const k = Math.min(1, b.t / b.T);
@@ -742,6 +835,7 @@ function updBombs(dt) {
     if (k < 1) continue;
     scene.remove(b.m); V.bombs.splice(i, 1);
     const x = b.tx, z = b.tz;
+    if (b.kind === 'molly') { if (b.mine) req('molly', { x, z }); continue; }   // спалах покаже подія 'fire' / 'fizz'
     const wet = isWet(terrainAt(x, z));
     if (typeof boomFX === 'function') boomFX(x, z, 3.3, wet ? .1 : .6, wet); else { ringFX(x, z, 3.3, '#FFE8D6', .6); burst(x, 1, z, '#8C5A3C', 26, 7, 1.2, 6); sfx('boom', x, z); }
     if (!wet) burst(x, .4, z, '#D6A87B', 12, 5, .9, 4);
@@ -763,17 +857,62 @@ getInteract = function () {
     const near = (o, r) => { const d = dist2(pl.x, pl.z, o.x, o.z); return d < r && d < cd; };
     if (near(BELL, 2)) return ST.on ? { l: `🔔 Сплав іде: хвиля ${ST.wave}`, fn: () => openPanel(TAB) } : { l: '🔔 Відчалити! (5 хвилин)', fn: () => { req('start'); sfx('ding'); } };
     if (near(TABLE, 2.1)) return { l: `💣 Зібрати бомбу (2 🧨 + 1 🩹, є ${P.ing.powder || 0} 🧨)`, fn: () => startCraft() };
+    if (near(SHELF, 1.6)) return { l: `🍾 Зібрати коктейль Молотова (1 🧨 + 1 🍯, є ${P.ing.powder || 0} 🧨 · ${P.ing.syrup || 0} 🍯)`, fn: () => startMolly() };
     if (dist2(pl.x, pl.z, BAR.x, BAR.z) < 3.3 && !kitchenOk()) return { l: '☕ Кавомашини розбиті — скоро полагодяться', fn: () => toast('Зомбі розтрощили кавомашини! Вони полагодяться за ~25 с. Поки — бий, кидай баки й бомби.') };
   }
   return _getInteract.apply(this, arguments);
 };
 const CRAFT_T = 1.5;
 function startCraft() {
-  if (V.craft) { toast('🛠️ Уже збираю бомбу…'); return; }
+  if (V.craft) { toast(V.craft.what === 'molly' ? '🛠️ Уже збираю «молотов»…' : '🛠️ Уже збираю бомбу…'); return; }
   if (!inRect(OUR, pl.x, pl.z, -.3)) { toast('Бомби збираються на твоєму плоту.'); return; }
   if (!canAfford(BOMB_NEED)) { toast(`Бракує: ${needChips(BOMB_NEED)}. Порох 🧨 — у червоних бочках, що пливуть річкою (вантуз їх притягне).`); return; }
   for (const k in BOMB_NEED) P.ing[k] -= BOMB_NEED[k];   // інгредієнти беремо одразу — бомба точно буде
   V.craft = { t: 0, pt: 0 }; toast('🛠️ Збираю бомбу… (1,5 с, не стрибай з плота)'); sfx('brew'); refreshHUD();
+}
+/* 🍾 Коктейль Молотова: пляшка + 🧨 порох + 🍯 сироп (горить як напалм) — біля ящика з пляшками */
+function startMolly() {
+  if (V.craft) { toast('🛠️ Руки зайняті — уже щось збираю…'); return; }
+  if (!inRect(OUR, pl.x, pl.z, -.3)) { toast('«Молотови» збираються на твоєму плоту, біля ящика з пляшками.'); return; }
+  if (!canAfford(MOLLY_NEED)) { toast(`Бракує: ${needChips(MOLLY_NEED)}. Порох 🧨 — у червоних бочках, сироп 🍯 — у ящиках з річки (вантуз притягне). Іноді готовий 🍾 пливе просто в бочці.`); return; }
+  for (const k in MOLLY_NEED) P.ing[k] -= MOLLY_NEED[k];
+  V.craft = { t: 0, pt: 0, what: 'molly' }; toast('🛠️ Збираю коктейль Молотова… (1,5 с, не стрибай з плота)'); sfx('pour'); refreshHUD();
+}
+/* V — кинути «молотов» туди, де курсор: летить пляшка з палаючою ганчіркою */
+function throwMolly() {
+  if (!running || pl.dead || paused || panel) return false;
+  if (!(P.ing.molly > 0)) { toast(`🍾 «Молотовів» нема. Збери біля ящика з пляшками на плоту: ${needChips(MOLLY_NEED)}`); return false; }
+  aimFace();
+  let tx = pl.x + Math.sin(pl.face) * 7, tz = pl.z + Math.cos(pl.face) * 7;
+  if (input.aimOk && input.ax != null) { tx = input.ax; tz = input.az; }
+  const d = dist2(pl.x, pl.z, tx, tz), D = clamp(d, 2, 11);
+  if (d > .01) { tx = pl.x + (tx - pl.x) / d * D; tz = pl.z + (tz - pl.z) / d * D; }
+  P.ing.molly--; refreshHUD();
+  const b = { sx: pl.x, sz: pl.z, sy: (pl.y || 0) + 1.6, tx: Math.round(tx * 10) / 10, tz: Math.round(tz * 10) / 10, t: 0, T: .45 + D * .05, mine: true, kind: 'molly' };
+  launchBomb(b); A.send('bfx', { sx: Math.round(b.sx * 10) / 10, sz: Math.round(b.sz * 10) / 10, tx: b.tx, tz: b.tz, T: b.T, kind: 'molly' });
+  pl.swingT = .25; pl.swingKind = 2; sfx('throw'); save(); return true;
+}
+A.key('KeyV', () => { if (!running || !inRiver(pl.x, pl.z)) return false; throwMolly(); });
+/* Пожежі на плоту зомбі: обвуглена пляма й язики полум'я (діти плота — тонуть разом із ним) */
+function updFires(dt, t) {
+  if (!V.fires) V.fires = new Map();
+  const ids = new Set();
+  for (const f of ST.fires) {
+    ids.add(f.id); if (!AUTH()) f.t = Math.max(0, f.t - dt);
+    let o = V.fires.get(f.id);
+    if (!o && V.en) {
+      o = { g: new THREE.Group(), fl: [] };
+      const sp = mesh(new THREE.CylinderGeometry(FIRE_R * .9, FIRE_R * .9, .03, 18), mat('#2A1E1A', { transparent: true, opacity: .75 }), false); sp.position.y = .2; o.g.add(sp);
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, rr = i ? FIRE_R * rand(.3, .65) : 0, fl = mesh(new THREE.ConeGeometry(.3, 1.1, 6), bulb(i % 2 ? '#FFB347' : '#FF5A2E'), false); fl.position.set(Math.cos(a) * rr, .7, Math.sin(a) * rr); o.g.add(fl); o.fl.push(fl); }
+      V.en.add(o.g); V.fires.set(f.id, o);
+    }
+    if (!o) continue;
+    o.g.position.set(f.ox - (EN.x1 - EN.x0) / 2, 0, f.oz - (EN.z1 - EN.z0) / 2);
+    const k = clamp(f.t / 1.2, 0, 1);   // догорає — меншає
+    o.fl.forEach((fl, i) => { const sc = (.75 + Math.sin(t * 13 + i * 2.1) * .25) * (.3 + k * .7); fl.scale.set(sc, sc * (1.1 + Math.sin(t * 9 + i) * .3), sc); });
+    if (Math.random() < dt * 7 && running && inRiver(pl.x, pl.z)) { const p = { x: enR().x0 + f.ox, z: enR().z0 + f.oz }; burst(p.x + rand(-1, 1), 1.2, p.z + rand(-1, 1), Math.random() < .5 ? '#FFB347' : '#5A5560', 1, .8, .9, 2.4, .9); }
+  }
+  for (const [id, o] of V.fires) if (!ids.has(id)) { if (o.g.parent) o.g.parent.remove(o.g); V.fires.delete(id); }
 }
 /* Готові бомби лежать купкою на столі — видно, скільки їх */
 function updPile(t) {
@@ -812,7 +951,7 @@ function goTo(x, z, msg) {
 const mmss = sec => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 function goRaft() {
   if (ST.on && !inRun()) { toast(`🛶 Сплав уже йде — новенькі не заходять. Лишилось ${mmss(Math.max(0, ST.dur - ST.t))}, потім можна буде відчалити разом.`); return false; }
-  goTo(SPAWN.x, SPAWN.z, '🛶 Ти на плоту «Еспресо-Сплаву». Дзвін 🔔 (F) — відчалити. Бар — варити каву, стіл — бомби, баки — кидати (F, потім Q).');
+  goTo(SPAWN.x, SPAWN.z, '🛶 Ти на плоту «Еспресо-Сплаву». Дзвін 🔔 (F) — відчалити. Бар — варити каву, стіл — бомби (G), ящик з пляшками — 🍾 «молотови» (V), баки — кидати (F, потім Q).');
   return true;
 }
 /* Покинути сплав можна лише кнопкою (вкладка «Сплав» або Esc → інший режим). */
@@ -867,11 +1006,13 @@ const TAB = A.tab('rafting', '🛶 Сплав', () => {
     <p style="font-size:13px;line-height:1.5;margin:4px 0 10px">5 хвилин, два плоти поруч на бурхливій річці. Зомбі підпливають хвилями й стрибають до тебе на кухню.
       Відбивайся кавою, тягни вантузом лут з води (або зомбі — у воду), збирай бомби й топи їхній пліт: 3–4 вибухи — і хвиля пройдена достроково.</p>
     <div class="btns">${inRun() ? '<button class="btn alt" data-rf="leave" style="background:#FFE1E1">🚪 Покинути сплав</button>' : here ? (ST.on ? '' : '<button class="btn" data-rf="start">🔔 Відчалити</button>') + '<button class="btn alt" data-rf="hub">🏠 Назад у «Гущу»</button>' : ST.on ? `<button class="btn" disabled>🛶 Сплав іде (${mmss(Math.max(0, ST.dur - ST.t))}) — зачекай</button>` : '<button class="btn" data-rf="go">🛶 На пліт</button>'}
-      <button class="btn alt" data-rf="craft" ${here && inRect(OUR, pl.x, pl.z, -.3) ? '' : 'disabled'} title="На своєму плоту">💣 Зібрати бомбу · ${needChips(BOMB_NEED)}</button></div>
+      <button class="btn alt" data-rf="craft" ${here && inRect(OUR, pl.x, pl.z, -.3) ? '' : 'disabled'} title="На своєму плоту">💣 Зібрати бомбу · ${needChips(BOMB_NEED)}</button>
+      <button class="btn alt" data-rf="molly" ${here && inRect(OUR, pl.x, pl.z, -.3) ? '' : 'disabled'} title="На своєму плоту">🍾 Зібрати «молотов» · ${needChips(MOLLY_NEED)}</button></div>
     <div class="list" style="margin-top:10px;font-size:13px;line-height:1.55">
       <div>☕ <b>Кава</b> — вари на барі плоту, кидай ПКМ / Q. Зомбі розбили кавомашини — бар не працює ~25 с.</div>
       <div>🪠 <b>Вантуз-гарпун</b> — притягує ящики (інгредієнти) й бочки (порох 🧨), а зомбі з чужого плота — прямо в річку.</div>
       <div>💣 <b>Бомба</b> — ${needChips(BOMB_NEED)} на столі (2 с). <b>G</b> — кинути туди, де курсор. Обережно: б'є й своїх!</div>
+      <div>🍾 <b>Коктейль Молотова</b> — ${needChips(MOLLY_NEED)} біля ящика з пляшками (1,5 с) або готовий з бочки в річці. <b>V</b> — кинути в курсор. На плоту зомбі ${FIRE_T} с горить пожежа: кожні ${FIRE_DMG} с −1 міцність плота, зомбі тікають на інший край, а кому гаряче — стрибають у воду. Розбився у воді — пшшш, і все.</div>
       <div>🗑️ <b>Баки й кег</b> — F підняти, Q / ЛКМ жбурнути на сусідній пліт: збиває зомбі як кеглі.</div>
       <div>📦 <b>Коробки</b> — теж F і Q: розбиваються об зомбі, а на плоту швидко з'являються знову.</div>
       <div>🪨 <b>Пороги</b> — пліт б'ється об каміння, усіх відкидає. Змило — пливи до плота й підстрибни (пробіл). Вода крижана — тане здоров'я 🥶.</div>
@@ -888,6 +1029,7 @@ const TAB = A.tab('rafting', '🛶 Сплав', () => {
   else if (a === 'leave') { if (askLeave()) goTo(0, 3, '🚪 Ти покинув сплав. З поверненням у «Гущу».'); }
   else if (a === 'start') { req('start'); closePanel(); }
   else if (a === 'craft') { startCraft(); closePanel(); }
+  else if (a === 'molly') { startMolly(); closePanel(); }
 });
 
 /* ---------- Режим у меню паузи (Esc) ---------- */

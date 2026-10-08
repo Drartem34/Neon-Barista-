@@ -82,7 +82,8 @@ assert(R.ST.ph === 'count' && R.ST.racers.length === 4 && R.RC.on, '«Я гот�
 assert(!lob(), 'заїзд почався — попап закрито');
 assert(R.floorAt(T.pl.x, T.pl.z) === 2 && R.ST.v === 2, 'гра перенесла на поверх 63 (не трасу за замовчуванням)');
 const mb = $('#modebar');
-assert(mb && !mb.hidden && /💣/.test(mb.textContent) && /🪠/.test(mb.textContent) && $('#weapon').hidden && $('#drinks').hidden, 'хотбар порожній: лише 💣 Бомба і 🪠 Вантуз');
+assert(mb && !mb.hidden && /💣/.test(mb.textContent) && /🪠/.test(mb.textContent) && /🧯/.test(mb.textContent) && /🍾/.test(mb.textContent) && $('#weapon').hidden && $('#drinks').hidden, 'хотбар режиму: 💣 Бомба, 🪠 Вантуз, 🧯 Вогнегасник, 🍾 Молотов (звичайна зброя й напої сховані)');
+assert(R.RC.foam === R.FOAM_START && R.RC.molly === 1, `на старті ${R.FOAM_START} с піни у вогнегаснику й 1 коктейль Молотова`);
 assert(R.RC.bombs === 2, 'на старті 2 бомби');
 step(4); assert(R.ST.ph === 'race', 'ПОЇХАЛИ!');
 // автопілот у тесті: тримаємо джойстик у бік траси попереду
@@ -111,8 +112,41 @@ R.RC.item = 'tea'; R.useItem(); step(.05); assert(R.ST.racers.some(r => r.bot &&
   for (let i = 0; i < 12; i++) { step(.05); if (R.RC.pull) pulled = true; }
   assert(pulled && bot.slow > 0 && Math.hypot(R.RC.x - sx, R.RC.z - sz) > 4 && R.RC.plCd > 0, '🪠 вантуз зачепив бота: мене смикнуло вперед, бота пригальмувало, перезарядка');
   T.keydown('Digit2'); assert(R.V.plungers.length === 0, 'на перезарядці вантуз не стріляє'); }
+// 🧯 вогнегасник-реактив: 3 — тяга вперед, піна витрачається, білий шлейф; скінчилась — вимикається
+{ const p = put(R.N * .3 | 0); far(); R.RC.v = 3; R.RC.boost = 0; const sx = R.RC.x, sz = R.RC.z;
+  T.keydown('Digit3'); assert(R.RC.jet && R.ST.racers.find(r => r.k === 'me').jet === 1, '3 — увімкнув 🧯 реактивну піну (сервер/автор бачить прапорець jet)');
+  T.input.jx = p.dx; T.input.jz = p.dz; step(.4); T.input.jx = T.input.jz = 0;
+  const c = R.V.chairs.get('me');
+  assert(R.RC.v > R.VBOOST + 3 && R.RC.foam < R.FOAM_START - .3 && c && c.ext.visible, `🧯 тяга: швидкість ${R.RC.v.toFixed(1)} > кави-бусту ${R.VBOOST}, піна ${R.RC.foam.toFixed(1)} с, вогнегасник на кріслі видно`);
+  assert(/🧯/.test($('#race-goal').textContent), 'підказка внизу розповідає про реактивну піну');
+  T.keydown('Digit3'); assert(!R.RC.jet && R.ST.racers.find(r => r.k === 'me').jet === 0, '3 ще раз — вимкнув, піну зекономив');
+  put(R.N * .3 | 0); far(); const f0 = R.RC.foam; T.keydown('Digit3'); for (let i = 0; i < 80 && R.RC.jet; i++) { put(R.N * .3 | 0); step(.05); }
+  assert(!R.RC.jet && R.RC.foam === 0 && f0 > 0, 'піна скінчилась — реактив вимкнувся сам');
+  T.keydown('Digit3'); assert(!R.RC.jet, 'без піни 3 не вмикає реактив'); }
+// 🍾 коктейль Молотова: 4 — пляшка дугою, на трасі палає калюжа; бот у ній крутиться й обпалюється
+{ const bot = R.ST.racers.filter(r => r.bot)[1]; const p = put(R.N * .3 | 0); far(); R.RC.v = 0; R.ST.fires.length = 0; bot.x = R.RC.x + p.dx * 7; bot.z = R.RC.z + p.dz * 7; bot.spin = 0; bot.slow = 0; bot.burn = 0; bot.burnCd = 0; bot.v = 0; bot.idx = R.nearIdx(bot.x, bot.z); bot.prevIdx = bot.idx;
+  const bx = bot.x, bz = bot.z; T.keydown('Digit4'); assert(R.RC.molly === 0 && R.V.bombs.length === 1, '4 — кинув коктейль Молотова (пляшка летить)');
+  for (let i = 0; i < 30 && !R.ST.fires.length; i++) { bot.x = bx; bot.z = bz; bot.v = 0; step(.05); }
+  const f = R.ST.fires[0]; assert(f && Math.hypot(f.x - bx, f.z - bz) < 1 && R.V.fires.size === 1, `🔥 пляшка розбилась — на трасі палає калюжа (${R.ST.fires.length}), видно полум'я`);
+  for (let i = 0; i < 10 && !(bot.burn > 0); i++) { bot.x = bx; bot.z = bz; bot.v = 0; step(.05); }
+  assert(bot.burn > 0 && bot.spin > 0 && bot.slow > 0, '🔥 бот у калюжі: закрутило, пригальмувало, сідушку обпалило');
+  // я в'їжджаю у вогонь
+  const n0 = R.RC.nBurn; R.RC.x = f.x; R.RC.z = f.z; T.pl.x = f.x; T.pl.z = f.z; R.RC.spin = 0; R.RC.burnCd = 0; step(.05);
+  assert(R.RC.nBurn === n0 + 1 && R.RC.burn > 0 && R.RC.spin > 0 && R.RC.slow > 0 && R.ST.racers.find(r => r.k === 'me').burn > 0, '🔥 я в\'їхав у калюжу — крутить, гальмує, сідушка в кіптяві (видно іншим)');
+  assert(R.V.chairs.get('me').soot.visible, 'кіптява на моєму кріслі видно');
+  T.keydown('Digit4'); assert(R.V.bombs.length === 0, 'пляшок нема — 4 нічого не кидає');
+  step(R.FIRE_T + .3); assert(!R.ST.fires.length && R.V.fires.size === 0, `калюжа догоріла за ${R.FIRE_T} с і зникла`); }
+// 🧯 піна гасить вогонь: їду з реактивом крізь калюжу — вона згасає, мене не обпалює
+{ const p = put(R.N * .35 | 0); far(); R.RC.foam = 3; R.RC.burn = 0; R.RC.burnCd = 0; const f = R.igniteAt(R.RC.x + p.dx * 3, R.RC.z + p.dz * 3, 'Бот Кент'); const n0 = R.RC.nBurn, d0 = R.RC.nDouse;
+  T.keydown('Digit3'); for (let i = 0; i < 20 && R.ST.fires.length; i++) { T.input.jx = p.dx; T.input.jz = p.dz; step(.05); } T.input.jx = T.input.jz = 0;
+  assert(!R.ST.fires.some(q => q.id === f.id) && R.RC.nDouse === d0 + 1 && R.RC.nBurn === n0, '🧯 проїхав з піною крізь вогонь — загасив, сідушка ціла');
+  if (R.RC.jet) T.keydown('Digit3'); }
+// коробки «?» дають піну й пляшки
+{ R.RC.item = ''; R.AU.forceItem = 'ext'; R.ST.boxes[1] = [1, 1, 1]; const f0 = R.RC.foam; put(R.ITEM_SPOTS[1]); far(); step(.2); assert(R.RC.foam > f0, `коробка «?» — 🧯 +піна (${f0.toFixed(1)} → ${R.RC.foam.toFixed(1)})`);
+  R.AU.forceItem = 'molly'; R.ST.boxes[1] = [1, 1, 1]; const m0 = R.RC.molly; put(R.ITEM_SPOTS[1]); far(); step(.2); assert(R.RC.molly === m0 + 1, '🍾 коробка «?» — ще один коктейль Молотова');
+  R.AU.forceItem = null; }
 // коробка з предметом
-{ R.RC.item = ''; const b0 = R.RC.bombs; R.ST.boxes[1] = [1, 1, 1]; put(R.ITEM_SPOTS[1]); far(); step(.2); assert(R.RC.item || R.RC.bombs > b0, `коробка «?» дала: ${R.RC.item || '💣 бомбу'}`); }
+{ R.RC.item = ''; const b0 = R.RC.bombs, f0 = R.RC.foam, m0 = R.RC.molly; R.ST.boxes[1] = [1, 1, 1]; put(R.ITEM_SPOTS[1]); far(); step(.2); assert(R.RC.item || R.RC.bombs > b0 || R.RC.foam > f0 || R.RC.molly > m0, `коробка «?» дала: ${R.RC.item || (R.RC.bombs > b0 ? '💣 бомбу' : R.RC.foam > f0 ? '🧯 піну' : '🍾 пляшку')}`); }
 // 💦 калюжа — ковзає
 { const q = R.VV.PUD[1]; put(R.nearIdx(q.x, q.z)); far(); R.RC.x = q.x; R.RC.z = q.z; T.pl.x = q.x; T.pl.z = q.z; step(.05); assert(R.RC.slip > 0, '💦 калюжа прибиральниці — крісло ковзає'); }
 // 💨 дрифт-буст: накопичений дрифт на прямій перетворюється на прискорення

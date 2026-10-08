@@ -14,7 +14,7 @@ w.setTimeout = f => { f(); return 0; };
 w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
 w.__ADDON_CODE = [{ id: 'printerwar', src: 'printerwar/addon.js', code: fs.readFileSync(path.join(root, 'addons/_examples/printerwar/addon.js'), 'utf8') }];
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-src += ';window.__T={get MLOBBY(){return MLOBBY},get MODES(){return MODES},get paused(){return paused},get running(){return running},get P(){return P},get STATICS(){return STATICS},get MODEBAR(){return MODEBAR},onSyrup:(x,z)=>onSyrup(x,z),islandAt:(x,z)=>islandAt(x,z),pl,MON,PROPS,BODIES,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),input,renderPanel,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),keyup:c=>dispatchEvent(new KeyboardEvent("keyup",{code:c})),releaseCarry:t=>releaseCarry(t)};';
+src += ';window.__T={get MLOBBY(){return MLOBBY},get MODES(){return MODES},get paused(){return paused},get running(){return running},get P(){return P},get STATICS(){return STATICS},get MODEBAR(){return MODEBAR},onSyrup:(x,z)=>onSyrup(x,z),islandAt:(x,z)=>islandAt(x,z),pl,MON,PROPS,BODIES,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),input,renderPanel,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),keyup:c=>dispatchEvent(new KeyboardEvent("keyup",{code:c})),releaseCarry:t=>releaseCarry(t),mount:b=>mount(b),dismount:f=>dismount(f)};';
 w.eval(src);
 const T = w.__T; let now = 1000;
 const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; T.frame(now); if (i % 3 === 0) IV.forEach(f => f()); } };
@@ -33,9 +33,11 @@ for (const D of W.VAR) {
   const st = T.STATICS.filter(s => Math.abs(s.x - D.cx) <= D.w / 2 + .1 && Math.abs(s.z - D.cz) <= D.d / 2 + .1).length;
   const fits = [[-1, -1], [1, -1], [-1, 1], [1, 1]].every(([a, b]) => Math.hypot(a * (D.w / 2 + .6), b * (D.d / 2 + .6)) < isl.r);
   assert(isl && isl.x === D.cx && st > 200 && fits && T.terrainAt(D.cx + D.w / 2 - .5, D.cz + D.d / 2 - .5) === 'land', `${D.n}: острів (${D.cx}, ${D.cz}), ${st} твердих точок, поверх у межах r=${isl.r}`);
-  const targets = [...D.spots, D.alarm.x ? { x: D.alarm.x - 1, z: D.alarm.z } : null, ...(D.route ? D.route : D.prn.map(p => ({ x: p.x + 1.6, z: p.z })))];
+  const targets = [...D.spots, D.srv, D.rbDock, D.alarm.x ? { x: D.alarm.x - 1, z: D.alarm.z } : null, ...(D.route ? D.route : D.prn.map(p => ({ x: p.x + 1.6, z: p.z })))];
   const bad = targets.filter(p => !W.reachable(D, D.board.x, D.board.z - 1.4, p.x, p.z));
-  assert(!bad.length, `${D.n}: від стенда лобі можна дійти до кнопки тривоги й принтера${bad.length ? ' ✗ ' + JSON.stringify(bad) : ''}`);
+  assert(!bad.length, `${D.n}: від стенда лобі можна дійти до кнопки тривоги, принтера, серверної, Румби${bad.length ? ' ✗ ' + JSON.stringify(bad) : ''}`);
+  const near = c => [0, 1, 2, 3, 4, 5, 6, 7].some(k => { const x = c.x + Math.sin(k * .785) * 1.4, z = c.z + Math.cos(k * .785) * 1.4, N = W.navOf(D), i = Math.floor((x - N.x0) / N.cell), j = Math.floor((z - N.z0) / N.cell); return !N.block[i + j * N.nx] && W.reachable(D, D.board.x, D.board.z - 1.4, x, z); });
+  assert(D.cof.length && D.coolers.length && D.pcs.length > 10 && D.cof.every(near) && D.coolers.every(near), `${D.n}: кавомашин ${D.cof.length}, кулерів ${D.coolers.length}, ПК ${D.pcs.length} — до всіх можна підійти`);
 }
 assert(new Set(W.VAR.map(D => D.n)).size === 3 && W.VAR[1].route && W.VAR[2].prn.length === 2, 'три різні поверхи: 42 (статичний), 57 (принтер на колесах), 63 (два принтери)');
 
@@ -54,11 +56,16 @@ let it = T.getInteract(); assert(it && /Лобі/.test(it.l), 'біля стен
 pop().querySelector('.rdy').click(); step(.1);
 assert(W.ST.ph === 'fight' && W.ST.v === 0 && W.ST.ps.length === 4 && W.ST.ps.filter(p => p.bot).length === 3, 'битва на поверсі 42: я + 3 боти');
 assert(!pop() && !T.MLOBBY, 'раунд почався — вікно лобі закрилось');
-assert(T.MODEBAR && T.MODEBAR.slots.length === 3 && !w.document.querySelector('#modebar').hidden, 'панель режиму: 📄 кинути / 🫣 заритися / 👊 штовхнути');
-W.AU.evIn = 999; W.AU.puIn = 999;
+assert(T.MODEBAR && T.MODEBAR.slots.length === 7 && !w.document.querySelector('#modebar').hidden && /✈️/.test(w.document.querySelector('#modebar').textContent), 'панель режиму (7): ✈️ літачок / 🫣 / 👊 / 🧯 / 🍾 / ☕ / 💣');
+assert(W.ST.npc.length === 3 && W.ST.npc.every(n => !n.zom && n.ag === 0 && W.varAt(n.x, n.z) === 0) && W.ST.rb, 'на поверсі троє нейтральних колег і Румба на док-станції');
+// тихий режим для детермінованих перевірок: боти без літачків, колеги стоять у холі, Румба спить, ПК не горять
+const quiet = () => { W.AU.evIn = 999; W.AU.puIn = 999; W.AU.pcChance = 0; W.ST.rb = null; W.AU.rbIn = 999; const D = W.VAR[W.ST.v];
+  W.ST.npc.forEach((n, i) => { n.x = D.board.x - 1 + i; n.z = D.board.z - 1.4; n.wx = null; n.wait = 999; n.ag = 0; n.zom = 0; });
+  W.ST.ps.forEach(p => { if (p.bot) { p.pl = 0; p.plT = -1e4; } }); };
+quiet();
 T.pl.x = W.BOARD.x; T.pl.z = W.BOARD.z - 1.4;
 { let inside = false; for (let i = 0; i < 40 && !inside; i++) { step(.25); inside = W.ST.ps.some(p => p.bot && Math.hypot(p.x - W.PX, p.z - W.PZ) < W.ZONE + .3); } assert(inside, 'боти дійшли коридором і дверима до принтера'); }
-const away = () => W.ST.ps.forEach((p, i) => { if (p.bot) { const D = W.VAR[W.ST.v]; p.x = D.spots[i % 4].x; p.z = D.spots[i % 4].z; p.stun = 2; p.vx = p.vz = 0; p.hold = false; p.blind = 0; } });
+const away = () => W.ST.ps.forEach((p, i) => { if (p.bot) { const D = W.VAR[W.ST.v]; p.x = D.spots[i % 4].x; p.z = D.spots[i % 4].z; p.stun = 2; p.vx = p.vz = 0; p.hold = false; p.blind = 0; p.pl = 0; p.plT = -1e4; } });
 const atPrn = () => { T.pl.x = W.PX + 1.6; T.pl.z = W.PZ; T.pl.kx = T.pl.kz = 0; };
 // стою сам — друкую
 away(); atPrn(); let p0 = W.ST.ps.find(p => p.k === 'me').pages;
@@ -123,6 +130,90 @@ assert(W.ST.stacks.length === 6 && W.ST.piles.length === 2, 'дощ зі сто�
 { away(); W.ST.ev = ''; const D = W.VAR[0]; T.pl.x = D.alarm.x - 1; T.pl.z = D.alarm.z; step(.1); it = T.getInteract(); assert(it && /тривоги/.test(it.l), 'біля червоної кнопки F — «Натиснути кнопку тривоги»'); it.fn(); step(.1);
   assert(W.ST.ev === 'boss' && W.ST.ac > 30, '🚨 тривога — НАЧАЛЬНИК ІДЕ, кнопка на перезарядці');
   const pg = me.pages; for (let i = 0; i < 15; i++) { away(); atPrn(); step(.1); } assert(me.pages < pg && W.V.boss, `👔 начальник прийшов — біля принтера втрачаєш сторінки (${pg} → ${me.pages})`); }
+// ======================= ХАОС: літачок → ПК → пожежа; колеги-зомбі; кулер-пастка; Молотов; вогнегасник; Румба =======================
+W.ST.ev = ''; W.AU.evIn = 999; W.ST.ac = 99; me.pages = 10;
+const D0 = W.VAR[0], L = (x, z) => ({ x: D0.cx + x, z: D0.cz + z });
+const putMe = (p, face) => { T.pl.x = p.x; T.pl.z = p.z; T.pl.kx = T.pl.kz = 0; T.pl.vx = T.pl.vz = 0; if (face != null) T.pl.face = face; };
+{ // #1 паперовий літачок у ПК → ПК спамить серверну → пожежа, друк стоїть, гасимо вогнегасником
+  away(); W.AU.pcChance = 1; me.pl = 3; putMe(L(10.5, -2.2), Math.PI / 2); step(.05);
+  T.keydown('Digit1'); step(.05); T.keyup('Digit1'); step(.6);
+  assert(me.pl === 2 && W.AU.fireIn > 0, '✈️ літачок (1) влучив у ПК — ПК почав спамити серверну');
+  step(2.5); assert(W.ST.sf && W.ST.sf.hp > 90 && W.V.fires.has('sf'), '🔥 серверна загорілась (вогонь видно)');
+  const pg = me.pages; for (let i = 0; i < 15; i++) { away(); atPrn(); step(.1); } assert(W.ST.owner === 'me' && me.pages === pg, 'поки серверна горить — принтер не друкує');
+  const r0 = W.ST.sf.r; step(1); assert(W.ST.sf.r > r0, `вогонь повільно розростається (${r0.toFixed(2)} → ${W.ST.sf.r.toFixed(2)})`);
+  const sf = W.ST.sf; putMe({ x: sf.x, z: sf.z }); const hp0 = T.pl.hp; step(.3); assert(T.pl.hp < hp0, 'у вогні — легкі опіки');
+  assert(/Серверна горить/.test(w.document.getElementById('printer-goal').innerHTML), 'підказка: гаси серверну вогнегасником');
+  me.fo = 100; const pg2 = me.pages; putMe({ x: sf.x + sf.r + 1.3, z: sf.z }, -Math.PI / 2);
+  for (let i = 0; i < 4 && W.ST.sf; i++) { away(); putMe({ x: sf.x + sf.r + 1.3, z: sf.z }, -Math.PI / 2); W.sprayFoam(); step(.1); }
+  assert(!W.ST.sf && me.pages >= pg2 + 8 && me.fo < 50, `🧯 загасив серверну (+8 📄), піна витрачена (${Math.round(me.fo)}%)`);
+  step(.2); assert(!W.V.fires.has('sf'), 'вогонь зник');
+  const pg3 = me.pages; for (let i = 0; i < 10; i++) { away(); atPrn(); step(.1); } assert(me.pages > pg3, 'друк відновився');
+  W.AU.pcChance = 0;
+}
+{ // #2 шкала агресії → «зайобуючий» зомбі йде до лідера; ланцюг; кава
+  away(); const [n, o] = W.ST.npc, b = W.ST.ps.find(p => p.bot); b.pages = 30; me.pages = 10;
+  n.x = D0.cx - 10; n.z = D0.cz + 3; n.wait = 999; n.wx = null; me.pl = 3; putMe(L(-13, 3), Math.PI / 2);
+  W.throwAny(); step(.5);
+  assert(n.ag >= 35 && !n.zom, `літачок у колегу — шкала злості ${Math.round(n.ag)}%, ще не зомбі`);
+  assert(W.V.npc.get(n.id) && /Колега/.test(W.V.npc.get(n.id).t.textContent) && parseInt(W.V.npc.get(n.id).bar.style.width) >= 35, 'над колегою — шкала агресії');
+  W.rile(n, 70, 'me'); step(.05);
+  assert(n.zom && n.tgt === b.k, `шкала повна — 🧟 «зайобуючий» іде діставати лідера (${n.tgt}), а не того, хто розізлив`);
+  assert(/хоче/.test(W.V.npc.get(n.id).t.textContent), 'над зомбі видно, яку каву він хоче');
+  // доганяє лідера й цупить сторінки
+  b.x = D0.cx - 6; b.z = D0.cz + 3; b.stun = 99; b.vx = b.vz = 0; const bp = b.pages; let ok = false;
+  for (let i = 0; i < 40 && !ok; i++) { b.x = D0.cx - 6; b.z = D0.cz + 3; b.stun = 99; step(.1); ok = b.pages < bp; }
+  assert(ok, `зомбі дістав лідера: «А можна на хвилинку?» (${bp} → ${b.pages} 📄)`);
+  // ланцюгова реакція
+  o.x = n.x + 1.2; o.z = n.z; o.ag = 0; o.wait = 999; o.wx = null; step(1); assert(o.ag > 5, `колега поруч із зомбі теж закипає (${Math.round(o.ag)}%)`);
+  // зомбі в колі принтера — ніхто не друкує
+  n.x = W.PX - 1.2; n.z = W.PZ; n.stun = 3; const pg = me.pages; for (let i = 0; i < 10; i++) { away(); atPrn(); n.x = W.PX - 1.2; n.z = W.PZ; n.stun = 3; step(.1); }
+  assert(W.ST.owner === '*' && me.pages === pg, 'зомбі-колега в колі принтера — «тиснява», друку нема');
+  // кава: не тієї — не допомагає; та, що хоче — заспокоює (+3)
+  putMe({ x: n.x + 1, z: n.z }); n.stun = 5; me.cf = [0, 0, 0]; me.cf[(n.want + 1) % 3] = 1; W.giveCoffee(); step(.1); assert(n.zom, 'не та кава — зомбі не заспокоївся');
+  me.cf[n.want] = 1; const pc = me.pages; const it = T.getInteract(); assert(it && /кавою/.test(it.l), 'F біля зомбі — «Пригостити кавою»'); it.fn(); step(.1);
+  assert(!n.zom && n.ag === 0 && me.pages >= pc + 3 && me.cf[n.want] === 0, '☕ правильна кава — колега заспокоївся (+3 📄)');
+  // зомбі на мене (лідер — я): підказка
+  me.pages = 60; b.pages = 5; o.x = D0.cx - 10; o.z = D0.cz + 3; W.rile(o, 100, b.k); step(.1);
+  assert(o.zom && o.tgt === 'me' && /зомбі-колега/.test(w.document.getElementById('printer-goal').innerHTML), 'на лідера (мене) нацькували зомбі — підказка «пригости кавою»');
+  // кавомашина: набрати кави
+  putMe(L(-11, 11.6)); step(.1); let it2 = T.getInteract(); assert(it2 && /Набрати кави/.test(it2.l), 'F біля кавомашини на кухні — «Набрати кави»'); me.cf = [0, 0, 0]; it2.fn(); step(.1); assert(me.cf.join() === '1,1,1', 'набрав еспресо, лате й раф');
+  o.zt = .05; step(.2); assert(!o.zom, 'зомбі з часом сам видихається');
+}
+{ // #4 кулер-пастка: калюжа ковзка; дріт із ПК у калюжу — струм, усі завмирають
+  away(); W.ST.wp.length = 0; const c = D0.coolers[0]; putMe({ x: c.x + 1.2, z: c.z }); step(.05);
+  let it = T.getInteract(); assert(it && /кулер/.test(it.l), 'біля кулера F — «Перекинути кулер»'); it.fn(); step(.1);
+  assert(W.ST.wp.length === 1 && W.wetAt(c.x + 1, c.z) && T.onSyrup(c.x + 1, c.z) && W.V.wps.size === 1, '💦 калюжа — ковзко (і видно)');
+  putMe(L(12.1, -2.2)); step(.05); it = T.getInteract(); assert(it && /дріт/.test(it.l), 'біля ПК F — «Висмикнути дріт»'); it.fn(); step(.1); assert(me.wi === 1 && T.MODEBAR.slots[0].ic === '🔌', 'дріт у руках (слот 1 — 🔌)');
+  putMe({ x: c.x - 3.3, z: c.z }, Math.PI / 2); W.throwAny(); step(.6);
+  assert(W.ST.wp[0] && W.ST.wp[0].el > 0 && W.zapAt(c.x - 1, c.z), '⚡ дріт у калюжі — калюжа під напругою');
+  const b = W.ST.ps.find(p => p.bot); b.x = c.x - 1.2; b.z = c.z + .5; b.stun = 0; step(.1); assert(b.stun > .3, 'бот у калюжі під струмом — завмер');
+  putMe({ x: c.x - 1.2, z: c.z - .5 }); step(.1); assert(W.V.stunT > 0, 'я в калюжі під струмом — завмер');
+  const x0 = T.pl.x; T.input.jx = 1; step(.4); T.input.jx = 0; assert(Math.abs(T.pl.x - x0) < .15, 'під струмом не рушиш з місця');
+  step(5); assert(!W.ST.wp.length, 'струм розрядився — калюжа зникла');
+}
+{ // #7 Молотов: палаюча калюжа; #6 вогнегасник гасить і відкидає; реактивне крісло
+  away(); const b = W.ST.ps.find(p => p.bot); me.mo = 2; putMe(L(-13, 3), Math.PI / 2); b.x = D0.cx - 9.5; b.z = D0.cz + 3; b.stun = 9; b.vx = b.vz = 0;
+  T.keydown('Digit5'); step(.05); T.keyup('Digit5'); step(.5);
+  assert(me.mo === 1 && W.ST.mf.length === 1 && W.fireAt(D0.cx - 9.6, D0.cz + 3) && W.V.fires.size >= 1, '🍾 Молотов — палаюча калюжа');
+  step(.1); assert(Math.hypot(b.vx, b.vz) > 1, 'бота в огні відкидає');
+  const f = W.ST.mf[0]; putMe({ x: f.x, z: f.z }); const hp0 = T.pl.hp; step(.2); assert(T.pl.hp < hp0, 'у палаючій калюжі — легкі опіки');
+  me.fo = 100; putMe({ x: f.x + 3, z: f.z }, -Math.PI / 2); b.x = f.x + 1.5; b.z = f.z; b.stun = 0; b.vx = b.vz = 0; b.cd = 9; W.sprayFoam(); step(.05);
+  assert(!W.ST.mf.length && Math.hypot(b.vx, b.vz) > 3 && b.stun > .3, '🧯 піна загасила калюжу й відкинула бота');
+  const ch = T.BODIES.find(q => q.kind === 'chair' && W.varAt(q.x, q.z) === 0);
+  me.fo = 100; T.mount(ch); assert(T.pl.ride === ch, 'сів у крісло'); T.pl.face = 0; ch.vx = ch.vz = 0; W.sprayFoam();
+  assert(ch.vz < -8, `крісло + вогнегасник назад = реактивний поштовх (${ch.vz.toFixed(1)} м/с)`); T.dismount(false); step(.3);
+}
+{ // #5 Румба-камікадзе: прибирає купи; з бомбою їде до суперника біля принтера й вибухає
+  away(); W.AU.rbIn = 0; step(.1); const r = W.ST.rb; assert(r && W.V.rbM && W.V.rbM.visible, '🤖 Румба виїхала з док-станції');
+  W.ST.piles.length = 0; W.ST.piles.push({ id: 99999, x: r.x + 1.5, z: r.z }); step(3); assert(!W.ST.piles.some(p => p.id === 99999), 'Румба прибрала купу паперу');
+  me.bo = 1; putMe({ x: r.x + .8, z: r.z }); step(.05); const it = T.getInteract(); assert(it && /Румби/.test(it.l), 'біля Румби F — «Прикрутити бомбу»'); it.fn(); step(.1);
+  assert(W.ST.rb.arm === 'b' && W.ST.rb.by === 'me' && me.bo === 0, '💣 бомбу прикручено');
+  const b = W.ST.ps.find(p => p.bot); b.pages = 40; let boom = false;
+  for (let i = 0; i < 80 && !boom; i++) { away(); b.x = W.PX + 1.5; b.z = W.PZ; b.stun = 99; putMe(L(-13, 3)); step(.25); boom = !W.ST.rb; }
+  assert(boom && b.pages === 35, `Румба доїхала до суперника біля принтера й вибухнула: −5 📄 (${b.pages})`);
+  W.ST.rb = null; W.AU.rbIn = 999;
+}
+W.ST.npc.forEach(n => { n.zom = 0; n.ag = 0; n.x = D0.board.x; n.z = D0.board.z - 1.4; n.wait = 999; n.wx = null; });
 W.ST.ev = '';
 // кінець: набрав 100
 const c0 = T.P.coins; me.pages = W.GOAL - 1;
@@ -138,18 +229,23 @@ step(9); assert(W.ST.ph !== 'fight' && W.ST.v === 1, 'принт-рум віль
   assert(W.ST.votes.me === 2 && W.lobbyDef().votes.join() === '0,0,1' && /mine/.test(pop().querySelector('[data-lv="2"]').className) && /🗳️ 1/.test(pop().querySelector('[data-lv="2"]').textContent), '🗳️ клік по картці «63» — голос, лічильник 1');
   T.MLOBBY.onVote(0); step(.1); assert(W.lobbyDef().votes.join() === '1,0,0', 'передумав — голос перейшов на 42');
   T.MLOBBY.onVote(2); step(.1); T.MLOBBY.onReady(); step(.1); me = W.ST.ps.find(p => p.k === 'me'); assert(W.ST.ph === 'fight' && W.ST.v === 2 && W.varAt(T.pl.x, T.pl.z) === 2, 'голосування: раунд на поверсі 63, мене перенесло туди');
-  W.AU.evIn = 999; W.AU.puIn = 999;
+  quiet();
   const A0 = W.prnPos(); assert(W.actIdx(2) === 0 && A0 === W.VAR[2].prn[0], 'поверх 63: працює північний принтер');
   let pg = me.pages; for (let i = 0; i < 15; i++) { away(); atPrn(); step(.1); } assert(me.pages > pg, 'друкую на північному');
   W.ST.t = W.SWITCH - .1; step(.2); const B0 = W.prnPos(); assert(W.actIdx(2) === 1 && B0 === W.VAR[2].prn[1], '🔀 через 25 с перемкнуло на південний принтер');
   pg = me.pages; T.pl.x = A0.x + 1.6; T.pl.z = A0.z; away(); step(.6); assert(me.pages === pg, 'вимкнений принтер не друкує');
   for (let i = 0; i < 15; i++) { away(); atPrn(); step(.1); } assert(me.pages > pg, 'на південному — друкую');
+  { // серверна поверху 63 горить — найближчий бот біжить гасити
+    W.startServerFire(); const sf = W.ST.sf, D2 = W.VAR[2]; assert(sf && Math.hypot(sf.x - D2.srv.x, sf.z - D2.srv.z) < .1 && W.varAt(sf.x, sf.z) === 2, '🔥 серверна поверху 63 загорілась');
+    W.ST.ps.forEach(p => { if (p.bot) { p.stun = 0; p.fo = 100; } }); T.pl.x = D2.board.x; T.pl.z = D2.board.z - 1.4;
+    let out = false; for (let i = 0; i < 60 && !out; i++) { step(.25); out = !W.ST.sf; }
+    assert(out, '🧯 бот-офісник прибіг і загасив серверну'); }
   W.req('leave'); step(.1); assert(W.ST.ph !== 'fight', 'вийшов — раунд скинувся');
 }
 // --- поверх 57: принтер на колесах їде колією, зона їде з ним
 { W.goPrinter(1); step(.5); assert(W.varAt(T.pl.x, T.pl.z) === 1 && W.ST.ph === 'lobby' && pop(), 'меню: поверх 57, вікно лобі'); T.MLOBBY.onReady(); step(.3); me = W.ST.ps.find(p => p.k === 'me');
   assert(W.ST.ph === 'fight' && W.ST.v === 1, 'раунд на поверсі 57 (без голосів — поверх, де стоїш)');
-  W.AU.evIn = 999; W.AU.puIn = 999;
+  quiet();
   const a = W.prnPos(); step(2); const b = W.prnPos(); assert(Math.hypot(b.x - a.x, b.z - a.z) > 1, `принтер на колесах їде (${Math.hypot(b.x - a.x, b.z - a.z).toFixed(1)} м за 2 с)`);
   const pg = me.pages; for (let i = 0; i < 20; i++) { away(); atPrn(); step(.1); } assert(me.pages > pg && W.ST.owner === 'me', 'біжу поруч — друкую на ходу');
   const pm = W.V.floors[1].v.prns[0].position; assert(Math.hypot(pm.x - W.PX, pm.z - W.PZ) < .2, 'модель принтера там, де зона');

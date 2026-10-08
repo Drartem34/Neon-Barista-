@@ -70,6 +70,19 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
     assert(got, 'оглушеного зомбі піднімаєш з першого разу (F)');
     if (a.pl.carry) { a.keydown('KeyF'); await tick([a, b], .5); }
   }
+  // 🍾 «молотов» Тараса: пожежа на плоту зомбі — бачать обоє, міцність тане (до 3 спроб: пліт міг саме відпливати)
+  { const RA = a.w.__raft, RB = b.w.__raft; let seen = false, burnt = false, hp0 = 0, sk0 = 0;
+    for (let tr = 0; tr < 3 && !(seen && burnt); tr++) {
+      for (let i = 0; i < 60 && !(RB.enLand() && RA.enLand()); i++) { a.pl.hp = b.pl.hp = 9999; await tick([a, b], .5); }
+      const er = RB.enR(), fx = er.x0 + 3.5, fz = er.z0 + 5; hp0 = RA.ST.hp; sk0 = RA.ST.sunk;
+      b.P.ing.molly = 1; b.pl.hp = 9999; b.pl.x = RX - 2; b.pl.z = RZ; b.input.aimOk = true; b.input.ax = fx; b.input.az = fz; b.keydown('KeyV');
+      assert(b.P.ing.molly === 0, '🍾 Тарас кинув «молотов» (V)');
+      seen = false; for (let i = 0; i < 30 && !seen; i++) { await tick([a, b], .1); seen = !!(RA.ST.fires.length && RB.ST.fires.length && RA.V.fires.size && RB.V.fires.size); }
+      if (!seen) { console.log('  молотов не загорівся (пліт відпливав?) — ще спроба'); continue; }
+      burnt = false; for (let i = 0; i < 40 && !burnt; i++) { a.pl.hp = b.pl.hp = 9999; await tick([a, b], .2); burnt = RA.ST.hp < hp0 || RA.ST.sunk > sk0; }
+    }
+    assert(seen, '🔥 сервер запалив пліт зомбі — полум\'я бачать і Оля, і Тарас');
+    assert(burnt, `🔥 вогонь з'їдає міцність плота — бачить і Оля (${hp0} → ${RA.ST.hp})`); }
   // бомби Тараса топлять пліт для обох
   let sunk = false;
   for (let k = 0; k < 7 && !sunk; k++) {

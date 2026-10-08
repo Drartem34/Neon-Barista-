@@ -68,7 +68,12 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   await tick([a, b], 1.5);
   assert(Math.abs(Q.ST.racers.find(r => r.k === bot.k).x - bx) > 2, 'боти їздять на сервері — бачать обоє');
   // ставлю Гонщика на d позаду Суперника й цілюсь у нього (крісло й гравець — разом, інакше «встає»)
-  const behind = async d => { Q.RC.v = 0; Q.RC.spin = 0; Q.RC.slow = 0; R.RC.spin = 0; R.RC.v = 0; R.RC.pull = null; R.RC.slow = 0;
+  // Суперника ставлю на пряму ділянку траси (на повороті постріл міг упертися в стіну — тест «плавав»)
+  const sIdx = (() => { let best = 0, bs = 9; for (let i = 0; i < Q.N; i++) { const p = Q.TR[(i - 12 + Q.N) % Q.N], c = Q.TR[i], n = Q.TR[(i + 6) % Q.N];
+    const t = Math.abs(Math.atan2(Math.sin(Math.atan2(n.z - c.z, n.x - c.x) - Math.atan2(c.z - p.z, c.x - p.x)), Math.cos(Math.atan2(n.z - c.z, n.x - c.x) - Math.atan2(c.z - p.z, c.x - p.x)))) + Math.abs(Math.hypot(n.x - p.x, n.z - p.z) - Math.hypot(c.x - p.x, c.z - p.z) - Math.hypot(n.x - c.x, n.z - c.z));
+    if (t < bs) { bs = t; best = i; } } return best; })();
+  const behind = async d => { { const g = Q.TR[sIdx]; Q.RC.x = g.x; Q.RC.z = g.z; Q.RC.idx = sIdx; Q.RC.prev = sIdx; Q.RC.h = Math.atan2(g.dz, g.dx); b.pl.x = g.x; b.pl.z = g.z; }
+    Q.RC.v = 0; Q.RC.spin = 0; Q.RC.slow = 0; R.RC.spin = 0; R.RC.v = 0; R.RC.pull = null; R.RC.slow = 0;
     R.RC.x = Q.RC.x - Math.cos(Q.RC.h) * d; R.RC.z = Q.RC.z - Math.sin(Q.RC.h) * d; R.RC.h = Q.RC.h; a.pl.x = R.RC.x; a.pl.z = R.RC.z; await tick([a, b], .6);
     const p = Object.values(a.NET.players).find(q => q.name === 'Суперник'); R.RC.h = Math.atan2(p.z - R.RC.z, p.x - R.RC.x); R.RC.v = 0; Q.RC.spin = 0; Q.RC.slow = 0;
     assert(R.RC.on && Q.RC.on, 'обоє в кріслах'); return p; };

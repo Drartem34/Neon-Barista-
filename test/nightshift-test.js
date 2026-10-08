@@ -293,6 +293,7 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
   N.ST.en.length = 0; T.keydown('KeyL'); step(.05);
   N.AU.cleanAt = 0; step(.1); const cl = N.ST.en.find(e => e.t === 1); assert(cl, '🧹 прибиральник виїхав на зміну');
   quiet = true; N.AU.calm = 0;
+  me().g = 0;   // і-кадри після «підвівся з кавою» (2.5 с) ще не минули — інакше прибиральник тебе не «бачить» як здобич
   cl.x = f.cx + 5; cl.z = f.cz + 1; cl.st = 'patrol'; go({ x: f.cx - 3, z: f.cz + 1 });
   for (let k = 0; k < 3; k++) { N.AU.inp.me = { a: 0, n: 1, t: N.ST.t }; N.V.noise = 1; step(.02); N.AU.inp.me = { a: 0, n: 1, t: N.ST.t }; }
   assert(cl.st === 'hunt' || cl.st === 'chase', `прибиральник почув кроки (${cl.st})`);

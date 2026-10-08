@@ -74,6 +74,7 @@ const ready = () => { step(.1); assert(lob(), 'лобі відкрите'); lob(
 T.pl.x = H.SPAWN.x; T.pl.z = H.SPAWN.z; ready(); step(.1);
 assert(ST.on && ST.ph === 'meet' && H.me() && !H.me().boss, '✅ «Я готовий» (сам) — раунд одразу почався: я — офісник, бос на нараді');
 assert(!lob(), 'раунд почався — вікно лобі закрилось');
+{ const r = w.document.getElementById('hb-role'); assert(r && r.style.display !== 'none' && /Ти — офісник/.test(r.textContent) && r.dataset.role === 'hider', 'на старті велика картка «🙈 Ти — офісник»'); }
 let it;
 assert(H.bossE().bot && H.alive().length === 3, `бот-бос «${H.bossE().n}» і ще два боти-офісники`);
 assert(ST.v === 0, 'ніхто не голосував — граємо на поверсі, де стоїш (42)');
@@ -139,6 +140,7 @@ step(.1); T.openPanel('ax_hideboss'); step(.05); body().querySelector('[data-hb=
 assert(lob() && /бос<\/b> проти ботів/.test(lob().querySelector('.row').innerHTML), 'у лобі видно обрану роль: бос проти ботів');
 ready(); step(.2);
 assert(ST.on && H.me().boss && H.alive().length === 3 && H.alive().every(e => e.bot), 'я — бос, проти трьох ботів-офісників');
+{ const r = w.document.getElementById('hb-role'); assert(r && r.style.display !== 'none' && /Ти — БОС!/.test(r.textContent) && r.dataset.role === 'boss', 'на старті велика картка «👔 Ти — БОС!»'); }
 step(.1); assert(T.MODEBAR && T.MODEBAR.slots.map(q => q.id).join() === 'catch,check,bell', 'панель боса: 👉 🔍 🔔');
 assert(H.inOffice(T.pl.x, T.pl.z) && w.document.getElementById('hb-blind').style.display === 'flex', 'нарада: бос у скляному кабінеті й нічого не бачить');
 T.pl.x = F0.x; T.pl.z = F0.z; step(.1); assert(H.inOffice(T.pl.x, T.pl.z), 'під час наради з кабінету не вийти');

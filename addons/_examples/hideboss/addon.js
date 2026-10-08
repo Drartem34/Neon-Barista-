@@ -1424,6 +1424,7 @@ function clientTick(dt) {
     if (amHider() && myProp() && hero) hero.root.visible = false;
   }
   syncBar(); hud(); guide(); blindfold(); lobbyUI();
+  if (V.roleT > 0 && (V.roleT -= dt) <= 0) { const r = document.getElementById('hb-role'); if (r) r.style.display = 'none'; }
 }
 function updWork(dt) {
   if (!V.work) return;
@@ -1521,7 +1522,7 @@ function roleCard(boss, F, bn) {
   el.innerHTML = boss
     ? `👔 Ти — БОС!<div style="font:700 15px/1.45 system-ui,sans-serif;margin-top:6px">${escapeHTML(F.n)} · спершу нарада 20 с (нічого не бачиш),<br>потім шукай офісників, що прикинулись меблями. ЛКМ — «Попався!»</div>`
     : `🙈 Ти — офісник<div style="font:700 15px/1.45 system-ui,sans-serif;margin-top:6px">${escapeHTML(F.n)} · бос — <b>${escapeHTML(bn || '')}</b>.<br>20 с наради — біжи й маскуйся під меблі (F)!</div>`;
-  clearTimeout(V.roleT); V.roleT = setTimeout(() => { el.style.display = 'none'; }, 4000);
+  V.roleT = 4;   // ховаємо в clientTick (ігровий час)
 }
 /* засліплення боса під час наради */
 function blindfold() {

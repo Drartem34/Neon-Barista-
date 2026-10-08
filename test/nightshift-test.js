@@ -1,5 +1,5 @@
 // Тест режиму «Нічна зміна» v2 у грі без сервера: три поверхи хмарочоса, лобі-попап (голос + «Я готовий»), набір режиму, «викрадення»,
-// брикання (F/Пробіл), шоти, лікувальна кава, ліхтарик не світить крізь стіни.
+// брикання (F/Пробіл), шоти, лікувальна кава, коктейль нічного бачення, ліхтарик не світить крізь стіни.
 // Запуск: node test/nightshift-test.js
 const fs = require('fs'), path = require('path');
 const { JSDOM } = require('jsdom');
@@ -120,7 +120,7 @@ N.FLOORS.forEach((f, k) => {
   assert(N.floorAt(T.pl.x, T.pl.z) === 1 && Math.hypot(T.pl.x - f1.SPAWN.x, T.pl.z - f1.SPAWN.z) < 1.5, 'зміна на 57-му — тебе перенесло в хол «Поверх 57»');
   assert(N.CUR === 1 && N.ST.en.length >= 3 && /Поверх 57/.test(hudTxt()) && /00:0/.test(hudTxt()), `HUD: «${N.FL.n}», годинник 00:00, зомбі: ${N.ST.en.length}`);
   assert(N.ST.en.every(e => N.floorAt(e.x, e.z) === 1), 'зомбі — на тому самому поверсі');
-  assert(T.MODEBAR && T.MODEBAR.slots.map(s => s.ic).join('') === '🔦🧪🔋📻☕' && w.document.getElementById('weapon').hidden, 'набір режиму замість хотбара: 🔦 🧪 🔋 📻 ☕');
+  assert(T.MODEBAR && T.MODEBAR.slots.map(s => s.ic).join('') === '🔦🧪🔋📻☕🍸' && w.document.getElementById('weapon').hidden, 'набір режиму замість хотбара: 🔦 🧪 🔋 📻 ☕ 🍸');
   N.ST.en.length = 0;
 }
 const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
@@ -280,6 +280,19 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
     const z2 = N.addEnemy(0, Z2); step(.2); const v2 = N.V.en.get(z2.id);
     assert(z2.lit === 1 && N.litBy(z2) === 'me' && N.outlineOf(v2).k === 'lit', 'зомбі за склом — освітлений і завмер, контур світиться');
     N.ST.en.length = 0; step(.05);
+  }
+  // 🍸 коктейль нічного бачення
+  {
+    const ck = N.ST.cks; assert(ck.length >= 1 && ck.length <= 2 && ck.every(i => !N.ST.bats.includes(i) && !N.ST.shp.includes(i)), `на поверсі ${ck.length} 🍸 (1–2 за ніч, окремо від 🔋 і 🧪)`);
+    const sl = T.MODEBAR.slots[5]; assert(sl && sl.ic === '🍸' && sl.count() === 0 && (me().nc | 0) === 0, 'у наборі режиму слот 🍸 (6), спершу 0');
+    T.keydown('Digit6'); step(.05); assert(!(me().nv > 0), 'без коктейлю 6 нічого не дає');
+    const i = ck[0]; go(N.ITEMS[i]); let it2 = T.getInteract(); assert(it2 && /коктейль нічного бачення/.test(it2.l), 'біля зеленого келиха F — «Взяти коктейль нічного бачення»');
+    it2.fn(); step(.05); assert(me().nc === 1 && !N.ST.cks.includes(i) && sl.count() === 1, '🍸 +1 у кишені, келих зник з підлоги');
+    go({ x: f.cx - 9, z: f.cz }); step(.1); assert(N.V.darkA > .8 && N.nvK() === 0, `без нічного бачення — темно (${N.V.darkA})`);
+    T.keydown('Digit6'); step(.1);
+    assert(me().nc === 0 && me().nv > 4 && N.nvK() > .9 && N.V.darkA < .25, `6 — випив: нічне бачення ${me().nv.toFixed(1)} с, темряву знято (${N.V.darkA.toFixed(2)})`);
+    assert(/👁️/.test(hudTxt()), 'у HUD — 👁️ відлік нічного бачення');
+    step(5.2); assert(!(me().nv > 0) && N.nvK() === 0 && N.V.darkA > .8, 'за 5 с нічне бачення минуло — знову темно');
   }
   quiet = false;
   it = null;

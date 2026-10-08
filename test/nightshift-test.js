@@ -193,6 +193,12 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
   N.ST.lz.push({ id: 77, x: z2.x, z: z2.z, t: 30 }); step(.7);   // кент кинув шот під ноги (сам, поки тягнуть, кидати не можеш)
   assert(z2.st === 'flee' && !me().dr && me().d === 1 && N.ST.lz.length === 1, 'кент кинув 🧪 шот під ноги — зомбі в неоновому світлі кинув здобич і тікає');
   step(5.5); assert(!me().d, 'полежав кілька секунд — оговтався сам');
+  // схопили біля самого ліфта — тягне не в нього, а до наступного (≥ 5 м): є час вирватись
+  { N.ST.en.length = 0; me().g = 0; me().l = 0; const q = F.SVC[0].p; go(q); const zq = N.addEnemy(0, { x: q.x + .9, z: q.z });
+    for (let k = 0; k < 30 && !me().dr; k++) step(.1);
+    const dTo = me().dr ? Math.hypot(F.SVC[zq.to].p.x - zq.x, F.SVC[zq.to].p.z - zq.z) : 0;
+    assert(me().dr === zq.id && zq.to !== 0 && dTo >= 5, `схопили біля «${F.SVC[0].n}» — тягне до «${F.SVC[zq.to].n}» (${dTo.toFixed(1)} м), а не в той, що впритул`);
+    N.ST.en.length = 0; Object.assign(me(), { d: 0, dr: 0, sg: 0, rt: 0 }); step(.1); }
   // втретє — ніхто не допоміг: дотягли до підвалу, сам — програш
   N.ST.en.length = 0; N.ST.lz = []; me().g = 0; me().l = 0; go(P0); const z3 = N.addEnemy(0, { x: P0.x + 1.5, z: P0.z });
   for (let k = 0; k < 30 && !me().dr; k++) step(.1);
@@ -305,6 +311,8 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
   assert(N.ST.ms[0] === 1 && zs.lit === 1, '💡 датчик руху ввімкнув світло в коридорі — зомбі завмер');
   N.ST.en.length = 0; T.keydown('KeyL'); step(.05);
   N.AU.cleanAt = 0; step(.1); const cl = N.ST.en.find(e => e.t === 1); assert(cl, '🧹 прибиральник виїхав на зміну');
+  { const dP = q => Math.hypot(q.p.x - T.pl.x, q.p.z - T.pl.z), far = f.SVC.reduce((a, b) => dP(b) > dP(a) ? b : a);
+    assert(Math.hypot(cl.x - far.p.x, cl.z - far.p.z) < 1.5, `…тим ліфтом, що далі від людей («${far.n}»), — не збиває з ніг одразу біля дверей`); }
   quiet = true; N.AU.calm = 0;
   me().g = 0;   // і-кадри після «підвівся з кавою» (2.5 с) ще не минули — інакше прибиральник тебе не «бачить» як здобич
   cl.x = f.cx + 5; cl.z = f.cz + 1; cl.st = 'patrol'; go({ x: f.cx - 3, z: f.cz + 1 });

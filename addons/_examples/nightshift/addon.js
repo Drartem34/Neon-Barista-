@@ -545,8 +545,9 @@ function onReq(d, from) {
   }
   else if (d.k === 'item') {
     const i = d.i | 0, bt = ST.bats.indexOf(i), sp = ST.shp.indexOf(i), ck = ST.cks.indexOf(i); if (!ITEMS[i] || !nearK(k, ITEMS[i], 2.2) || (bt < 0 && sp < 0 && ck < 0)) return;
-    if (ck >= 0) { if ((s.nc | 0) >= NC_MAX) return; ST.cks.splice(ck, 1); s.nc = (s.nc | 0) + 1; emit({ k: 'item', who: k, i, w: 'ck' }); }
-    else if (bt >= 0) { ST.bats.splice(bt, 1); giveBat(s); emit({ k: 'item', who: k, i, w: 'bat' }); } else { ST.shp.splice(sp, 1); s.sh = Math.min(5, s.sh + 1); emit({ k: 'item', who: k, i, w: 'shot' }); }
+    if (bt >= 0) { ST.bats.splice(bt, 1); giveBat(s); emit({ k: 'item', who: k, i, w: 'bat' }); }
+    else if (sp >= 0) { ST.shp.splice(sp, 1); s.sh = Math.min(5, s.sh + 1); emit({ k: 'item', who: k, i, w: 'shot' }); }
+    else { if ((s.nc | 0) >= NC_MAX) return; ST.cks.splice(ck, 1); s.nc = (s.nc | 0) + 1; emit({ k: 'item', who: k, i, w: 'ck' }); }
     pushState();
   }
   else if (d.k === 'gift') {
@@ -632,7 +633,9 @@ function down(k, e) {   // прибиральник збиває з ніг
 }
 function grab(k, e) {   // зомбі хапає за ногу й тягне до найближчого вантажного ліфта / люка
   const s = plS(k); if (s.d || s.tk) return;
-  let to = 0; SVC.forEach((q, i) => { if (dist2(e.x, e.z, q.p.x, q.p.z) < dist2(e.x, e.z, SVC[to].p.x, SVC[to].p.z)) to = i; });
+  // найближчий ліфт / люк, але не впритул (≥ 5 м): у жертви завжди є 2–3 с, щоб вирватись, а в кентів — щоб посвітити
+  const dd = i => dist2(e.x, e.z, SVC[i].p.x, SVC[i].p.z), ids = SVC.map((_, i) => i), okI = ids.filter(i => dd(i) >= 5);
+  const to = okI.length ? okI.reduce((a, b) => dd(b) < dd(a) ? b : a) : ids.reduce((a, b) => dd(b) > dd(a) ? b : a);
   Object.assign(s, { d: 1, dr: e.id, l: 0, h: 0, sg: 0, rt: 0 }); Object.assign(e, { st: 'drag', vic: k, to, litT: 0, tg: '' });
   emit({ k: 'grab', who: k, id: e.id, to, x: r2(e.x), z: r2(e.z) });
 }
@@ -700,7 +703,9 @@ function authTick(dt) {
     if (Math.random() < .4 && !ST.gift) { ST.gift = [i, Math.random() < .5 ? 'bat' : 'shot']; emit({ k: 'scare', what: 'elev', i, gift: ST.gift[1] }); }
     else if (ST.en.filter(e => !e.t).length < Math.min(8, 4 + c.length)) { addEnemy(0, SVC[i].p); emit({ k: 'scare', what: 'elev', i, spawn: 1 }); }
   }
-  if (ST.t >= AU.cleanAt && !ST.en.some(e => e.t)) { addEnemy(1, SVC[0].p); emit({ k: 'msg', big: 1, txt: '🧹 Нічний прибиральник виїхав вантажним ліфтом на зміну. Він чує кроки — крадься (Z) і ховайся!' }); }
+  if (ST.t >= AU.cleanAt && !ST.en.some(e => e.t)) {
+    const far = q => Math.min(...c.map(p => dist2(p.x, p.z, q.p.x, q.p.z)));   // виїжджає тим ліфтом, що далі від людей — не збиває з ніг одразу біля дверей
+    addEnemy(1, SVC.reduce((a, b) => far(b) > far(a) ? b : a).p); emit({ k: 'msg', big: 1, txt: '🧹 Нічний прибиральник виїхав вантажним ліфтом на зміну. Він чує кроки — крадься (Z) і ховайся!' }); }
   AU.scareT -= dt;
   if (AU.scareT <= 0) {
     AU.scareT = rand(18, 30); const what = pick(['mon', 'mon', 'printer', 'phone', 'elev']);

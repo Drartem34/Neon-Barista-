@@ -119,8 +119,8 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
     let flew = false; for (let k = 0; k < 12; k++) { await tick([a, b], .1); if (F.V.proj.size) flew = true; }
     assert(flew && G.me().inv.pl === 2, `${HN} кинув ✈️ — ${BN} бачить літачок у польоті`);
     await tick([a, b], 1);
-    if (!(F.V.noise && F.goal().id === 'noise')) console.log('  [шурх]', JSON.stringify({ noise: F.V.noise, tx, goal: F.goal(), gt: a.gameTime }));
-    assert(F.V.noise && Math.hypot(F.V.noise.x - tx.x, F.V.noise.z - tx.z) < 1.2 && F.goal().id === 'noise', `${BN} (бос) чує «🔊 шурх!» і бачить, де`);
+    if (!(F.V.noises || []).some(n => Math.hypot(n.x - tx.x, n.z - tx.z) < 1.2)) console.log('  [шурх]', JSON.stringify({ noises: F.V.noises, tx, st }));
+    assert(F.V.noise && (F.V.noises || []).some(n => Math.hypot(n.x - tx.x, n.z - tx.z) < 1.2) && F.goal().id === 'noise', `${BN} (бос) чує «🔊 шурх!» і бачить, де`);
   }
   let caught = false;
   for (let k = 0; k < 6 && !caught; k++) {

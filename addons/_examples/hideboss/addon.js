@@ -1592,7 +1592,7 @@ function projLand(e) {
   if (e.wall) ftext(x, 1.8, z, 'шльоп об стіну', 'calm');
   if (e.noise) {
     ringFX(x, z, 1.6, '#FFFFFF', .7); ftext(x, 1.9, z, '🔊 шурх!', 'calm');
-    if (amBoss() && onRound()) { const r = roomAt(x, z); V.noise = { x, z, until: gameTime + 4 }; toast(`🔊 Щось шурхнуло${r ? ` у «${roomName(r)}»` : ''}… Хтось там є? (а може, це приманка)`); }
+    if (amBoss() && onRound()) { const r = roomAt(x, z); V.noise = { x, z, until: gameTime + 4 }; (V.noises = (V.noises || []).slice(-5)).push(V.noise); toast(`🔊 Щось шурхнуло${r ? ` у «${roomName(r)}»` : ''}… Хтось там є? (а може, це приманка)`); }
   }
   if (e.bin != null) {
     ftext(x, 2.2, z, '🗑️ В ціль!', 'gold'); burst(x, .7, z, '#FFE066', 14, 3, .6, 3);

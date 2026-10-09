@@ -218,7 +218,7 @@ function simIntent(id, m) {
     } else if (m.k === 'ride' || m.k === 'rideUpd') {
       const b = BODIES[m.i | 0]; if (!b || !b.ride || b.fall || (b.owner != null && b.owner !== id) || b.carrier != null) return;
       b.owner = id; b.ownT = .6; b.held = true;
-      if (m.k === 'rideUpd') { b.x = num(m.x, -500, 500); b.z = num(m.z, -500, 500); b.vx = num(m.vx, -20, 20); b.vz = num(m.vz, -20, 20); b.face = num(m.f, -10, 10); b.m.rotation.y = b.face; }
+      if (m.k === 'rideUpd') { b.x = num(m.x, -5000, 5000); b.z = num(m.z, -5000, 5000); b.vx = num(m.vx, -20, 20); b.vz = num(m.vz, -20, 20); b.face = num(m.f, -10, 10); b.m.rotation.y = b.face; }
     } else if (m.k === 'unride') {
       const b = BODIES[m.i | 0]; if (!b || b.owner !== id) return;
       b.owner = null; b.held = false; b.vx = num(m.vx, -20, 20); b.vz = num(m.vz, -20, 20);

@@ -15,14 +15,14 @@ w.setTimeout = f => { f(); return 0; };
 w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
 w.__ADDON_CODE = [{ id: 'deadline', src: 'deadline/addon.js', code: fs.readFileSync(path.join(root, 'addons/_examples/deadline/addon.js'), 'utf8') }];
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-src += ';window.__T={get paused(){return paused},get running(){return running},get P(){return P},pl,MON,PROPS,BODIES,ADDONS,ISLMAP,STATICS,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),funSpeedMul:()=>funSpeedMul(),get MODEBAR(){return MODEBAR},keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),mount:b=>mount(b),dismount:p=>dismount(p)};';
+src += ';window.__T={mount:b=>mount(b),dismount:p=>dismount(p),get BODIES(){return BODIES},get ADDONS(){return ADDONS},get paused(){return paused},get running(){return running},get P(){return P},pl,MON,PROPS,BODIES,ADDONS,ISLMAP,STATICS,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),funSpeedMul:()=>funSpeedMul(),get MODEBAR(){return MODEBAR},keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),mount:b=>mount(b),dismount:p=>dismount(p)};';
 w.eval(src);
 const T = w.__T; let now = 1000;
 w.__deadlineFastLobby = 1;   // лобі заповнюється ботами кроками по 0,2 с (у грі — 4 с і далі кожні 2,5 с)
 const F = w.__deadline;
-let calmZ = true, calmB = true;
+let calmZ = true, calmB = true, keepRoles = false;
 // без випадкового хаосу, зажовувань і вибухів — тест передбачуваний; зомбі сидять на нараді
-const calm = () => { if (!F) return; F.AU.chaosT = 999; F.AU.jamP = 0; F.AU.boomP = 0; F.AU.excel = 0; F.AU.sbT = 999; F.AU.botAI = calmB ? 0 : 1; if (calmZ) for (const z of F.ST.zom) z.stun = 99; };
+const calm = () => { if (!F) return; F.AU.chaosT = 999; F.AU.jamP = 0; F.AU.boomP = 0; F.AU.excel = 0; F.AU.sbT = 999; F.AU.botAI = calmB ? 0 : 1; if (!keepRoles && (F.AU.sec || F.AU.int)) F.setRoles('', ''); if (calmZ) for (const z of F.ST.zom) z.stun = 99; };
 const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; calm(); T.frame(now); if (i % 3 === 0) IV.forEach(f => f()); } };
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exit(1); } console.log('ok -', m); };
 const body = () => w.document.querySelector('#pbody');
@@ -57,7 +57,7 @@ assert(F.goal().id === 'start' && w.document.getElementById('dl-intro'), 'до �
 assert(lob() && lob().querySelectorAll('[data-lv]').length === 3 && /Поверх 57 · Банк/.test(lob().textContent) && lob().querySelector('.rdy'), '🗳️ вхід у режим — відкрилось вікно лобі: 3 картки поверхів і «Я готовий»');
 assert([...lob().querySelectorAll('.map')].every((e, i) => e.innerHTML.includes(`addons/deadline/map${i + 1}.jpg`)), 'у картках — картинки addons/deadline/map1..3.jpg');
 assert(!F.LAY.some(q => q.pads || q.v.pads) && F.L.lifts.length === 3 && !('PADS' in F), 'панелей голосування на підлозі більше немає');
-w.document.querySelector('#dl-intro button').click(); assert(!w.document.getElementById('dl-intro') && T.P.addons.deadline.intro2 === 1, 'інструкцію закрив — більше не показується');
+w.document.querySelector('#dl-intro button').click(); assert(!w.document.getElementById('dl-intro') && T.P.addons.deadline.intro5 === 1, 'інструкцію закрив — більше не показується');
 step(.1); assert(/Я готовий/.test(w.document.getElementById('deadline-goal').textContent) && /Поверх 42/.test(w.document.getElementById('deadline-hud').textContent), 'у HUD назва поверху й рядок «👉 що робити зараз»');
 assert(!barOn(), 'у холі до старту — звичайний хотбар');
 // стіни офісу й скляний фасад тримають
@@ -83,6 +83,7 @@ assert(T.pl.x < F.L.x + 20 && T.terrainAt(T.pl.x, T.pl.z) === 'land', 'скло 
 
 const seen = []; let jamT = 0, boomT = 0, excelT = 0;
 /* проходимо ланцюжок, слухаючись лише підказки */
+let mgN = 0;
 const drive = (maxIt, stop) => {
   for (let k = 0; k < maxIt && F.ST.on && !(stop && stop()); k++) {
     T.pl.hp = 9999; step(.05);
@@ -92,7 +93,7 @@ const drive = (maxIt, stop) => {
     if (!g.tg) { step(.3); continue; }
     at(g.tg); step(.05); at(g.tg);
     const i2 = T.getInteract(); if (!i2) { step(.2); continue; }
-    i2.fn();
+    i2.fn(); if (F.V.mg) { mgN++; F.miniWin(); }   // 🎮 міні-гра (кабелі принтера / набір слова / щиток) — «пройдено»
     for (let j = 0; j < 80 && F.V.act; j++) { const p = g.id === 'boss' ? { x: F.ST.boss.x + .3, z: F.ST.boss.z + .3 } : F.V.act.tg(); at(p); step(.1); }
     step(.15);
   }
@@ -120,7 +121,8 @@ assert(F.ST.bt.map(b => b.n).join() === botNames && F.ST.bt.length === 4, `у р
 assert(/17:53/.test(w.document.getElementById('deadline-hud').textContent) && F.ST.dur === 420 && /Чекліст/.test(w.document.getElementById('deadline-list').textContent), 'у HUD годинник 17:53 (раунд 7 хв) і чекліст');
 assert(barOn() && /🪠/.test(w.document.getElementById('modebar').textContent) && /Вантуз/.test(w.document.getElementById('modebar').textContent), 'набір режиму: 🪠 Вантуз · 📘 Кинути звіт · ☕ Кава-ривок замість хотбара');
 assert(F.ST.desk.filter(Boolean).length === F.ST.need && F.ST.need === 3, 'дані лежать у 3 колег');
-F.ST.steps = ['data', 'print', 'staple', 'stamp', 'number', 'scan', 'sign', 'send'];   // для повного покриття — усі 5 пунктів
+F.ST.steps = ['data', 'print', 'staple', 'stamp', 'number', 'scan', 'sign', 'send'];
+F.setRoles('', ''); step(.05);   // без таємних ролей — темп передбачуваний (ролі перевіряємо окремо)   // для повного покриття — усі 5 пунктів
 F.chaos('power'); assert(!F.ST.pw && F.goal().id === 'power', 'стрибок напруги: світло зникло, підказка веде до ⚡ щитка');
 // ☕ кава-ривок
 { const m0 = T.funSpeedMul(); w.document.querySelector('#modebar [data-ms="2"]').click(); assert(F.V.cof === 2 && F.V.dashT > 0 && T.funSpeedMul() > m0 * 1.4, `☕ кава-ривок: швидше в ${(T.funSpeedMul() / m0).toFixed(2)} раза, лишилось 2`); }
@@ -170,7 +172,7 @@ assert(F.myHeld().it === 'report' && T.funSpeedMul() < .9, 'важкий зві�
 // 🚪 пожежні сходи — короткий шлях
 { at(F.STAIRS.a); step(.05); it = T.getInteract(); assert(it && /Пожежні сходи/.test(it.l), 'біля дверей F — «🚪 Пожежні сходи»'); it.fn(); step(.1); assert(Math.hypot(T.pl.x - F.STAIRS.b.x, T.pl.z - F.STAIRS.b.z) < .5 && F.myHeld().it === 'report', 'сходами — в інший кінець поверху разом зі звітом'); }
 // 📊 колега з Excel
-{ F.chaos('excel'); assert(F.ST.xl && F.goal().id !== 'excel', 'колега кличе з Excel (поки звіт у руках — пріоритет звіт)'); const c0 = F.V.cof, d = F.DESKS[F.ST.xl.i]; at(d.p); step(.05); it = T.getInteract(); assert(it && /ВПР/.test(it.l), 'біля колеги F — «Допомогти з ВПР»'); it.fn(); for (let j = 0; j < 40 && F.V.act; j++) { at(d.p); step(.1); } assert(!F.ST.xl && F.V.cof === c0 + 1, '📊 допомогли з ВПР — +1 ☕ ривок'); excelT = 1; }
+{ F.chaos('excel'); assert(F.ST.xl && F.goal().id !== 'excel', 'колега кличе з Excel (поки звіт у руках — пріоритет звіт)'); const c0 = F.V.cof, d = F.DESKS[F.ST.xl.i]; at(d.p); step(.05); it = T.getInteract(); assert(it && /ВПР/.test(it.l), 'біля колеги F — «Допомогти з ВПР»'); it.fn(); { const inp = w.document.getElementById('dl-mg-in'); assert(F.V.mg && F.V.mg.kind === 'type' && inp && /ВПР/.test(w.document.getElementById('dl-mini').textContent), '🎮 міні-гра ПК: «⌨️ Набери слово ВПР»'); inp.value = 'впр'; inp.dispatchEvent(new w.Event('input')); } step(.2); assert(!F.V.mg && !F.ST.xl && F.V.cof === c0 + 1, '📊 набрав «ВПР» — допомогли з Excel, +1 ☕ ривок'); excelT = 1; }
 drive(90);
 assert(boomT && F.ST.cm, 'кавоварку полагодили');
 assert(seen.includes('desk@data') && seen.includes('printer@data') && seen.includes('printer@print') && seen.includes('staple@staple') && seen.includes('stamp@stamp'), 'підказки вели: колеги → принтер → степлер → печатка');
@@ -238,10 +240,11 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
     assert(['Папір для літачків', 'Книжкова шафа', 'Смітник'].every(t => L_.some(x => x.includes(t))), 'над місцями видачі — підписи «✈️ Папір для літачків», «📘 Книжкова шафа», «🧻 Смітник»'); }
   assert(/📘 0 — книжки — у книжковій шафі.*\d+ м/.test(w.document.getElementById('deadline-goal').textContent) && /де: шафа/.test(ms.querySelector('[data-ms="1"]').textContent), 'книжок 0 — у підказці «📘 0 — книжки — у книжковій шафі ↗ N м», на слоті «де: шафа»');
   TL.length = 0; ms.querySelector('[data-ms="1"]').click(); assert(/де взяти: книжкові шафи/.test(toasts()), 'порожній слот 📘 — тост, де взяти');
-  { const sp = F.L.pk.find(s => s.k === 'pp'); at(sp); step(.05); it = T.getInteract();
+  { const off = F.L.pk.filter(q => !F.pkOn(q)); assert(off.length === 3, '🎲 цього раунду 3 місця видачі «порожні» (розклад тасується)'); F.ST.s5.pka = null; }   // далі — усі місця видачі активні (як у v4)
+  { const sp = F.L.pk.find(s => s.k === 'pp' && F.pkOn(s)); at(sp); step(.05); it = T.getInteract();
     assert(it && /F — скласти літачок \(\+3\)/.test(it.l), 'біля лотка з папером F — «скласти літачок (+3)»'); it.fn(); assert(F.V.pp === 5, '✈️ +3 → 5');
     it = T.getInteract(); assert(it && /порожньо/.test(it.l), 'лоток «перезаряджається» кілька секунд'); }
-  { const sb = F.L.pk.find(s => s.k === 'bk'); at(sb); step(.05); it = T.getInteract();
+  { const sb = F.L.pk.find(s => s.k === 'bk' && F.pkOn(s)); at(sb); step(.05); it = T.getInteract();
     assert(it && /F — взяти книжку \(\+2\)/.test(it.l), 'біля книжкової шафи F — «взяти книжку (+2)»'); it.fn(); step(.05); assert(F.V.bk === 2 && !/📘 0/.test(w.document.getElementById('deadline-goal').textContent), '📘 +2, підказка про книжки зникла'); }
   // ✈️ літачок у колегу → шкала агресії → 😤 «зайобуючий»
   const D4 = F.DESKS[4], cp = F.colPos(4);
@@ -329,8 +332,9 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
   }
   // 🧻 «папірець у смітник» здалеку і 📘 книжка по зомбі, що жує звіт
   {
-    const bin = F.L.pk.find(s => s.k === 'pb'); let p = null;
+    const bin = F.L.pk.find(s => s.k === 'pb' && F.pkOn(s)); let p = null;
     for (let k = 0; k < 24 && !p; k++) { const a = k / 24 * Math.PI * 2, q = { x: bin.o.x + Math.sin(a) * 6, z: bin.o.z + Math.cos(a) * 6 }; if (!F.blocked(q.x, q.z, .4) && F.reachable(q.x, q.z)) p = q; }
+    for (const z of F.ST.zom) { z.x = F.START.p.x; z.z = F.START.p.z; }   // зомбі не на лінії кидка
     at(p); T.pl.face = Math.atan2(bin.o.x - p.x, bin.o.z - p.z); step(.05);
     const c0 = T.P.coins, ms = w.document.getElementById('modebar');
     ms.querySelector('[data-ms="4"]').click();
@@ -359,6 +363,38 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
     }
     calmB = true;
   }
+  // ---------- v5: ⚡ щиток, 📦 коробки, 🧽 калюжі, 🛡️/🧑‍🎓 ролі, 🔥 аврал, розклад раунду ----------
+  {
+    const S5 = F.ST.s5; assert(S5 && S5.btn.length === 3 && S5.sec && S5.doc.length === 2 && (!S5.pka || S5.pka.length < F.L.pk.length) && F.ST.bx && F.ST.mp5.length >= 1 && F.ST.shc.length >= F.DESKS.length, `🎲 розклад раунду: 3 червоні кнопки, пост охорони (${S5.sec.n}), 2 архівні шафи, коробки ${F.ST.bx.a.n} → ${F.ST.bx.b.n}, ${F.ST.mp5.length} калюж, місця видачі тасуються`);
+    // ⚡ блекаут: папери стоять; наодинці — міні-гра «3 перемикачі»
+    calmB = true; F.chaos('power'); step(.1);
+    assert(!F.ST.pw && +w.document.getElementById('dl-dark').style.opacity > .5, '⚡ блекаут: темрява з ліхтариком');
+    { const fed0 = F.ST.fed; F.ST.held.me = { it: 'sheets', n: 1, cup: 0 }; F.req('feed'); step(.05); assert(F.ST.fed === fed0 && /Темно/.test(toasts()), '⚡ у темряві папери не працюють (принтер не бере дані)'); F.ST.held = {}; }
+    at(F.PANEL.p); step(.05); it = T.getInteract(); assert(it && /3 перемикачі/.test(it.l), 'біля щитка наодинці: F — «⚡ 3 перемикачі (міні-гра)»'); it.fn();
+    { const M = F.V.mg; assert(M && M.kind === 'sw', 'вікно щитка з порядком перемикачів'); w.document.querySelector(`#dl-mini [data-mg="${M.seq[1]}"]`).click(); assert(F.V.mg && F.V.mg.i === 0, 'не той перемикач — усе спочатку');
+      for (const a of M.seq.slice()) w.document.querySelector(`#dl-mini [data-mg="${a}"]`).click(); }
+    step(.1); assert(F.ST.pw && !F.V.mg, '💡 перемикачі в правильному порядку — світло є');
+    // 📦 коробки: з А в Б, з коробкою повільніше
+    { const B = F.ST.bx, m0 = T.funSpeedMul(); at(B.a); step(.05); it = T.getInteract(); assert(it && /Взяти коробку/.test(it.l), '📦 у зоні А F — «Взяти коробку»'); it.fn(); step(.05);
+      assert(B.cb.includes('me') && T.funSpeedMul() < m0 * .7, '📦 коробка в руках — ходиш повільніше'); assert(F.goal().id === 'box', 'підказка веде в зону Б');
+      at(B.b); step(.05); it = T.getInteract(); it.fn(); step(.05); assert(B.done === 1 && !B.cb.length, '📦 1/3 — коробку поставлено в зоні Б');
+      const d0 = F.ST.dur; for (let n = 0; n < 2; n++) { at(B.a); step(.05); T.getInteract().fn(); at(B.b); step(.05); T.getInteract().fn(); step(.05); }
+      assert(B.done === 3 && F.ST.dur === d0 + 25, '📦 усі 3 коробки — +25 с до дедлайну'); }
+    // 🧽 калюжа кави
+    { const q = F.ST.mp5[0], d0 = F.ST.dur; at(q); step(.05); it = T.getInteract(); assert(it && /Помити підлогу/.test(it.l), '🧽 біля калюжі F — «Помити підлогу»'); it.fn();
+      for (let j = 0; j < 40 && F.V.act; j++) { at(q); step(.1); } assert(!F.ST.mp5.includes(q) && F.ST.dur === d0 + 4, '🧽 чисто: +4 с'); }
+    // 🛡️ безпековик: таємна перевірка колеги; 🧑‍🎓 стажер: ×2 довше й імунітет до першого звинувачення
+    keepRoles = true; F.setRoles('me', ''); F.V.roleRid = -1; step(.1);
+    assert(F.V.role === 'sec' && /БЕЗПЕКОВИК/.test(w.document.getElementById('dl-role').textContent) && /Безпековик/.test(w.document.getElementById('dl-secret').textContent), '🛡️ картка ролі «Ти ще й БЕЗПЕКОВИК» і приватна панель');
+    { const i = F.DESKS.map(d => d.i).find(j => !F.pestOf(j)); at(F.colPos(i)); step(.05); it = T.getInteract(); assert(it && /Перевірити/.test(it.l), `🛡️ біля ${F.NAMES[i]} F — «Перевірити»`); TL.length = 0; it.fn(); step(.1);
+      assert(/Результат бачиш лише ти/.test(toasts()) && !F.V.chk && F.AU.chkU, '🛡️ результат перевірки — лише тобі, раз за раунд'); }
+    F.setRoles('', 'me'); F.ST.held = {}; F.ST.cm = 1; step(.1); { at(F.COFFEE.p); step(.05); const i2 = T.getInteract(); i2.fn(); assert(F.V.role === 'int' && F.V.act && F.V.act.need === 5, '🧑‍🎓 стажер варить каву вдвічі довше (5 с)'); F.V.act = null; }
+    F.setRoles('', ''); keepRoles = false; step(.05);
+    // 🔥 аврал за 2 хв до 18:00
+    { const z0 = F.ST.zom.length, t0 = F.ST.t; F.ST.t = F.ST.dur - 119; step(.1);
+      assert(F.ST.av && F.ST.zom.length >= Math.min(12, z0 + 2) && +w.document.getElementById('dl-avral').style.opacity > 0 && /АВРАЛ/.test(w.document.getElementById('deadline-hud').textContent), '🔥 АВРАЛ: червона рамка, більше зомбі, у HUD «🔥 АВРАЛ»');
+      F.ST.t = t0; F.ST.av = 0; F.AU.av = 0; F.ST.zom.splice(z0); }
+  }
   // 🕵️ саботажник: гравцем (перевірка картки й дії), а потім — колега-NPC, свідки й 🚨 нарада
   {
     const sab0 = F.AU.sab, sh0 = F.ST.sh, sk0 = F.ST.sk;
@@ -367,26 +403,56 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
     assert(/🕵️/.test(w.document.querySelector('#modebar [data-ms="7"]').textContent) && /саботажник/.test(w.document.getElementById('deadline-goal').textContent), 'у саботажника 8-й слот — 🕵️ Саботаж і підказка внизу');
     at(F.RACK.p); step(.05); w.document.querySelector('#modebar [data-ms="7"]').click(); for (let j = 0; j < 40 && F.V.act; j++) { at(F.RACK.p); step(.1); } step(.1);
     assert(F.ST.fire > 0 && F.V.sbcd > 10, '🕵️ саботажник тихо підпалив серверну, перезарядка');
+    // v5: саботаж лишив докази — 👣 сліди, 🪪 журнал бейджів серверної, 📹 запис камери з кольором сорочки
+    assert(F.ST.cl.some(q => q.k === 'foot') && F.ST.cl.some(q => q.k === 'badge') && F.ST.cam.length && /сорочці/.test(F.ST.cam[0].txt) && F.AU.sp >= 2 && F.AU.st.me.s === 1, '🔎 після підпалу: 👣 сліди, 🪪 журнал бейджів, 📹 запис камери; очки саботажу');
+    { const ft = F.ST.cl.find(q => q.k === 'foot'), n0 = ft.pts.length; at({ x: F.RACK.p.x + 3, z: F.RACK.p.z + 1 }); step(2.5); assert(ft.pts.length > n0, `👣 сліди тягнуться за саботажником (${ft.pts.length} відбитків)`); }
+    // 💻 злам сервера — міні-гра зі стрілками
+    F.ST.fire = 0; F.V.sbcd = 0; F.AU.sbcd = {}; F.ST.heat = 0; at(F.RACK.p); step(.05); it = T.getInteract();
+    assert(it && /Зламати сервер/.test(it.l), 'саботажник біля сервера: F — «💻 Зламати сервер (міні-гра)»'); it.fn();
+    { const M = F.V.mg; assert(M && M.kind === 'seq' && /Злам сервера/.test(w.document.getElementById('dl-mini').textContent), '💻 вікно зламу з послідовністю стрілок'); for (const a of M.seq.slice()) w.document.querySelector(`#dl-mini [data-mg="${a}"]`).click(); }
+    step(.1); assert(!F.V.mg && F.ST.heat === 1 && F.AU.sp >= 5, '💻 сервер зламано: перегрів, +3 очки саботажу');
+    // 🗂️ документи: шредер (тихо, міні-гра) — лишається паперова локшина
+    { F.V.sbcd = 0; F.AU.sbcd = {}; const d = F.ST.s5.doc[1], t0 = F.ST.t; at(d); step(.05); it = T.getInteract(); assert(it && /Знищити документи/.test(it.l), '🗂️ біля архівної шафи F — «Знищити документи (🔥 чи 🗜️)»'); it.fn();
+      F.miniWin('shred'); assert(F.V.mg && F.V.mg.kind === 'shred', 'обрав 🗜️ шредер — міні-гра ← →'); F.miniWin(); step(.1);
+      assert(F.ST.t >= t0 + 11 && F.ST.cl.some(q => q.k === 'strip'), '🗜️ документи знищено: −12 с, лишилась паперова локшина'); }
+    // 🪑 рідкісне таємне завдання: 5 м на кріслі (крісло не зливається в статику — видно під вершником)
+    { F.ST.co = 1; const B = T.BODIES.find(b => b.kind === 'chair' && F.floorOf(b.x, b.z) === F.ST.vi && !b.fall);
+      assert(B && T.ADDONS.dyn.includes(B.m), '🪑 модель крісла — динамічна (не зливається в статику)');
+      at(B); T.mount(B); step(.05); assert(F.V.rideSit === 1, '🪑 сидиш у кріслі (поза «сидячи»)');
+      for (let i = 0; i < 40 && F.ST.co !== 2; i++) { B.vx = 6 * Math.sin(i * .7); B.vz = 6 * Math.cos(i * .7); step(.1); }
+      assert(F.ST.co === 2 && /Таємне завдання виконано/.test(toasts()), `🪑 накатав ${F.V.chM.toFixed(1)} м — таємне завдання виконано, +5 очок`);
+      T.dismount(false); step(.05); assert(!F.V.rideSit, 'встав з крісла — звичайна поза'); }
     F.ST.fire = 0; F.AU.sab = sab0; F.ST.sh = sh0; F.ST.sk = sk0; F.V.roleRid = F.ST.rid; step(.1); F.V.wasSab = false;
     assert(!F.V.sab && /🚨/.test(w.document.querySelector('#modebar [data-ms="7"]').textContent), 'знову звичайний працівник — слот 🚨 Нарада');
     const si = +sab0.slice(4); let ok = false; for (let n = 0; n < 10 && !ok; n++) ok = F.botSabotage();
     assert(ok && F.ST.clr.length >= 2 && !F.ST.clr.includes(si), `🕵️ колега-саботажник нашкодив; свідки дали алібі: ${F.ST.clr.map(i => F.NAMES[i]).join(', ')}`);
-    F.ST.fire = 0; F.ST.jam = 0; F.ST.cm = 1; F.ST.pw = 1; F.ST.rain = 0; if (F.ST.rb) F.ST.rb.arm = 0;
+    F.ST.fire = 0; F.ST.jam = 0; F.ST.cm = 1; F.ST.pw = 1; F.ST.rain = 0; F.ST.heat = 0; if (F.ST.rb) F.ST.rb.arm = 0;
+    // 🔎 докази колеги-саботажника: F — у справу; 📹 пост охорони — записи камер
+    { const n0 = F.ST.cs.length; for (const q of F.ST.cl.slice().reverse()) { for (const p of q.pts || [q]) { const pp = Array.isArray(p) ? { x: p[0], z: p[1] } : p; at(pp); step(.05); at(pp); it = T.getInteract(); if (it && /Зібрати доказ/.test(it.l)) break; } if (it && /Зібрати доказ/.test(it.l)) break; }
+      assert(it && /Зібрати доказ/.test(it.l), `біля доказу F — «${it && it.l}»`); it.fn(); step(.1); assert(F.ST.cs.length === n0 + 1 && /у справу/.test(toasts()), `🗂️ у справі: ${F.ST.cs[F.ST.cs.length - 1].txt}`); }
+    { at(F.ST.s5.sec); step(.05); it = T.getInteract(); assert(it && /Пост охорони/.test(it.l), '📹 пост охорони: F — переглянути записи камер'); it.fn(); step(.1); assert(F.ST.cs.some(q => /^📹/.test(q.txt)) && /Записи камер/.test(toasts()), '📹 записи камер додано у справу'); }
     w.document.querySelector('#modebar [data-ms="7"]').click(); step(.1);
-    const mt = w.document.getElementById('dl-meet');
-    assert(F.ST.mt && mt && mt.style.display !== 'none' && mt.querySelectorAll('[data-mv]').length === F.DESKS.length + 1 && F.V.mc === 0, '🚨 нарада: вікно з 8 колегами + «Пропустити»');
-    assert(F.goal().txt.includes('Нарада'), 'підказка: голосуй');
+    let mt = w.document.getElementById('dl-meet'); const MP = F.mpos();
+    assert(F.ST.mt && F.ST.mt.ph === 'go' && (!mt || mt.style.display === 'none') && F.goal().id === 'meet' && /Негайно в переговорну/.test(F.goal().txt) && F.V.mc === 0, `🚨 збори: «Негайно в переговорну!» (${MP.n}) — стрілка туди, 20 с`);
+    at(MP); step(.3);
+    mt = w.document.getElementById('dl-meet');
+    assert(F.ST.mt && F.ST.mt.ph === 'vote' && mt.style.display !== 'none' && mt.querySelectorAll('[data-mv]').length === F.DESKS.length + 1 && /Звільнити/.test(mt.textContent) && /Продовжити роботу/.test(mt.textContent) && /Справа/.test(mt.textContent) && mt.querySelectorAll('.dlm-bar').length === F.DESKS.length, '🚨 дійшов у переговорну — вікно: «Звільнити …» ×8 зі стовпчиками, «⏭️ Продовжити роботу», 🗂️ справа');
+    assert(F.goal().txt.includes('Збори'), 'підказка: голосуй');
     const zx = F.ST.zom.map(z => z.x); step(.5); assert(F.ST.zom.every((z, k) => z.x === zx[k]), 'під час наради зомбі завмерли');
     const inn = F.DESKS.map(d => d.i).find(i => i !== si && !F.pestOf(i)); const t0 = F.ST.t;
     mt.querySelector(`[data-mv="${inn}"]`).click(); step(.2);
     assert(!F.ST.mt && F.pestOf(inn) && !F.ST.sbC, `проголосували за невинного ${F.NAMES[inn]} — він образився і став 😤`);
     w.document.querySelector('#modebar [data-ms="7"]').click(); step(.1); assert(!F.ST.mt, 'вдруге нараду не скликати');
-    F.AU.mc = {}; F.AU.mtCd = 0; F.V.mc = 1; w.document.querySelector('#modebar [data-ms="7"]').click(); step(.1);
+    assert(/НЕ був/.test(w.document.getElementById('dl-verdict').textContent), '🗂️ драматичний вердикт: «Звільнено: … — НЕ був саботажником»');
+    F.AU.mc = {}; F.AU.mtCd = 0; F.V.mc = 1; at({ x: MP.x + 9, z: MP.z }); w.document.querySelector('#modebar [data-ms="7"]').click(); step(.1);
+    F.ST.mt.t = .05; step(.3); assert(F.ST.mt.ph === 'vote' && Math.hypot(T.pl.x - MP.x, T.pl.z - MP.z) < 3.3, '⏱️ не дійшов за 20 с — телепортувало в переговорну');
     const dur0 = F.ST.dur; w.document.querySelector(`#dl-meet [data-mv="${si}"]`).click(); step(.2);
+    assert(/БУВ/.test(w.document.getElementById('dl-verdict').textContent), '🗂️ вердикт: «— він(вона) БУВ(ЛА) саботажником!»');
     assert(F.ST.sbC === 1 && F.ST.dur === dur0 + 20 && /спіймано/.test(w.document.getElementById('deadline-hud').textContent), `🕵️ спіймали саботажника ${F.NAMES[si]}: +20 с до дедлайну`);
     const c0 = T.P.coins; F.ST.t = F.ST.dur - .3; step(1);
     assert(!F.ST.on && T.P.addons.deadline.caught === 1 && T.P.coins - c0 >= 40 + 10, `раунд скінчився: +40 🪙 за спійманого саботажника (+${T.P.coins - c0})`);
     assert(!F.ST.pst.length && !F.ST.ag.some(Boolean) && !F.ST.burn.length, 'після раунду «зайобуючі» повернулись за столи, вогонь згас');
+    { const fe = w.document.getElementById('dl-final'); assert(fe && fe.style.display !== 'none' && /завдань/.test(fe.textContent) && /Досягнення/.test(fe.textContent) && /Саботажник/.test(fe.textContent) && /Шерлок|Пожежник|Трудоголік/.test(fe.textContent), '🏆 фінальний екран: статистика, саботажник з очками, досягнення'); fe.click(); }
     step(.1); assert(!F.V.sab && !T.MODEBAR, 'після раунду — звичайний хотбар');
   }
 }

@@ -25,7 +25,7 @@ async function client(name) {
   w.console.warn = () => { }; w.__ADDON_TEST = true; w.fetch = (u, o) => fetch(new URL(u, `http://127.0.0.1:${PORT}/`), o); w.setInterval = () => 0;
   w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
   let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-  src += ';window.__T={get P(){return P},get MODEBAR(){return MODEBAR},pl,NET,WORLD,ISLMAP,startGame,frame,setAcct,get worldReady(){return worldReady},getInteract:()=>getInteract(),leave:()=>{const m=curMode();if(m&&m.leave)m.leave();goHub("")},get panel(){return panel},get hero(){return hero}};';
+  src += ';window.__T={mount:b=>mount(b),dismount:p=>dismount(p),get BODIES(){return BODIES},get ADDONS(){return ADDONS},get P(){return P},get MODEBAR(){return MODEBAR},pl,NET,WORLD,ISLMAP,startGame,frame,setAcct,get worldReady(){return worldReady},getInteract:()=>getInteract(),leave:()=>{const m=curMode();if(m&&m.leave)m.leave();goHub("")},get panel(){return panel},get hero(){return hero}};';
   w.eval(src);
   const reg = await post('register', { login: name, pass: 'pass-' + name });
   w.__T.setAcct({ token: reg.token, login: reg.login, admin: reg.admin });
@@ -42,7 +42,7 @@ async function follow(T, D, Ts) {
   const g = D.goal(); if (!g.tg) { await tick(Ts, .2); return g.id || ''; }
   at(T, g.tg); await tick(Ts, .15); at(T, g.tg);
   const it = T.getInteract(); if (!it) { await tick(Ts, .1); return g.id; }
-  it.fn();
+  it.fn(); if (D.V.mg) D.miniWin();   // 🎮 міні-гра ПК (кабелі / слово / щиток) — «пройдено»
   for (let j = 0; j < 60 && D.V.act; j++) { at(T, g.id === 'boss' ? { x: D.ST.boss.x + .3, z: D.ST.boss.z + .3 } : D.V.act.tg()); await tick(Ts, .1); }
   await tick(Ts, .25);
   return g.id;
@@ -65,6 +65,7 @@ async function follow(T, D, Ts) {
   lob(a).querySelector('.rdy').click(); await tick(Ts, 1.2);
   assert(!D.ST.on && !E.ST.on && E.ST.fo && /Чекаємо гравців 2\/5 — боти доповнять лобі/.test(lob(b).textContent) && /✅ Бухгалтер/.test(lob(b).querySelector('.who').textContent), 'Бухгалтер готовий — раунд НЕ стартує: «Чекаємо гравців 2/5 — боти доповнять лобі…» (бачить і Стажер)');
   for (let i = 0; i < 12 && !E.ST.bt.length; i++) await tick(Ts, .5);
+  for (let i = 0; i < 10 && !(D.ST.bt.length && /✅ 🤖 Бот /.test(lob(a).querySelector('.who').textContent) && /🤖 Бот \S+ приєднався · \d\/5/.test(lob(b).textContent)); i++) await tick(Ts, .2);
   assert(D.ST.bt.length >= 1 && E.ST.bt.length >= 1 && /✅ 🤖 Бот /.test(lob(a).querySelector('.who').textContent) && /🤖 Бот \S+ приєднався · \d\/5/.test(lob(b).textContent), `🤖 бот приєднався до лобі — бачать обоє (${E.ST.bt.map(q => q.n).join(', ')})`);
   for (let i = 0; i < 30 && E.ST.bt.length < 3; i++) await tick(Ts, .5); await tick(Ts, .3);
   assert(!E.ST.on && E.ST.bt.length === 3 && lob(b).querySelectorAll('.who i').length === 5 && /чекаємо готовності людей \(1\/2\)/.test(lob(b).textContent), `лобі заповнилось до 5 (2 людини + 3 боти) — чекаємо, поки Стажер буде готовий [${E.ST.bt.length} · ${lob(b).querySelectorAll('.who i').length} · ${lob(b).textContent.slice(0,300)}]`);
@@ -75,6 +76,7 @@ async function follow(T, D, Ts) {
   assert(D.ST.bt.map(q => q.n).join() === bots0 && E.ST.bt.map(q => q.n).join() === bots0 && D.V.bm.size === 3, `у раунді ті самі 3 боти в обох: ${bots0}`);
   assert(D.ST.on && E.ST.on && D.ST.vi === 1 && E.ST.vi === 1 && D.ST.steps.join() === E.ST.steps.join() && D.ST.steps.length === 6, `раунд почався в обох на 57-му (рахує сервер): ${E.ST.steps.join(' → ')}`);
   assert([a, b].every(T => Math.hypot(T.pl.x - D.START.p.x, T.pl.z - D.START.p.z) < 2), '🛗 ліфт переніс обох на поверх банку');
+  for (let i = 0; i < 10 && (lob(a) || lob(b)); i++) await tick(Ts, .2);
   assert(!lob(a) && !lob(b), 'раунд почався — вікно лобі закрилось в обох');
   assert(D.ST.desk.join() === E.ST.desk.join() && E.ST.desk.filter(Boolean).length === 3, 'обидва бачать тих самих касирів з даними');
   assert(a.MODEBAR && b.MODEBAR && /🪠/.test(a.w.document.getElementById('modebar').textContent), 'в обох набір режиму з 🪠 Вантузом');
@@ -129,6 +131,7 @@ async function follow(T, D, Ts) {
   await tick(Ts, 1.5);
   assert(!E.ST.on && E.ST.bt.length === 3 && E.ST.fw > 0 && /без решти старт за/.test(lob(a).textContent), `лобі повне, Бухгалтер не готовий — бачить таймер: без решти старт за ${E.ST.fw} с`);
   for (let i = 0; i < 40 && !E.ST.on; i++) await tick(Ts, 1);
+  for (let i = 0; i < 10 && !(D.ST.on && E.ST.on && !lob(a) && !lob(b)); i++) await tick(Ts, .3);   // знімок і закриття вікон — з невеликою затримкою
   assert(D.ST.on && E.ST.on && D.ST.vi === 2 && E.ST.vi === 2 && !lob(a) && !lob(b), '⏳ 25 с минуло — раунд почався сам на 63-му, вікна закрились');
   // вихід з режиму — вікно лобі закривається
   b.leave(); await tick(Ts, 1);
@@ -145,6 +148,7 @@ async function follow(T, D, Ts) {
     for (let i = 0; i < 30 && !Dx.every(X => X.ST.on); i++) await tick(T3, .5);
     assert(Dx.every(X => X.ST.on && X.ST.bt.length === 2), 'троє людей — у лобі доповнили лише 2 боти (усього 5)');
     assert(Dx.every(X => X.ST.on && X.ST.sk === 'p'), 'раунд утрьох: серед ГРАВЦІВ є саботажник (бачать усі)');
+    await tick(T3, .5);
     const sabs = T3.filter(T => T.w.__deadline.V.sab);
     assert(sabs.length === 1, `саботажник рівно один (${sabs.length})`);
     const S = sabs[0], SX = S.w.__deadline, crewT = T3.filter(T => T !== S), Y = crewT[0], YX = Y.w.__deadline, Z = crewT[1];
@@ -157,12 +161,44 @@ async function follow(T, D, Ts) {
     for (let j = 0; j < 40 && SX.V.act; j++) { at(S, SX.RACK.p); await tick(T3, .1); }
     await tick(T3, .6);
     assert(Dx.every(X => X.ST.fire > 0), `🔥 саботаж: серверна горить у всіх (${Dx.map(X => Math.round(X.ST.fire)).join('/')}%)`);
+    assert(Dx.every(X => X.ST.cl.some(q => q.k === 'foot') && X.ST.cl.some(q => q.k === 'badge') && X.ST.camN >= 1), '🔎 докази саботажу (👣 сліди, 🪪 журнал бейджів, 📹 запис камери) — бачать усі');
+    // 🎭 таємні ролі: серед двох чесних — 🛡️ безпековик (рівно один), у саботажника ролі немає
+    assert(crewT.filter(T => T.w.__deadline.V.role === 'sec').length === 1 && !SX.V.role && Dx.every(X => !JSON.stringify(X.ST.rh).includes('Стажер')), `🛡️ безпековик рівно один (${crewT.map(T => T.w.__deadline.V.role || '—').join('/')}), ролі в знімку — лише хеші`);
     // 🧯 напарник гасить
     { const C = YX.fireC(); for (let n = 0; n < 6 && YX.ST.fire > 0; n++) { at(Y, { x: C.x + 2, z: C.z + 1 }); await tick(T3, .15); const it = Y.getInteract(); if (it && /Гасити/.test(it.l)) it.fn(); await tick(T3, .6); } }
     assert(Dx.every(X => X.ST.fire === 0), '🧯 напарник загасив серверну — у всіх вогонь згас');
+    { const q = YX.ST.cl.find(o => o.k === 'badge'); at(Y, q); await tick(T3, .2); const it = Y.getInteract(); assert(it && /Зібрати доказ/.test(it.l), 'біля місця саботажу F — «Зібрати доказ»'); it.fn();
+      for (let i = 0; i < 10 && !Dx.every(X => X.ST.cs.length); i++) await tick(T3, .2);
+      assert(Dx.every(X => X.ST.cs.length >= 1 && /👣|🪪/.test(X.ST.cs[0].txt)), `🗂️ доказ у справі — бачать усі (рахує сервер): ${YX.ST.cs[0] && YX.ST.cs[0].txt}`); }
+    { const SEC = crewT.find(T => T.w.__deadline.V.role === 'sec'), OT = T3.find(T => T !== SEC), SC = SEC.w.__deadline, mp = SC.mpos(), p0 = { x: mp.x - .6, z: mp.z }, p1 = { x: mp.x + .6, z: mp.z };
+      at(SEC, p0); at(OT, p1); await tick(T3, .4); at(SEC, p0); at(OT, p1); const it = SEC.getInteract();
+      assert(it && /Перевірити/.test(it.l), `🛡️ безпековик біля колеги: «${it && it.l}»`); it.fn(); await tick(T3, .6);
+      const toastsOf = T => [...T.w.document.querySelectorAll('#toasts > *')].map(e => e.textContent).join('\n');
+      assert(/Результат бачиш лише ти/.test(toastsOf(SEC)) && T3.filter(T => T !== SEC).every(T => !/Результат бачиш лише ти/.test(toastsOf(T))), '🛡️ результат перевірки бачить лише безпековик'); }
+    // ⚡ блекаут: саботажник вимикає щиток — темно в усіх; двоє тримають F біля щитка разом
+    { for (let i = 0; i < 40 && SX.V.sbcd > 0; i++) await tick(T3, .5);
+      at(S, SX.PANEL.p); await tick(T3, .3); at(S, SX.PANEL.p); S.w.document.querySelector('#modebar [data-ms="7"]').click();
+      for (let j = 0; j < 40 && SX.V.act; j++) { at(S, SX.PANEL.p); await tick(T3, .1); }
+      for (let i = 0; i < 10 && !Dx.every(X => !X.ST.pw); i++) await tick(T3, .2);
+      assert(Dx.every(X => !X.ST.pw) && +Y.w.document.getElementById('dl-dark').style.opacity > .5, '⚡ саботаж щитка: темно в усіх, у кожного — ліхтарик');
+      const P = YX.PANEL.p, pa = { x: P.x - .5, z: P.z + .3 }, pb = { x: P.x + .5, z: P.z + .3 };
+      at(Y, pa); at(Z, pb); await tick(T3, .4); at(Y, pa); at(Z, pb);
+      const iy = Y.getInteract(), iz = Z.getInteract();
+      if (Dx.every(X => X.ST.pw)) console.log('  (🤖 бот устиг увімкнути щиток раніше за людей)'); else {
+      assert(iy && /РАЗОМ/.test(iy.l) && iz && /РАЗОМ/.test(iz.l), '⚡ удвох біля щитка: F — «Тримай автомат РАЗОМ з колегою»'); iy.fn(); iz.fn();
+      for (let j = 0; j < 40 && (YX.V.act || Z.w.__deadline.V.act); j++) { at(Y, pa); at(Z, pb); await tick(T3, .1); }
+      for (let i = 0; i < 10 && !Dx.every(X => X.ST.pw); i++) await tick(T3, .2);
+      } assert(Dx.every(X => X.ST.pw), '💡 двоє втримали автомат — світло повернулось у всіх'); }
+    // 🪑 крісло на коліщатках: інші бачать крісло під вершником і позу «сидячи»
+    { const BZ = Z.BODIES, bi = BZ.findIndex(b => b.kind === 'chair' && Z.w.__deadline.floorOf(b.x, b.z) === D.ST.vi && !b.fall), B = BZ[bi];
+      at(Z, B); Z.mount(B); for (let i = 0; i < 10; i++) { B.vx = 3; B.vz = 0; await tick(T3, .1); }
+      const BY = Y.BODIES[bi], rp = Object.values(Y.NET.players).find(p => p.name === Z.P.name || p.name === Z.w.__deadline.myKey());
+      assert(Y.ADDONS.dyn.includes(BY.m) && Math.hypot(BY.m.position.x - Z.pl.x, BY.m.position.z - Z.pl.z) < 1.2, '🪑 крісло динамічне — у колеги воно їде під вершником');
+      assert(rp && rp.act === 'chair' && rp.h.body.position.y < -.3, '🪑 колега бачить вершника в позі «сидячи»');
+      Z.dismount(false); await tick(T3, .3); }
     // ✈️ літачки в колегу → 😤 «зайобуючий» у всіх
     // ✈️ папір — з лотка (F); 🧻 папірець, кинутий одним, бачать усі
-    { const sp = YX.L.pk.find(q => q.k === 'pp'); at(Y, sp); await tick(T3, .2); const it = Y.getInteract(); assert(it && /скласти літачок/.test(it.l), 'біля лотка з папером F — «скласти літачок (+3)»'); it.fn(); assert(YX.V.pp === 5, '✈️ 2 + 3 = 5 літачків'); }
+    { const sp = YX.L.pk.find(q => q.k === 'pp' && YX.pkOn(q)); at(Y, sp); await tick(T3, .2); const it = Y.getInteract(); assert(it && /скласти літачок/.test(it.l), 'біля лотка з папером F — «скласти літачок (+3)»'); it.fn(); assert(YX.V.pp === 5, '✈️ 2 + 3 = 5 літачків'); }
     { at(Y, YX.START.p); Y.pl.face = 0; await tick(T3, .2); Y.w.document.querySelector('#modebar [data-ms="4"]').click(); let seen = 0; for (let i = 0; i < 10 && !seen; i++) { await tick(T3, .1); seen = Dx.every(X => X.ST.th.length || X === YX); } assert(seen, '🧻 мʼятий папір у польоті бачать усі'); await tick(T3, 1.5); assert(Dx.every(X => !X.ST.th.length), '🧻 приземлився в усіх'); }
     { const cp = YX.colPos(1); for (let n = 0; n < 7 && !Dx.every(X => X.pestOf(1)); n++) { if (YX.V.pp < 1) YX.V.pp = 3; at(Y, { x: cp.x + 2.5, z: cp.z }); Y.pl.face = -Math.PI / 2; await tick(T3, .2); YX.V.ppCd = 0; Y.w.document.querySelector('#modebar [data-ms="3"]').click(); await tick(T3, .9); } }
     await tick(T3, .5);
@@ -170,11 +206,15 @@ async function follow(T, D, Ts) {
     // 🚨 нарада: Y скликає, Y і Z голосують за саботажника, він сам — «пропустити»
     Y.w.document.querySelector('#modebar [data-ms="7"]').click(); await tick(T3, 1);
     const mt = T => T.w.document.getElementById('dl-meet');
-    assert(T3.every(T => mt(T) && mt(T).style.display !== 'none' && mt(T).querySelectorAll('.dlm-c').length === 2), '🚨 нарада у всіх: по 2 підозрюваних (себе не видно) + «Пропустити»');
+    assert(Dx.every(X => X.ST.mt && X.ST.mt.ph === 'go') && T3.every(T => /Негайно в переговорну/.test(T.w.__deadline.goal().txt)), '🚨 збори: у всіх «Негайно в переговорну!» зі стрілкою');
+    { const mp = YX.mpos(); T3.forEach((T, i) => at(T, { x: mp.x + (i - 1) * .7, z: mp.z })); for (let i = 0; i < 10 && !Dx.every(X => X.ST.mt && X.ST.mt.ph === 'vote'); i++) await tick(T3, .3); }
+    assert(Dx.every(X => X.ST.mt && X.ST.mt.ph === 'vote'), '🚨 усі в переговорній — голосування почалось');
+    assert(T3.every(T => mt(T) && mt(T).style.display !== 'none' && mt(T).querySelectorAll('.dlm-c').length === 2 && /Продовжити роботу/.test(mt(T).textContent) && /Справа/.test(mt(T).textContent)), '🚨 збори у всіх: «Звільнити …» ×2 (себе не видно), «⏭️ Продовжити роботу», 🗂️ справа');
     const sk = SX.myKey(), si = D.ST.mt.c.indexOf(sk);
     for (const T of crewT) mt(T).querySelector(`[data-mv="${si}"]`).click(); mt(S).querySelector('[data-mv="-1"]').click();
     await tick(T3, 1.5);
     assert(Dx.every(X => !X.ST.mt && X.ST.sbC === 1) && T3.every(T => !mt(T) || mt(T).style.display === 'none'), `🕵️ спіймали саботажника (${sk}) — бачать усі, вікно наради закрилось`);
+    assert(T3.every(T => /Звільнено/.test(T.w.document.getElementById('dl-verdict').textContent) && /БУВ/.test(T.w.document.getElementById('dl-verdict').textContent)), '🗂️ у всіх драматичний вердикт: «Звільнено: … — БУВ саботажником!»');
     await tick(T3, .3);
     assert(/🚨/.test(S.w.document.querySelector('#modebar [data-ms="7"]').textContent), 'спійманий саботажник більше не шкодить (слот 🕵️ зник)');
     c.leave(); await tick(T3, .5);

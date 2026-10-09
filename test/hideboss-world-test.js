@@ -119,6 +119,7 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
     let flew = false; for (let k = 0; k < 12; k++) { await tick([a, b], .1); if (F.V.proj.size) flew = true; }
     assert(flew && G.me().inv.pl === 2, `${HN} кинув ✈️ — ${BN} бачить літачок у польоті`);
     await tick([a, b], 1);
+    if (!(F.V.noise && F.goal().id === 'noise')) console.log('  [шурх]', JSON.stringify({ noise: F.V.noise, tx, goal: F.goal(), gt: a.gameTime }));
     assert(F.V.noise && Math.hypot(F.V.noise.x - tx.x, F.V.noise.z - tx.z) < 1.2 && F.goal().id === 'noise', `${BN} (бос) чує «🔊 шурх!» і бачить, де`);
   }
   let caught = false;
@@ -170,6 +171,7 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
   a.pl.x = F1.x - 6; a.pl.z = F1.z - 1; b.pl.x = F1.x - 3.5; b.pl.z = F1.z - 1; await tick([a, b], .6);
   a.input.aimOk = true; a.input.ax = b.pl.x; a.input.az = b.pl.z; a.keydown('Digit3');
   for (let k = 0; k < 20 && !(G.ST.stun > 0 && F.ST.stun > 0 && a.P.addons.hideboss.trips); k++) { b.pl.x = F1.x - 3.5; b.pl.z = F1.z - 1; await tick([a, b], .1); }
+  if (!(F.ST.stun > .5 && G.ST.stun > .5)) console.log('  [таран]', JSON.stringify({ a: [a.pl.x - F1.x, a.pl.z - F1.z], b: [b.pl.x - F1.x, b.pl.z - F1.z], ram: F.V.ram, me: F.me(), sv: F.ST.ro.map(e => [e.k, e.x - F1.x, e.z - F1.z, e.p]) }));
   assert(F.ST.stun > .5 && G.ST.stun > .5 && a.P.addons.hideboss.trips === 1, `таран кріслом: бос лежить в обох (${G.ST.stun.toFixed(1)} с), ${BN}: +1 «збив боса»`);
   assert(G.goal().txt.includes('збили з ніг'), 'босу підказка: «Тебе збили з ніг!»');
   { const b0 = { x: b.pl.x, z: b.pl.z }; b.keydown('KeyW'); await tick([a, b], .4); assert(Math.hypot(b.pl.x - b0.x, b.pl.z - b0.z) < .3, 'збитий бос не може йти'); }

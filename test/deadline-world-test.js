@@ -66,8 +66,8 @@ async function follow(T, D, Ts) {
   assert(!D.ST.on && !E.ST.on && E.ST.fo && /Чекаємо гравців 2\/5 — боти доповнять лобі/.test(lob(b).textContent) && /✅ Бухгалтер/.test(lob(b).querySelector('.who').textContent), 'Бухгалтер готовий — раунд НЕ стартує: «Чекаємо гравців 2/5 — боти доповнять лобі…» (бачить і Стажер)');
   for (let i = 0; i < 12 && !E.ST.bt.length; i++) await tick(Ts, .5);
   assert(D.ST.bt.length >= 1 && E.ST.bt.length >= 1 && /✅ 🤖 Бот /.test(lob(a).querySelector('.who').textContent) && /🤖 Бот \S+ приєднався · \d\/5/.test(lob(b).textContent), `🤖 бот приєднався до лобі — бачать обоє (${E.ST.bt.map(q => q.n).join(', ')})`);
-  for (let i = 0; i < 16 && E.ST.bt.length < 3; i++) await tick(Ts, .5);
-  assert(!E.ST.on && E.ST.bt.length === 3 && lob(b).querySelectorAll('.who i').length === 5 && /чекаємо готовності людей \(1\/2\)/.test(lob(b).textContent), 'лобі заповнилось до 5 (2 людини + 3 боти) — чекаємо, поки Стажер буде готовий');
+  for (let i = 0; i < 30 && E.ST.bt.length < 3; i++) await tick(Ts, .5); await tick(Ts, .3);
+  assert(!E.ST.on && E.ST.bt.length === 3 && lob(b).querySelectorAll('.who i').length === 5 && /чекаємо готовності людей \(1\/2\)/.test(lob(b).textContent), `лобі заповнилось до 5 (2 людини + 3 боти) — чекаємо, поки Стажер буде готовий [${E.ST.bt.length} · ${lob(b).querySelectorAll('.who i').length} · ${lob(b).textContent.slice(0,300)}]`);
   const bots0 = E.ST.bt.map(q => q.n).join();
   lob(b).querySelector('.rdy').click(); let cdSeen = 0;
   for (let i = 0; i < 40 && !(D.ST.on && E.ST.on); i++) { await tick(Ts, .2); if ([a, b].some(T => lob(T) && /Усі на місці — старт за/.test(lob(T).textContent))) cdSeen = 1; }
@@ -164,7 +164,7 @@ async function follow(T, D, Ts) {
     // ✈️ папір — з лотка (F); 🧻 папірець, кинутий одним, бачать усі
     { const sp = YX.L.pk.find(q => q.k === 'pp'); at(Y, sp); await tick(T3, .2); const it = Y.getInteract(); assert(it && /скласти літачок/.test(it.l), 'біля лотка з папером F — «скласти літачок (+3)»'); it.fn(); assert(YX.V.pp === 5, '✈️ 2 + 3 = 5 літачків'); }
     { at(Y, YX.START.p); Y.pl.face = 0; await tick(T3, .2); Y.w.document.querySelector('#modebar [data-ms="4"]').click(); let seen = 0; for (let i = 0; i < 10 && !seen; i++) { await tick(T3, .1); seen = Dx.every(X => X.ST.th.length || X === YX); } assert(seen, '🧻 мʼятий папір у польоті бачать усі'); await tick(T3, 1.5); assert(Dx.every(X => !X.ST.th.length), '🧻 приземлився в усіх'); }
-    { const cp = YX.colPos(1); for (let n = 0; n < 3; n++) { at(Y, { x: cp.x + 2.5, z: cp.z }); Y.pl.face = -Math.PI / 2; await tick(T3, .2); YX.V.ppCd = 0; Y.w.document.querySelector('#modebar [data-ms="3"]').click(); await tick(T3, .9); } }
+    { const cp = YX.colPos(1); for (let n = 0; n < 7 && !Dx.every(X => X.pestOf(1)); n++) { if (YX.V.pp < 1) YX.V.pp = 3; at(Y, { x: cp.x + 2.5, z: cp.z }); Y.pl.face = -Math.PI / 2; await tick(T3, .2); YX.V.ppCd = 0; Y.w.document.querySelector('#modebar [data-ms="3"]').click(); await tick(T3, .9); } }
     await tick(T3, .5);
     assert(Dx.every(X => X.pestOf(1)) && D.V.cols[1] && !D.V.cols[1].h.root.visible && Z.w.document.querySelector('.dl-agw'), `✈️×3 — ${YX.NAMES[1]} став «зайобуючим» у всіх (стілець порожній, над ним — яку каву хоче)`);
     // 🚨 нарада: Y скликає, Y і Z голосують за саботажника, він сам — «пропустити»

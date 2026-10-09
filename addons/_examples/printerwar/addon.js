@@ -1190,7 +1190,7 @@ chainKey('KeyR', () => { if (!amIn() || !running || !inArena(pl.x, pl.z)) return
 chainKey('KeyQ', () => { const m = meP(); if (!m || !(m.hold || m.wi) || pl.carry || ST.ph !== 'fight' || !inArena(pl.x, pl.z)) return false; throwAny(); });
 function setBar(on) {
   if (on === V.bar || typeof modeBar !== 'function') return; V.bar = on;
-  const cnt = k => () => { const m = meP(); return m ? m[k] | 0 : 0; }, nm = (k, n) => () => { const m = meP(); return m && !(m[k] | 0) ? `${n} · де: ${ITEM[k].sh}` : n; };
+  const cnt = k => () => { const m = meP(); return m ? m[k] | 0 : 0; }, nm = (k, n) => () => { const m = meP(); return m && !(m[k] | 0) ? `де: ${ITEM[k].sh}` : n; };
   modeBar(on ? { slots: [
     { id: 'throw', get ic() { const m = meP(); return m && m.hold ? '📄' : m && m.wi ? '🔌' : '✈️'; }, get n() { const m = meP(); return m && m.hold ? 'Кинути пачку' : m && m.wi ? 'Кинути дріт' : nm('pl', 'Літачок')(); },
       count: () => { const m = meP(); return !m ? 0 : m.hold || m.wi ? 1 : m.pl | 0; }, use: throwAny },

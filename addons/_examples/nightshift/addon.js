@@ -1313,7 +1313,7 @@ function onEvent(e) {
     if (!here) return; useVar(e.v | 0); V.joined = true; V.seenNote.clear(); V.act = null; V.myVote = -1; V.monT.fill(0); V.want = ''; V.lastBot = null;
     if (floorAt(pl.x, pl.z) !== CUR) { pl.x = SPAWN.x + rand(-.8, .8); pl.z = SPAWN.z + rand(-.4, .4); pl.y = 0; V.lastP = null; camPos.set(pl.x, 20, pl.z + 15); camLook.set(pl.x, .5, pl.z); }
     banner(`🌙 00:00 · ${FL.n}. Світло вимкнули. Не вимикай ліхтарик!`); sfx('boom'); shake = Math.max(shake, .4);
-    toast(`${ST.bo.length ? `З тобою ${ST.bo.map(b => escapeHTML(b.k)).join(', ')} — вони світять на зомбі й піднімають кентів. ` : ''}Доживи до 06:00 — або знайди 🔑 картку, увімкни щиток і тікай. <b>1</b> 🔦 · <b>2</b> 🧪 · <b>3</b> ✈️ · <b>4</b> 🧻 · <b>8</b> 📘 · <b>9</b> 🧯 · <b>7</b> 🍾 · <b>8</b> ☕ · <b>9</b> 🍸 · <b>R</b> 🔋 · <b>T</b> 📻`);
+    toast(`${ST.bo.length ? `З тобою ${ST.bo.map(b => escapeHTML(b.k)).join(', ')} — вони світять на зомбі й піднімають кентів. ` : ''}Доживи до 06:00 — або знайди 🔑 картку, увімкни щиток і тікай. <b>1</b> 🔦 · <b>2</b> 🧪 · <b>3</b> ✈️ · <b>4</b> 🧻 · <b>5</b> 📘 · <b>6</b> 🧯 · <b>7</b> 🍾 · <b>8</b> ☕ · <b>9</b> 🍸 · <b>R</b> 🔋 · <b>T</b> 📻`);
   }
   else if (e.k === 'down') {
     if (!here) return; scream(e.x, e.z);

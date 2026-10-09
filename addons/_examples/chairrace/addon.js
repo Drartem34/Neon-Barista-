@@ -882,7 +882,7 @@ const BAR = { slots: [
   { id: 'plunger', ic: '🪠', n: 'Вантуз', count: () => RC.plCd > 0 ? 0 : 1, use: () => shootPlunger() },
   { id: 'ext', ic: '🧯', n: 'Вогнегасник', count: () => Math.ceil(RC.foam), use: () => toggleJet() },
   { id: 'molly', ic: '🍾', n: 'Коктейль Молотова', count: () => RC.molly, use: () => throwMolly() },
-  { id: 'plane', ic: '✈️', get n() { return RC.planes ? 'Паперовий літачок' : 'Літачок · де взяти: стоси паперу біля бортика, коробки «?»'; }, count: () => RC.planes, use: () => throwPlane() },
+  { id: 'plane', ic: '✈️', get n() { return RC.planes ? 'Паперовий літачок' : 'де взяти: стос паперу'; }, count: () => RC.planes, use: () => throwPlane() },
 ] };
 BAR.slots.forEach(sl => { const u = sl.use; sl.use = () => { V.sel = sl.id; return u(); }; });   // ЛКМ кидає вибране (💣 / 🍾 / ✈️)
 function setBar(on) { if (V.barOn === on) return; V.barOn = on; if (typeof modeBar === 'function') modeBar(on ? BAR : null); }

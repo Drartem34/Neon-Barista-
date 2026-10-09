@@ -1709,7 +1709,7 @@ function lobbyDef() {
   // що зараз відбувається: чекаємо → боти доповнюють → усі на місці → «Старт за 3…2…1»
   let info;
   if (ST.ct > 0) info = `✅ Усі на місці — <b>старт за ${Math.ceil(ST.ct)}</b>…`;
-  else if (V.lbot && V.lbot.until > gameTime) info = V.lbot.txt;
+  else if (V.lbot && V.lbot.until > gameTime && N < SEATS) info = V.lbot.txt;   // лобі повне — уже показуємо «Усі на місці»
   else if (ST.lf && N < SEATS) info = `⏳ Чекаємо гравців ${N}/${SEATS} — 🤖 боти доповнять лобі…`;
   else if (N >= SEATS && R < H) info = `👥 Усі на місці (${N}/${SEATS}) — чекаємо, поки всі будуть готові (${R}/${H})${ST.ax > 0 ? ` · без мовчунів стартуємо за <b>${Math.ceil(ST.ax)} с</b>` : ''}.`;
   else info = `Чекаємо гравців ${N}/${SEATS} — тисни ✅ «Я готовий», і 🤖 боти доповнять лобі до ${SEATS}. ${solo() ? `Граєш ${roleTxt()} (змінити — вкладка 🙈 Хованки).` : `На старті жереб обере <b>👔 боса</b> серед людей, решта — 🙈 офісники.`}`;

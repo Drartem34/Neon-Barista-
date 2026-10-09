@@ -124,7 +124,7 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
     const D = Q.VAR[2]; b.pl.x = D.cx - 3; b.pl.z = D.cz + 4.5; await tick([a, b], .4); Q.req('molo', { a: Math.PI / 2 });
     for (let i = 0; i < 15 && !(W.ST.mf.length && Q.ST.mf.length); i++) await tick([a, b], .2);
     assert(W.ST.mf.length >= 1 && Q.ST.mf.length >= 1 && Q.ST.ps.find(p => p.k === 'Конкурент').mo === 1, '🍾 Молотов Конкурента — палаюча калюжа бачать обоє'); }
-  { let sawZ = false, served = false; const cf = () => (Q.ST.ps.find(p => p.k === 'Конкурент').cf || []).reduce((s, v) => s + v, 0);
+  { let sawZ = false, served = false; const cf = () => { const m = Q.ST.ps.find(p => p.k === 'Конкурент'); if (!m) console.log('DBG no Конкурент', Q.ST.ph, Q.ST.t, W.ST.ph, JSON.stringify(Q.ST.ps.map(p => [p.k, p.pages]))); return ((m && m.cf) || []).reduce((s, v) => s + v, 0); };
     const cf0 = cf();
     for (let i = 0; i < 160 && !served; i++) {
       const zA = W.ST.npc.find(n => n.zom), zB = zA && Q.ST.npc.find(n => n.id === zA.id && n.zom);

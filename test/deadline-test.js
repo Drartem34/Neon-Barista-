@@ -18,15 +18,19 @@ let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).
 src += ';window.__T={get paused(){return paused},get running(){return running},get P(){return P},pl,MON,PROPS,BODIES,ADDONS,ISLMAP,STATICS,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),terrainAt:(x,z)=>terrainAt(x,z),funSpeedMul:()=>funSpeedMul(),get MODEBAR(){return MODEBAR},keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c})),mount:b=>mount(b),dismount:p=>dismount(p)};';
 w.eval(src);
 const T = w.__T; let now = 1000;
+w.__deadlineFastLobby = 1;   // лобі заповнюється ботами кроками по 0,2 с (у грі — 4 с і далі кожні 2,5 с)
 const F = w.__deadline;
-let calmZ = true;
+let calmZ = true, calmB = true;
 // без випадкового хаосу, зажовувань і вибухів — тест передбачуваний; зомбі сидять на нараді
-const calm = () => { if (!F) return; F.AU.chaosT = 999; F.AU.jamP = 0; F.AU.boomP = 0; F.AU.excel = 0; F.AU.sbT = 999; if (calmZ) for (const z of F.ST.zom) z.stun = 99; };
+const calm = () => { if (!F) return; F.AU.chaosT = 999; F.AU.jamP = 0; F.AU.boomP = 0; F.AU.excel = 0; F.AU.sbT = 999; F.AU.botAI = calmB ? 0 : 1; if (calmZ) for (const z of F.ST.zom) z.stun = 99; };
 const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; calm(); T.frame(now); if (i % 3 === 0) IV.forEach(f => f()); } };
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exit(1); } console.log('ok -', m); };
 const body = () => w.document.querySelector('#pbody');
 const at = p => { T.pl.x = p.x; T.pl.z = p.z; T.pl.y = 0; };
 const lob = () => w.document.getElementById('mlobby');
+const TL = []; { const box = w.document.getElementById('toasts'), _a = box.appendChild.bind(box); box.appendChild = el => { TL.push(el.textContent); return _a(el); }; }
+const toasts = () => TL.join('\n');
+const readyGo = () => { lob().querySelector('.rdy').click(); for (let i = 0; i < 40 && !F.ST.on; i++) step(.1); };
 const barOn = () => !!T.MODEBAR && !w.document.getElementById('modebar').hidden;
 assert(T.ADDONS.list.every(a => a.ok), 'аддон завантажився: ' + T.ADDONS.list.map(a => a.name + (a.ok ? '' : ' ✗ ' + a.err)).join(', '));
 assert(w.document.querySelector('#mm-deadline h2').textContent === 'ДЕДЛАЙН' && w.document.querySelector('#mm-deadline .mm-subtitle').textContent === 'О 18:00', 'у меню картка «ДЕДЛАЙН · О 18:00»');
@@ -101,10 +105,19 @@ at(F.START.p); step(.1);
 let it = T.getInteract(); assert(it && /Лобі/.test(it.l) && /Поверх 42/.test(it.l), 'на ресепшні F — «🗳️ Лобі · Поверх 42»'); it.fn(); step(.1);
 assert(lob() && !F.V.lobHide, 'F біля стійки — вікно лобі знову відкрите');
 assert(/Ти/.test(lob().querySelector('.who').textContent) && /⏳/.test(lob().querySelector('.who').textContent), 'у списку гравців — «⏳ Ти»');
-lob().querySelector('.rdy').click(); step(.2);
+lob().querySelector('.rdy').click(); step(.1);
+assert(!F.ST.on && F.ST.fo && /Чекаємо гравців 1\/5 — боти доповнять лобі/.test(lob().textContent) && /✅ Ти/.test(lob().querySelector('.who').textContent), '«Я готовий» — раунд НЕ стартує одразу: «Чекаємо гравців 1/5 — боти доповнять лобі…»');
+step(.25);
+assert(!F.ST.on && F.ST.bt.length >= 1 && /✅ 🤖 Бот /.test(lob().querySelector('.who').textContent) && /🤖 Бот \S+ приєднався до лобі/.test(toasts()) && /🤖 Бот \S+ приєднався · \d\/5/.test(lob().textContent), `бот прийшов у лобі: ${F.ST.bt.map(b => b.n).join(', ')} (у списку ✅, тост, «приєднався · N/5»)`);
+for (let i = 0; i < 30 && F.ST.cd < 0 && !F.ST.on; i++) step(.05);
+assert(!F.ST.on && F.ST.bt.length === 4 && F.ST.cd > 0 && /Усі на місці — старт за/.test(lob().textContent) && lob().querySelectorAll('.who i').length === 5, 'лобі заповнилось: 1 людина + 4 боти, «Усі на місці — старт за …»');
+const botNames = F.ST.bt.map(b => b.n).join();
+assert(F.V.bm && F.V.bm.size === 4 && [...F.V.bm.values()].every(m => m.h.root.visible), 'боти стоять у холі біля стійки лобі (моделі з антенами)');
+for (let i = 0; i < 20 && !F.ST.on; i++) step(.1);
 assert(F.ST.on && F.ST.vi === 0 && F.ST.steps[0] === 'data' && F.ST.steps[1] === 'print' && F.ST.steps[F.ST.steps.length - 1] === 'send' && F.ST.steps.length === 6, `раунд почався: ${F.ST.steps.join(' → ')}`);
 assert(!lob(), 'раунд почався — вікно лобі закрилось');
-assert(/17:55/.test(w.document.getElementById('deadline-hud').textContent) && /Чекліст/.test(w.document.getElementById('deadline-list').textContent), 'у HUD годинник 17:55 і чекліст');
+assert(F.ST.bt.map(b => b.n).join() === botNames && F.ST.bt.length === 4, `у раунді ті самі боти, що заповнили лобі: ${botNames}`);
+assert(/17:53/.test(w.document.getElementById('deadline-hud').textContent) && F.ST.dur === 420 && /Чекліст/.test(w.document.getElementById('deadline-list').textContent), 'у HUD годинник 17:53 (раунд 7 хв) і чекліст');
 assert(barOn() && /🪠/.test(w.document.getElementById('modebar').textContent) && /Вантуз/.test(w.document.getElementById('modebar').textContent), 'набір режиму: 🪠 Вантуз · 📘 Кинути звіт · ☕ Кава-ривок замість хотбара');
 assert(F.ST.desk.filter(Boolean).length === F.ST.need && F.ST.need === 3, 'дані лежать у 3 колег');
 F.ST.steps = ['data', 'print', 'staple', 'stamp', 'number', 'scan', 'sign', 'send'];   // для повного покриття — усі 5 пунктів
@@ -174,7 +187,7 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
   F.lobbyDef().onVote(2); step(.2);
   assert(F.ST.vo.join() === '0,0,1' && F.ST.nx === 2 && /🗳️ 1/.test(lob().querySelector('[data-lv="2"]').textContent), '🗳️ передумав — голос за стартап (рахує автор раунду)');
   at(F.START.p); step(.1); it = T.getInteract(); assert(it && /Поверх 63/.test(it.l), 'стійка лобі показує, що раунд буде на 63-му');
-  lob().querySelector('.rdy').click(); step(.3);
+  readyGo();
   assert(F.ST.on && F.ST.vi === 2 && F.L.n === 'Поверх 63 · Стартап' && Math.hypot(T.pl.x - F.START.p.x, T.pl.z - F.START.p.z) < 1.5, '🛗 ліфт переніс на 63-й поверх — раунд почався там');
   assert(F.ST.need === 4 && F.ST.vo.join() === '0,0,0', 'складність зросла (даних 4), голоси скинуто');
   seen.length = 0; drive(140);
@@ -192,7 +205,13 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
   assert(!T.panel && lob() && !F.V.lobHide, 'кнопка «🗳️ Лобі» у вкладці відкриває вікно лобі');
   lob().querySelector('[data-lv="1"]').click(); step(.1);
   assert(F.ST.nx === 1, '🗳️ голос за банк у вікні лобі');
-  lob().querySelector('.rdy').click(); step(.3);
+  // справжній темп (без тестового гачка): перший бот через ~4 с, далі кожні 2,5 с, потім відлік 3…2…1
+  w.__deadlineFastLobby = 0; lob().querySelector('.rdy').click(); step(3.5);
+  assert(!F.ST.on && F.ST.fo && F.ST.bt.length === 0, 'звичайний темп: 3,5 с — ботів ще нема');
+  step(1); assert(F.ST.bt.length === 1, 'на 4-й секунді прийшов перший бот');
+  step(7.6); assert(F.ST.bt.length === 4 && F.ST.cd > 0 && !F.ST.on, '~11,5 с — лобі повне, іде відлік');
+  step(3.2); assert(F.ST.on, 'після «старт за 3…2…1» раунд почався');
+  w.__deadlineFastLobby = 1;
   assert(F.ST.on && F.ST.vi === 1 && F.L.n === 'Поверх 57 · Банк' && Math.hypot(T.pl.x - F.START.p.x, T.pl.z - F.START.p.z) < 1.5, 'раунд у банку');
   seen.length = 0; drive(25, () => F.ST.si >= 3);
   assert(F.ST.si >= 2 && seen.includes('desk@data'), 'у банку підказки ведуть до кас і принтера бек-офісу');
@@ -203,19 +222,33 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
 }
 // ---------- v3: саботажник, ✈️ літачки й 😤 агресія колег, 🔥 пожежа серверної, 🧯 вогнегасник, 🚰 кулер-пастка, 🤖 Румба, 🍾 молотов ----------
 {
-  lob().querySelector('[data-lv="0"]').click(); step(.1); lob().querySelector('.rdy').click(); step(.3);
+  lob().querySelector('[data-lv="0"]').click(); step(.1); readyGo();
   assert(F.ST.on && F.ST.vi === 0, 'v3: новий раунд на 42-му');
   const ms = w.document.getElementById('modebar');
-  assert(ms.querySelectorAll('[data-ms]').length === 7 && ['🪠', '📘', '☕', '✈️', '🧯', '🍾', '🚨'].every(ic => ms.textContent.includes(ic)), 'набір режиму: 🪠 📘 ☕ ✈️ 🧯 🍾 🚨 (7 слотів)');
+  assert(ms.querySelectorAll('[data-ms]').length === 8 && ['🪠', '📘', '☕', '✈️', '🧻', '🧯', '🍾', '🚨'].every(ic => ms.textContent.includes(ic)), 'набір режиму: 🪠 📘 ☕ ✈️ 🧻 🧯 🍾 🚨 (8 слотів, клавіші 1–8)');
   assert(F.ST.sk === 'n' && /^npc:\d$/.test(F.AU.sab) && F.ST.sh && !JSON.stringify(F.ST.sh).includes(F.AU.sab) && !F.V.sab, `офлайн саботажник — колега-NPC (${F.NAMES[+F.AU.sab.slice(4)]}); у стані лише хеш`);
   const rc = w.document.getElementById('dl-role'); assert(rc && rc.dataset.role === 'crew' && /сумлінний/.test(rc.textContent), 'картка ролі: «👔 Ти — сумлінний працівник»');
   for (const z of F.ST.zom) { z.x = F.L.x + 17.5; z.z = F.L.z; }   // зомбі — в кінець коридору, щоб не заважали
+  // ✈️ 📘 🧻 — де брати: видимі лотки, шафи й смітники на кожному поверсі
+  assert(F.LAY.every(q => ['pp', 'bk', 'pb'].every(k => q.pk.filter(s => s.k === k).length >= 2)), 'на кожному поверсі ≥2 лотки з папером, ≥2 книжкові шафи, ≥2 смітники: ' + F.LAY.map(q => q.pk.map(s => s.k).join('')).join(' / '));
+  assert(F.LAY.every((q, i) => { F.useVar(i); const ok = q.pk.every(s => !F.blocked(s.x, s.z, .4) && F.reachable(s.x, s.z)); return ok; }) && (F.useVar(0), true), 'усі місця видачі вільні й досяжні');
+  assert(F.V.pp === 2 && F.V.bk === 0 && F.V.pb === 3, 'на старті: ✈️ 2 · 📘 0 · 🧻 3');
+  step(.05);
+  { const L_ = [...w.document.querySelectorAll('.dl-lbl')].filter(e => e.style.display !== 'none').map(e => e.textContent);
+    assert(['Папір для літачків', 'Книжкова шафа', 'Смітник'].every(t => L_.some(x => x.includes(t))), 'над місцями видачі — підписи «✈️ Папір для літачків», «📘 Книжкова шафа», «🧻 Смітник»'); }
+  assert(/📘 0 — книжки — у книжковій шафі.*\d+ м/.test(w.document.getElementById('deadline-goal').textContent) && /де: шафа/.test(ms.querySelector('[data-ms="1"]').textContent), 'книжок 0 — у підказці «📘 0 — книжки — у книжковій шафі ↗ N м», на слоті «де: шафа»');
+  TL.length = 0; ms.querySelector('[data-ms="1"]').click(); assert(/де взяти: книжкові шафи/.test(toasts()), 'порожній слот 📘 — тост, де взяти');
+  { const sp = F.L.pk.find(s => s.k === 'pp'); at(sp); step(.05); it = T.getInteract();
+    assert(it && /F — скласти літачок \(\+3\)/.test(it.l), 'біля лотка з папером F — «скласти літачок (+3)»'); it.fn(); assert(F.V.pp === 5, '✈️ +3 → 5');
+    it = T.getInteract(); assert(it && /порожньо/.test(it.l), 'лоток «перезаряджається» кілька секунд'); }
+  { const sb = F.L.pk.find(s => s.k === 'bk'); at(sb); step(.05); it = T.getInteract();
+    assert(it && /F — взяти книжку \(\+2\)/.test(it.l), 'біля книжкової шафи F — «взяти книжку (+2)»'); it.fn(); step(.05); assert(F.V.bk === 2 && !/📘 0/.test(w.document.getElementById('deadline-goal').textContent), '📘 +2, підказка про книжки зникла'); }
   // ✈️ літачок у колегу → шкала агресії → 😤 «зайобуючий»
   const D4 = F.DESKS[4], cp = F.colPos(4);
   for (let n = 0; n < 3; n++) { at({ x: cp.x + 2.5, z: cp.z }); T.pl.face = -Math.PI / 2; step(.05); w.document.querySelector('#modebar [data-ms="3"]').click(); step(.7);
-    if (n === 0) { assert(F.ST.ag[4] >= 39 && F.V.pp === 5 && F.ST.lit.length >= 1, `✈️ літачок влучив у ${F.NAMES[4]}: агресія ${Math.round(F.ST.ag[4])}%, папірець на підлозі`); assert(w.document.querySelector('.dl-ag'), 'над колегою — шкала агресії'); } }
+    if (n === 0) { assert(F.ST.ag[4] >= 39 && F.V.pp === 4 && F.ST.lit.length >= 1, `✈️ літачок влучив у ${F.NAMES[4]}: агресія ${Math.round(F.ST.ag[4])}%, папірець на підлозі`); assert(w.document.querySelector('.dl-ag'), 'над колегою — шкала агресії'); } }
   const P0 = F.pestOf(4);
-  assert(P0 && P0.want >= 1 && P0.want <= 3 && F.V.pp === 3, `третій літачок — ${F.NAMES[4]} став «зайобуючим» (хоче ${P0 && F.CUPS[P0.want].ic})`);
+  assert(P0 && P0.want >= 1 && P0.want <= 3 && F.V.pp === 2, `третій літачок — ${F.NAMES[4]} став «зайобуючим» (хоче ${P0 && F.CUPS[P0.want].ic})`);
   step(.05); assert(F.V.cols[4].h.root.visible === false && [...w.document.querySelectorAll('.dl-agw')].some(e => e.textContent.includes(F.CUPS[P0.want].ic)), 'стілець порожній, над «зайобуючим» — яку каву він хоче');
   // ланцюгова реакція
   F.ST.ag[3] = 90; const c3 = F.colPos(3); P0.x = c3.x + .8; P0.z = c3.z + .3; P0.stun = 0; at({ x: F.L.x + 10, z: F.L.z }); step(2);
@@ -259,10 +292,10 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
   // 🧯 відкидає зомбі; 🧯 у кріслі — реактивний ривок
   {
     calmZ = false; const z = F.ST.zom[0]; at({ x: F.L.x - 6, z: F.L.z }); z.x = T.pl.x + 2; z.z = T.pl.z; z.stun = 0; T.pl.face = Math.PI / 2; step(.02);
-    w.document.querySelector('#modebar [data-ms="4"]').click(); step(.1);
+    w.document.querySelector('#modebar [data-ms="5"]').click(); step(.1);
     assert(z.x > T.pl.x + 3.5 && z.stun > 0, `🧯 піна відкинула зомбі на ${(z.x - T.pl.x - 2).toFixed(1)} м і оглушила`); calmZ = true;
     const ch = T.BODIES.find(b => b.kind === 'chair' && Math.hypot(b.x - F.L.x, b.z - F.L.z) < 25); assert(ch, 'на поверсі є крісла на коліщатках');
-    at(ch); T.mount(ch); T.pl.face = 0; step(.05); F.V.exCd = 0; w.document.querySelector('#modebar [data-ms="4"]').click();
+    at(ch); T.mount(ch); T.pl.face = 0; step(.05); F.V.exCd = 0; w.document.querySelector('#modebar [data-ms="5"]').click();
     assert(ch.vz < -10, `🧯 у кріслі: реактивний ривок назад (${ch.vz.toFixed(1)} м/с)`); step(.5); T.dismount(false); step(.1);
   }
   // 🚰 кулер-пастка: калюжа сповільнює зомбі; подовжувач — ⚡ електропастка оглушує всіх у ній
@@ -290,24 +323,56 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
   // 🍾 молотов — палаюча калюжа
   {
     F.ST.burn.length = 0; calmZ = false; const z = F.ST.zom[0]; at({ x: F.L.x - 8, z: F.L.z }); z.x = T.pl.x + 5; z.z = T.pl.z; z.stun = 0; T.pl.face = Math.PI / 2; step(.02);
-    w.document.querySelector('#modebar [data-ms="5"]').click(); assert(F.V.mol === 0 && F.ST.mo.length === 1, '🍾 молотов летить'); step(1.2);
+    w.document.querySelector('#modebar [data-ms="6"]').click(); assert(F.V.mol === 0 && F.ST.mo.length === 1, '🍾 молотов летить'); step(1.2);
     assert(F.ST.burn.length && z.stun > 0, '🔥 палаюча калюжа оглушила зомбі'); calmZ = true;
     F.ST.burn.length = 0;
+  }
+  // 🧻 «папірець у смітник» здалеку і 📘 книжка по зомбі, що жує звіт
+  {
+    const bin = F.L.pk.find(s => s.k === 'pb'); let p = null;
+    for (let k = 0; k < 24 && !p; k++) { const a = k / 24 * Math.PI * 2, q = { x: bin.o.x + Math.sin(a) * 6, z: bin.o.z + Math.cos(a) * 6 }; if (!F.blocked(q.x, q.z, .4) && F.reachable(q.x, q.z)) p = q; }
+    at(p); T.pl.face = Math.atan2(bin.o.x - p.x, bin.o.z - p.z); step(.05);
+    const c0 = T.P.coins, ms = w.document.getElementById('modebar');
+    ms.querySelector('[data-ms="4"]').click();
+    assert(F.ST.th.length === 1 && F.ST.th[0].w === 'pb' && F.V.pb === 2, '🧻 мʼятий папір летить дугою (клавіша 5)');
+    step(.3); assert(F.V.m3.th.size === 1, 'у польоті видно папірець і мітку, куди впаде'); step(1);
+    assert(!F.ST.th.length && T.P.coins > c0 && F.V.binN === 1 && T.P.addons.deadline.bins === 1, `🗑️ папірець у смітник з ~6 м: +${T.P.coins - c0} 🪙`);
+    calmZ = false; const z = F.ST.zom[0]; let zp = null;
+    for (let k = 0; k < 24 && !zp; k++) { const a = k / 24 * Math.PI * 2, q = { x: p.x + Math.sin(a) * 4, z: p.z + Math.cos(a) * 4 }; if (!F.blocked(q.x, q.z, .4) && F.reachable(q.x, q.z)) zp = q; }
+    z.x = zp.x; z.z = zp.z; z.stun = 0; z.cd = 9; z.carry = { it: 'report', n: 1 }; T.pl.face = Math.atan2(zp.x - p.x, zp.z - p.z);
+    ms.querySelector('[data-ms="1"]').click();
+    assert(F.ST.th.length === 1 && F.ST.th[0].w === 'bk' && F.V.bk === 1, '📘 книжка летить у зомбі (клавіша 2, руки вільні)');
+    step(1.2);
+    assert(z.stun > 0 && !z.carry && F.ST.floor.some(f => f.it === 'report'), '📘 БАЦ — зомбі оглушено, звіт випав на підлогу');
+    F.ST.floor.length = 0; calmZ = true;
+  }
+  // 🤖 боти з лобі працюють у раунді: лагодять щиток, носять дані в принтер
+  {
+    calmB = false; TL.length = 0;
+    F.chaos('power'); F.AU.pwT = 99; at(F.START.p);
+    for (let i = 0; i < 300 && !F.ST.pw; i++) step(.1);
+    assert(F.ST.pw && /Світло увімкнули — 🤖 /.test(toasts()), '🤖 бот сам дійшов до щитка й увімкнув світло');
+    if (F.cur() === 'data') {
+      F.ST.t = Math.max(F.ST.t, 20); const fed0 = F.ST.fed;
+      for (let i = 0; i < 300 && F.ST.fed === fed0; i++) step(.1);
+      assert(F.ST.fed > fed0 && /🤖 \S+ поклав дані в принтер/.test(toasts()), '🤖 бот забрав дані в колеги й поклав у принтер' + (F.ST.fed > fed0 ? '' : ' ✗ ' + JSON.stringify([F.ST.fed, F.ST.desk, F.ST.t, F.ST.bt.map(b => [b.n, b.job, b.it, +b.x.toFixed(2), +b.z.toFixed(2), b.stk])])));
+    }
+    calmB = true;
   }
   // 🕵️ саботажник: гравцем (перевірка картки й дії), а потім — колега-NPC, свідки й 🚨 нарада
   {
     const sab0 = F.AU.sab, sh0 = F.ST.sh, sk0 = F.ST.sk;
     F.AU.sab = 'me'; F.ST.sk = 'p'; F.ST.sh = [F.ST.sh[0], F.hashS(F.ST.sh[0] + 'me')]; F.V.roleRid = -1; step(.1);
     assert(F.V.sab && w.document.getElementById('dl-role').dataset.role === 'sab' && /САБОТАЖНИК/.test(w.document.getElementById('dl-role').textContent), '🕵️ картка «Ти — САБОТАЖНИК» (хеш збігся з моїм іменем)');
-    assert(/🕵️/.test(w.document.querySelector('#modebar [data-ms="6"]').textContent) && /саботажник/.test(w.document.getElementById('deadline-goal').textContent), 'у саботажника 7-й слот — 🕵️ Саботаж і підказка внизу');
-    at(F.RACK.p); step(.05); w.document.querySelector('#modebar [data-ms="6"]').click(); for (let j = 0; j < 40 && F.V.act; j++) { at(F.RACK.p); step(.1); } step(.1);
+    assert(/🕵️/.test(w.document.querySelector('#modebar [data-ms="7"]').textContent) && /саботажник/.test(w.document.getElementById('deadline-goal').textContent), 'у саботажника 8-й слот — 🕵️ Саботаж і підказка внизу');
+    at(F.RACK.p); step(.05); w.document.querySelector('#modebar [data-ms="7"]').click(); for (let j = 0; j < 40 && F.V.act; j++) { at(F.RACK.p); step(.1); } step(.1);
     assert(F.ST.fire > 0 && F.V.sbcd > 10, '🕵️ саботажник тихо підпалив серверну, перезарядка');
     F.ST.fire = 0; F.AU.sab = sab0; F.ST.sh = sh0; F.ST.sk = sk0; F.V.roleRid = F.ST.rid; step(.1); F.V.wasSab = false;
-    assert(!F.V.sab && /🚨/.test(w.document.querySelector('#modebar [data-ms="6"]').textContent), 'знову звичайний працівник — слот 🚨 Нарада');
+    assert(!F.V.sab && /🚨/.test(w.document.querySelector('#modebar [data-ms="7"]').textContent), 'знову звичайний працівник — слот 🚨 Нарада');
     const si = +sab0.slice(4); let ok = false; for (let n = 0; n < 10 && !ok; n++) ok = F.botSabotage();
     assert(ok && F.ST.clr.length >= 2 && !F.ST.clr.includes(si), `🕵️ колега-саботажник нашкодив; свідки дали алібі: ${F.ST.clr.map(i => F.NAMES[i]).join(', ')}`);
     F.ST.fire = 0; F.ST.jam = 0; F.ST.cm = 1; F.ST.pw = 1; F.ST.rain = 0; if (F.ST.rb) F.ST.rb.arm = 0;
-    w.document.querySelector('#modebar [data-ms="6"]').click(); step(.1);
+    w.document.querySelector('#modebar [data-ms="7"]').click(); step(.1);
     const mt = w.document.getElementById('dl-meet');
     assert(F.ST.mt && mt && mt.style.display !== 'none' && mt.querySelectorAll('[data-mv]').length === F.DESKS.length + 1 && F.V.mc === 0, '🚨 нарада: вікно з 8 колегами + «Пропустити»');
     assert(F.goal().txt.includes('Нарада'), 'підказка: голосуй');
@@ -315,8 +380,8 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
     const inn = F.DESKS.map(d => d.i).find(i => i !== si && !F.pestOf(i)); const t0 = F.ST.t;
     mt.querySelector(`[data-mv="${inn}"]`).click(); step(.2);
     assert(!F.ST.mt && F.pestOf(inn) && !F.ST.sbC, `проголосували за невинного ${F.NAMES[inn]} — він образився і став 😤`);
-    w.document.querySelector('#modebar [data-ms="6"]').click(); step(.1); assert(!F.ST.mt, 'вдруге нараду не скликати');
-    F.AU.mc = {}; F.AU.mtCd = 0; F.V.mc = 1; w.document.querySelector('#modebar [data-ms="6"]').click(); step(.1);
+    w.document.querySelector('#modebar [data-ms="7"]').click(); step(.1); assert(!F.ST.mt, 'вдруге нараду не скликати');
+    F.AU.mc = {}; F.AU.mtCd = 0; F.V.mc = 1; w.document.querySelector('#modebar [data-ms="7"]').click(); step(.1);
     const dur0 = F.ST.dur; w.document.querySelector(`#dl-meet [data-mv="${si}"]`).click(); step(.2);
     assert(F.ST.sbC === 1 && F.ST.dur === dur0 + 20 && /спіймано/.test(w.document.getElementById('deadline-hud').textContent), `🕵️ спіймали саботажника ${F.NAMES[si]}: +20 с до дедлайну`);
     const c0 = T.P.coins; F.ST.t = F.ST.dur - .3; step(1);

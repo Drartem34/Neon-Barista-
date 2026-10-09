@@ -1,5 +1,5 @@
-/* Аддон «Дедлайн о 18:00» v2: кооператив на 1–4 гравці на високих поверхах хмарочоса в центрі міста.
-   П'ятниця, 17:55. Квартальний звіт мав бути вчора, а здати його треба до 18:00 — за 5 хвилин.
+/* Аддон «Дедлайн о 18:00» v2: кооператив до 5 учасників (люди + 🤖 боти, що доповнюють лобі) на високих поверхах хмарочоса в центрі міста.
+   П'ятниця, 17:53. Квартальний звіт мав бути вчора, а здати його треба до 18:00 — за 7 хвилин.
    - Три поверхи (кожен — свій острів-хмарочос): «Поверх 42 · Опенспейс», «Поверх 57 · Банк» (сховище, операційний зал,
      кільцева галерея), «Поверх 63 · Стартап» (атріум зі скляним мостом, мішки-крісла, мейл-рум, гірка). У ліфтовому холі
      гравці у вікні лобі голосують за поверх (картки з картинками) і тиснуть «Я готовий»; без голосів після перемоги ліфт везе вище.
@@ -9,14 +9,16 @@
    - Звіт — «гаряча картопля»: важкий (з ним ходиш повільніше), його можна КИНУТИ напарнику дугою через перегородки.
      Зомбі, що перехопив звіт у повітрі (чи вирвав з рук), ЖУЄ його — цілість падає; на 0 — передруковуй.
      🪠 Вантуз по зомбі — і він випльовує звіт.
-   - Свій набір (modeBar): 🪠 Вантуз · 📘 Кинути звіт · ☕ Кава-ривок (3 на раунд).
+   - Свій набір (modeBar, клавіші 1–8): 🪠 Вантуз · 📑 Кинути звіт / 📘 Книжка · ☕ Кава-ривок · ✈️ Літачок · 🧻 Мʼятий папір ·
+     🧯 Вогнегасник · 🍾 Молотов · 🚨 Нарада (🕵️ Саботаж). Метальне береш F на поверсі: ✈️ лотки з папером, 📘 книжкові шафи, 🧻 смітники.
+   - Лобі заповнюється до 5 учасників: після першого «Я готовий» по одному приходять 🤖 боти, що працюють і в раунді.
    - Свої ідеї: 📮 пневмопошта між кімнатами (папери летять трубою), 🚪 пожежні сходи / 🛝 гірка — короткий шлях,
      📊 колега з Excel просить допомоги (допоможеш — +1 ривок, ні — він стає зомбі), 💯 бонус за бездоганний звіт.
    - Хаос: принтер зажовує папір, кавоварка вибухає, гасне світло, сервер перегрівається, спринклери, раптова нарада.
    У спільному світі все рахує сервер: завдання, хаос, зомбі, політ звіту, голосування.
    Картинку для картки в меню поклади поруч: addons/deadline/deadline-bg.jpg */
 
-const A = Addon.info({ name: 'Дедлайн о 18:00', version: '2.0', desc: 'Кооп на 1–4 на трьох поверхах хмарочоса: здай квартальний звіт до 18:00 — дані, принтер, печатки, кава начальнику, звіт-«гаряча картопля», вантуз проти зомбі, пневмопошта й хаос.' });
+const A = Addon.info({ name: 'Дедлайн о 18:00', version: '4.0', desc: 'Кооп до 5 (люди + боти) на трьох поверхах хмарочоса: здай квартальний звіт до 18:00 — дані, принтер, печатки, кава начальнику, звіт-«гаряча картопля», вантуз проти зомбі, пневмопошта й хаос.' });
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);
@@ -53,7 +55,7 @@ const STEPS = {
   sign: { ic: '✍️', n: 'Підпис начальника (спершу ☕ кава!)', t: 1.5, act: 'Начальник підписує' }, send: { ic: '📤', n: '' },
 };
 const SUBS = ['staple', 'stamp', 'number', 'scan', 'sign'];
-const ITEM = { sheets: { ic: '📄', n: 'дані' }, report: { ic: '📘', n: 'звіт' } };
+const ITEM = { sheets: { ic: '📄', n: 'дані' }, report: { ic: '📑', n: 'звіт' } };
 const GRACE = 12;                                                                // с на початку раунду без зомбі-атак
 const CHEW = 7;                                                                  // % цілості звіту за секунду, поки зомбі жує
 const FIXT = { jam: 2.5, cm: 3, heat: 3, power: 2, rain: 2, excel: 3 };
@@ -108,6 +110,29 @@ function seal(Lx, deco) {
   if (!Lx.zwp.length) for (let x = -HX + 2; x <= HX - 2; x += 3) for (let z = -HZ + 2; z <= HZ - 2; z += 3) if (!blocked(OX + x, OZ + z, .6)) Lx.zwp.push(W(x, z));
   Lx.zwp = Lx.zwp.filter(ok);
   useVar(Lx.vi);
+  Lx.pk = mkPickups(Lx);
+}
+/* ---------- Звідки брати «метальне»: ✈️ лотки з папером, 📘 книжкові шафи, 🧻 смітники — по кілька на кожному поверсі ----------
+   Місце вибирається само: вільна досяжна точка за 1,7–4,4 м від «якоря» (принтер, кухня, архів, столи…), не на робочих точках,
+   предмет стоїть спиною до найближчої стіни/меблів, гравець бере його F поруч. Однаково на сервері й у гравців. */
+function mkPickups(Lx) {
+  const S = Lx.s, D = Lx.desks, rr = v => Math.round(v * 100) / 100;
+  const keyP = [S.START, S.SEND, S.PRINTER, S.STAPLER, S.COFFEE, S.VALVE, S.PANEL, S.ARCHIVE, S.RACK, S.SCANNER, S.STAMP, S.COOLER].filter(Boolean).map(o => o.p)
+    .concat(D.map(d => d.p), Lx.tube.map(t => t.p), Lx.stairs ? [Lx.stairs.a, Lx.stairs.b] : [], [Lx.exit], Lx.lifts);
+  const out = [];
+  const free = (x, z) => Math.abs(x - OX) < HX - 1 && Math.abs(z - OZ) < HZ - 1 && !blocked(x, z, .5) && reachable(x, z) && keyP.every(p => dist2(p.x, p.z, x, z) > 1.5) && out.every(q => dist2(q.x, q.z, x, z) > 3);
+  const find = a => { for (const d of [1.7, 2.3, 2.9, 3.6, 4.4]) for (let k = 0; k < 16; k++) { const t = k / 16 * Math.PI * 2 + d, x = a.x + Math.sin(t) * d, z = a.z + Math.cos(t) * d; if (free(x, z)) return { x, z }; } return null; };
+  const mid = D[Math.floor(D.length / 2)], last = D[D.length - 1];
+  const plan = [['pp', S.PRINTER.p], ['pb', S.COFFEE.p], ['bk', S.ARCHIVE.p], ['pp', D[0] && D[0].p], ['pb', mid && mid.p], ['bk', S.BOSS_DESK], ['pp', S.SCANNER.p], ['pb', S.START.p], ['bk', S.STAMP.p], ['pb', last && last.p]];
+  for (const [k, a] of plan) {
+    if (!a) continue; const p = find(a); if (!p) continue;
+    // спиною до найближчої перешкоди — стоїть під стіною, а не посеред кімнати
+    let best = 9, t0 = 0;
+    for (let j = 0; j < 4; j++) { const t = j * Math.PI / 2; let d = 0; while (d < 2 && !blocked(p.x + Math.sin(t) * (d + .1), p.z + Math.cos(t) * (d + .1), .05)) d += .1; if (d < best) { best = d; t0 = t; } }
+    const sh = best < 2 ? clamp(best - (k === 'bk' ? .22 : .3), 0, 1.2) : 0;
+    out.push({ id: out.length, k, x: rr(p.x), z: rr(p.z), o: { x: rr(p.x + Math.sin(t0) * sh), z: rr(p.z + Math.cos(t0) * sh) }, ry: t0 + Math.PI });
+  }
+  return out;
 }
 
 /* ======================= ПОВЕРХ 42 · ОПЕНСПЕЙС (класичний офіс, перший варіант) =======================
@@ -606,11 +631,16 @@ const _buildIsland = buildIsland;
 buildIsland = function (s) { if (s.biome !== 'officeday' || s.dlv == null) return _buildIsland.apply(this, arguments); return SIMSIDE ? new THREE.Group() : buildVariant(s.dlv); };
 
 /* ---------- Стан раунду ---------- */
-const ST = { on: false, t: 0, dur: 300, lv: 0, steps: [], si: 0, need: 3, fed: 0, desk: [], held: {}, floor: [], zom: [], boss: { x: BPATH[0].x, z: BPATH[0].z, f: 0, i: 0, dir: 1, wait: 6, at: 'desk' },
-  coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, vi: 0, vo: [0, 0, 0], nx: 0, rhp: 100, fly: null, tb: [], xl: null, rid: 0, pf: 1, lp: [], rt: -1 };
-const AU = { chaosT: 25, jamP: .45, boomP: .3, jammed: 0, boomed: 0, pwT: 0, rainT: 0, dropT: 0, idle: 0, stT: 0, fid: 0, zid: 0, wins: 0, away: {}, votes: {}, ready: {}, rdyT: 0, won: 0, vsig: '', excel: 1 };
-const READY_WAIT = 20;                                                           // онлайн: старт через 20 с після першого «Я готовий», навіть якщо інші мовчать
+const ST = { on: false, t: 0, dur: 420, lv: 0, steps: [], si: 0, need: 3, fed: 0, desk: [], held: {}, floor: [], zom: [], boss: { x: BPATH[0].x, z: BPATH[0].z, f: 0, i: 0, dir: 1, wait: 6, at: 'desk' },
+  coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, vi: 0, vo: [0, 0, 0], nx: 0, rhp: 100, fly: null, tb: [], xl: null, rid: 0, pf: 1, lp: [], bt: [], cd: -1, fo: 0, fw: -1, lj: '' };
+const AU = { chaosT: 25, jamP: .45, boomP: .3, jammed: 0, boomed: 0, pwT: 0, rainT: 0, dropT: 0, idle: 0, stT: 0, fid: 0, zid: 0, wins: 0, away: {}, votes: {}, ready: {}, won: 0, vsig: '', excel: 1, fillT: 0, fullT: 0, bi: 0, botAI: 1 };
+/* лобі заповнюється до 5 учасників: люди (у пріоритеті) + 🤖 боти, що приходять по одному */
+const TEAM = 5, LEFT_OUT = 25;                                                   // онлайн: хто не готовий 25 с після заповнення — стартуємо без нього
+const BOTN = ['Кент', 'Віта', 'Толік', 'Оксана', 'Стас', 'Люда', 'Гена', 'Ірина', 'Петро', 'Зоя'];
+const fastLobby = () => !SIMSIDE && typeof window !== 'undefined' && !!window.__deadlineFastLobby;   // тестовий гачок: кроки по 0,2 с
+const FILL1 = () => fastLobby() ? .2 : 4, FILLN = () => fastLobby() ? .2 : 2.5, CDN = () => fastLobby() ? .4 : 3;
 const TUBE_T = 2.6;
+const DUR = 420, T0 = 17 * 3600 + 53 * 60;                                   // раунд 7 хв: з 17:53:00 до 18:00
 const myKey = () => (NET.on && typeof WORLD !== 'undefined' && WORLD.on ? myName() : 'me');
 const keyOf = from => SIMSIDE ? String(from && from.name || '') : 'me';
 const r2 = v => Math.round(v * 100) / 100;
@@ -620,7 +650,7 @@ const myHeld = () => heldOf(myKey());
 function setHeld(k, it, n, cup) { if (!it && !cup) delete ST.held[k]; else ST.held[k] = { it: it || '', n: it ? Math.max(1, n | 0) : 0, cup: clamp(cup | 0, 0, 3) }; }   // cup: 0 — нема, 1 ☕ еспресо · 2 🥛 лате · 3 🧋 раф
 function snap() {
   const F = ST.fly;
-  return { on: ST.on ? 1 : 0, t: r2(ST.t), dur: ST.dur, lv: ST.lv, st: ST.steps, si: ST.si, nd: ST.need, fd: ST.fed, dk: ST.desk, vi: ST.vi, vo: ST.vo, nx: ST.nx, rh: Math.round(ST.rhp), rid: ST.rid, pf: ST.pf, lp: ST.lp, rt: ST.rt < 0 ? -1 : Math.ceil(ST.rt),
+  return { on: ST.on ? 1 : 0, t: r2(ST.t), dur: ST.dur, lv: ST.lv, st: ST.steps, si: ST.si, nd: ST.need, fd: ST.fed, dk: ST.desk, vi: ST.vi, vo: ST.vo, nx: ST.nx, rh: Math.round(ST.rhp), rid: ST.rid, pf: ST.pf, lp: ST.lp, cd: ST.cd < 0 ? -1 : r2(ST.cd), fw: ST.fw < 0 ? -1 : Math.ceil(ST.fw), fo: ST.fo, lj: ST.lj, bt: ST.bt.map(b => [b.n, r2(b.x), r2(b.z), r2(b.f), b.it, b.ic || '', b.c | 0, b.mv ? 1 : 0]),
     h: Object.entries(ST.held).map(([k, v]) => [k, v.it, v.n, v.cup]), f: ST.floor.map(f => [f.id, f.it, f.n, r2(f.x), r2(f.z)]),
     z: ST.zom.map(z => [z.id, r2(z.x), r2(z.z), r2(z.f), z.stun > 0 ? 1 : 0, z.carry ? z.carry.it : '', z.carry ? z.carry.n : 0]),
     fl: F ? [F.id, r2(F.x0), r2(F.z0), r2(F.x1), r2(F.z1), r2(F.T), r2(F.t), F.by] : 0, tb: ST.tb.map(c => [c.id, c.it, c.to, r2(c.t)]), xl: ST.xl ? [ST.xl.i, r2(ST.xl.t)] : 0,
@@ -629,11 +659,12 @@ function snap() {
 function applySnap(d) {
   const vi = clamp(d.vi | 0, 0, LAY.length - 1);
   if (vi !== ST.vi || L !== LAY[vi]) { ST.vi = vi; useVar(vi); }
-  Object.assign(ST, { on: !!d.on, t: +d.t || 0, dur: +d.dur || 300, lv: d.lv | 0, si: d.si | 0, need: d.nd | 0, fed: d.fd | 0, coffee: d.cf ? 1 : 0, jam: d.jm ? 1 : 0, pw: d.pw ? 1 : 0, heat: d.ht ? 1 : 0, cm: d.cm ? 1 : 0, rain: d.rn ? 1 : 0, fixes: d.fx | 0,
+  Object.assign(ST, { on: !!d.on, t: +d.t || 0, dur: +d.dur || 420, lv: d.lv | 0, si: d.si | 0, need: d.nd | 0, fed: d.fd | 0, coffee: d.cf ? 1 : 0, jam: d.jm ? 1 : 0, pw: d.pw ? 1 : 0, heat: d.ht ? 1 : 0, cm: d.cm ? 1 : 0, rain: d.rn ? 1 : 0, fixes: d.fx | 0,
     nx: clamp(d.nx | 0, 0, LAY.length - 1), rhp: d.rh == null ? 100 : clamp(+d.rh, 0, 100), rid: d.rid | 0, pf: d.pf ? 1 : 0 });
   if (Array.isArray(d.vo)) ST.vo = [0, 1, 2].map(i => d.vo[i] | 0);
   if (Array.isArray(d.lp)) ST.lp = d.lp.slice(0, 16).filter(Array.isArray).map(a => [String(a[0]), a[1] ? 1 : 0, a[2] >= 0 && a[2] < LAY.length ? a[2] | 0 : -1]);
-  ST.rt = d.rt == null || d.rt < 0 ? -1 : +d.rt;
+  ST.cd = d.cd == null || d.cd < 0 ? -1 : +d.cd; ST.fw = d.fw == null || d.fw < 0 ? -1 : +d.fw; ST.fo = d.fo ? 1 : 0; ST.lj = String(d.lj || '');
+  if (Array.isArray(d.bt)) { const old = new Map(ST.bt.map(b => [b.n, b])); ST.bt = d.bt.slice(0, TEAM).map(a => { const b = old.get(String(a[0])) || { n: String(a[0]), x: +a[1], z: +a[2] }; return Object.assign(b, { tx: +a[1], tz: +a[2], f: +a[3], it: a[4] === 'sheets' ? 'sheets' : '', ic: String(a[5] || ''), c: a[6] | 0, mv: a[7] ? 1 : 0 }); }); }
   if (Array.isArray(d.st)) ST.steps = d.st.filter(s => STEPS[s]).slice(0, 10);
   if (Array.isArray(d.dk)) ST.desk = DESKS.map((_, i) => d.dk[i] ? 1 : 0);
   if (Array.isArray(d.h)) { ST.held = {}; for (const a of d.h.slice(0, 16)) if (a && (ITEM[a[1]] || a[3])) ST.held[String(a[0])] = { it: ITEM[a[1]] ? a[1] : '', n: a[2] | 0, cup: clamp(a[3] | 0, 0, 3) }; }
@@ -686,13 +717,28 @@ function pickVar(roll) {
   if (best > 0) { const tied = [0, 1, 2].filter(i => cnt[i] === best); return roll ? pick(tied) : tied.includes(ST.vi) ? ST.vi : tied[0]; }
   return AU.won ? (ST.vi + 1) % LAY.length : ST.vi;      // ніхто не голосував: після перемоги ліфт везе вище, інакше — той самий поверх
 }
-/* усі люди в лобі готові (мін. 1) — старт; онлайн ще й таймер 20 с від першого «готового» */
+/* лобі: після першого «Я готовий» боти доповнюють команду до 5; старт — коли всі 5 на місці й усі люди готові (відлік 3…2…1) */
+function botSpot(i) { const a = (i + .5) / TEAM * Math.PI * 2; return freeSpot(START.p.x + Math.sin(a) * 1.7, START.p.z + 1.2 + Math.cos(a) * 1.1); }
+function addBot() {
+  const used = new Set(ST.bt.map(b => b.n)), free = BOTN.filter(n => !used.has(n)), n = pick(free.length ? free : BOTN), p = botSpot(ST.bt.length);
+  ST.bt.push({ n, x: p.x, z: p.z, f: Math.PI, c: AU.bi++ % 5, it: '', ic: '', job: '', jt: 0, wt: 0, cd: 0, wp: 0, mv: 0 });
+  ST.lj = n; emit({ k: 'botj', n, cnt: crew().length + ST.bt.length }); pushState();
+}
 function lobbyCheck(dt) {
   if (ST.on) return;
-  const c = crew(), rd = c.filter(p => AU.ready[p.name]).length;
-  if (c.length && rd === c.length) { startRound(); return; }
-  if (SIMSIDE && rd) { AU.rdyT += dt; ST.rt = Math.max(0, READY_WAIT - AU.rdyT); if (AU.rdyT >= READY_WAIT) startRound(); }
-  else { AU.rdyT = 0; ST.rt = -1; }
+  const c = crew(), H = c.length, rd = c.filter(p => AU.ready[p.name]).length;
+  if (!H) { if (ST.bt.length || ST.fo) { ST.bt = []; ST.fo = 0; ST.lj = ''; } ST.cd = ST.fw = -1; AU.fullT = 0; return; }
+  if (!ST.fo && rd) { ST.fo = 1; AU.fillT = FILL1(); }
+  if (!ST.fo) { ST.cd = ST.fw = -1; return; }
+  // людям — пріоритет: прийшов гравець, а місць нема — бот поступається
+  while (H + ST.bt.length > TEAM && ST.bt.length) { const b = ST.bt.pop(); emit({ k: 'botl', n: b.n }); }
+  if (H + ST.bt.length < TEAM) { AU.fullT = 0; if ((AU.fillT -= dt) <= 0) { addBot(); AU.fillT = FILLN(); } }
+  else AU.fullT += dt;
+  const N = H + ST.bt.length, full = N >= TEAM, all = rd === H;
+  ST.fw = full && !all && SIMSIDE ? Math.max(0, LEFT_OUT - AU.fullT) : -1;
+  if (!(full && N >= 2 && rd && (all || (SIMSIDE && AU.fullT >= LEFT_OUT)))) { ST.cd = -1; return; }
+  if (ST.cd < 0) { ST.cd = CDN(); pushState(); }
+  if ((ST.cd -= dt) <= 0) { ST.cd = -1; startRound(); }
 }
 function switchVar(v) {
   ST.vi = v; useVar(v);
@@ -765,7 +811,7 @@ function onReq(d, from) {
     emit({ k: 'plunge', id: z.id, x0: r2(p.x), z0: r2(p.z), x: r2(z.x), z: r2(z.z), who: k, sp: had }); pushState();
   }
   else if (d.k === 'throw') {
-    // 📘 «гаряча картопля»: звіт летить дугою над перегородками туди, куди цілився
+    // 📑 «гаряча картопля»: звіт летить дугою над перегородками туди, куди цілився
     if (h.it !== 'report' || ST.fly) return;
     const p = posOf(k), tx = +d.x || p.x, tz = +d.z || p.z, dd = Math.min(14, dist2(p.x, p.z, tx, tz)), a = Math.atan2(tx - p.x, tz - p.z);
     const x1 = clamp(p.x + Math.sin(a) * dd, OX - HX + .8, OX + HX - .8), z1 = clamp(p.z + Math.cos(a) * dd, OZ - HZ + .8, OZ + HZ - .8);
@@ -791,13 +837,14 @@ function startRound() {
   const lv = SIMSIDE ? AU.wins : (A.data().wins | 0);
   const need = Math.min(5, 3 + lv), subs = shuffle(SUBS.slice()).slice(0, lv >= 3 ? 4 : 3);
   const desks = shuffle(DESKS.map(d => d.i)).slice(0, need);
-  Object.assign(ST, { on: true, t: 0, lv, steps: ['data', 'print', ...subs, 'send'], si: 0, need, fed: 0, desk: DESKS.map(d => desks.includes(d.i) ? 1 : 0), held: {}, floor: [], zom: [],
+  Object.assign(ST, { on: true, t: 0, dur: DUR, lv, steps: ['data', 'print', ...subs, 'send'], si: 0, need, fed: 0, desk: DESKS.map(d => desks.includes(d.i) ? 1 : 0), held: {}, floor: [], zom: [],
     coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, rhp: 100, fly: null, tb: [], xl: null, pf: 1, rid: ST.rid + 1, vo: [0, 0, 0] });
   Object.assign(ST.boss, { x: BPATH[0].x, z: BPATH[0].z, i: 0, dir: 1, wait: 8, at: 'desk' });
   for (let i = 0; i < Math.min(5, 2 + lv); i++) spawnZombie();
   start3();
-  Object.assign(AU, { chaosT: rand(22, 30), jammed: 0, boomed: 0, pwT: 0, rainT: 0, dropT: 0, idle: 0, away: {}, votes: {}, ready: {}, rdyT: 0, won: 0 }); ST.lp = []; ST.rt = -1;
-  emit({ k: 'msg', big: 1, txt: `⏰ 17:55 · ${L.n}! Квартальний звіт — до 18:00!` });
+  Object.assign(AU, { chaosT: rand(30, 42), jammed: 0, boomed: 0, pwT: 0, rainT: 0, dropT: 0, idle: 0, away: {}, votes: {}, ready: {}, fullT: 0, won: 0 }); ST.lp = []; Object.assign(ST, { cd: -1, fw: -1, fo: 0, lj: '' });
+  ST.bt.forEach((b, i) => { const p = botSpot(i); Object.assign(b, { x: p.x, z: p.z, it: '', ic: '', job: '', jt: 0, wt: 0, cd: 2 + i * .7, path: null, mv: 0 }); });   // боти з лобі — у команді раунду
+  emit({ k: 'msg', big: 1, txt: `⏰ 17:53 · ${L.n}! Квартальний звіт — до 18:00!` });
   pushState();
 }
 function endRound(win, why, by) {
@@ -808,7 +855,7 @@ function endRound(win, why, by) {
   AU.won = win ? 1 : 0;
   for (const z of ST.zom) z.carry = null;
   Object.assign(ST, { held: {}, floor: [], jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fly: null, tb: [], xl: null, rhp: 100 });
-  ST.zom.splice(2); AU.ready = {}; AU.rdyT = 0; ST.rt = -1; countVotes();
+  ST.zom.splice(2); AU.ready = {}; AU.fullT = 0; Object.assign(ST, { bt: [], cd: -1, fw: -1, fo: 0, lj: '' }); countVotes();   // боти пішли додому — нове лобі заповниться заново
   emit(res); pushState();
 }
 function chaos(w) {
@@ -844,8 +891,8 @@ function zMove(z, tx, tz, spd, dt) {
   const s = Math.min(dw, spd * dt), nx = z.x + (w.x - z.x) / dw * s, nz = z.z + (w.z - z.z) / dw * s;
   z.f = Math.atan2(w.x - z.x, w.z - z.z);
   if (!blocked(nx, nz, .3)) { z.x = nx; z.z = nz; z.stk = 0; return ''; }
-  if (!blocked(nx, z.z, .3)) { z.x = nx; return ''; }
-  if (!blocked(z.x, nz, .3)) { z.z = nz; return ''; }
+  if (Math.abs(nx - z.x) > 1e-3 && !blocked(nx, z.z, .3)) { z.x = nx; return ''; }   // ковзання вздовж стіни (лише якщо справді зрушив)
+  if (Math.abs(nz - z.z) > 1e-3 && !blocked(z.x, nz, .3)) { z.z = nz; return ''; }
   // застряг — трохи підштовхнути до центру клітинки шляху й перерахувати
   z.repath = 0; if ((z.stk = (z.stk || 0) + dt) > 1.5) { z.stk = 0; z.x = lerp(z.x, w.x, .5); z.z = lerp(z.z, w.z, .5); return 'stuck'; }
   return '';
@@ -909,6 +956,65 @@ function updFly(dt, c) {
     pushState();
   }
 }
+/* ---------- 🤖 Боти в раунді: носять дані в принтер, лагодять поломки, гасять серверну, проганяють зомбі від людей ---------- */
+const BOT_SPD = 2.5, BOTFIX = { power: 3, jam: 3.5, cm: 4, heat: 4, rain: 3, excel: 3.5 };
+const botWho = b => '🤖 ' + b.n;
+function botJob(b, c) {
+  const taken = j => ST.bt.some(o => o !== b && o.job === j), d2 = p => dist2(b.x, b.z, p.x, p.z);
+  if (b.it === 'sheets') return { j: 'feed', p: PRINTER.p, ic: '📄' };
+  const fx = [[ST.fire > 0, 'fire', RACK.p, '🧯'], [!ST.pw, 'power', PANEL.p, '🔧'], [ST.jam, 'jam', PRINTER.p, '🔧'], [!ST.cm, 'cm', COFFEE.p, '🔧'], [ST.heat, 'heat', RACK.p, '🔧'], [ST.rain, 'rain', VALVE.p, '🔧'], [!!ST.xl, 'excel', ST.xl && DESKS[ST.xl.i] ? DESKS[ST.xl.i].p : null, '📊']];
+  for (const [on, j, p, ic] of fx) if (on && p && !taken(j)) return { j, p, ic };
+  if (cur() === 'data' && ST.t > 15) {   // перші 15 с дані збирають люди — боти «розігріваються»
+    const d = DESKS.filter(q => ST.desk[q.i] && !pestOf(q.i) && !taken('desk' + q.i)).sort((a, e) => d2(a.p) - d2(e.p))[0];
+    if (d) return { j: 'desk' + d.i, p: d.p, i: d.i, ic: '📄' };
+  }
+  const z = ST.zom.filter(q => q.stun <= 0 && !(q.carry && q.carry.it === 'report') && c.some(p => dist2(p.x, p.z, q.x, q.z) < 5) && !taken('zom' + q.id)).sort((a, e) => d2(a) - d2(e))[0];
+  if (z) return { j: 'zom' + z.id, p: z, z, ic: '🗣️' };
+  return { j: 'walk', p: null, ic: '' };
+}
+function updBots(dt, c) {
+  for (const b of ST.bt) {
+    b.mv = 0;
+    if (b.cd > 0) { b.cd -= dt; continue; }
+    if (!b.J || ((b.jt -= dt) <= 0 && b.wt <= 0)) { b.J = botJob(b, c); b.job = b.J.j; b.jt = 1; b.ic = b.J.ic; }
+    const J = b.J, j = J.j;
+    let tg = J.p;
+    if (!tg) { if (!ZWP[b.wp] || dist2(b.x, b.z, ZWP[b.wp].x, ZWP[b.wp].z) < .6) { const h = c.length ? pick(c) : START.p, near = ZWP.filter(q => dist2(q.x, q.z, h.x, h.z) < 8); b.wp = ZWP.indexOf(pick(near.length ? near : ZWP)); } tg = ZWP[b.wp] || START.p; }
+    const reach = j === 'fire' ? fireR() + 1 : j.startsWith('zom') ? 1.1 : j === 'walk' ? .5 : .9;
+    if (dist2(b.x, b.z, tg.x, tg.z) > reach) { b.wt = 0; const r = zMove(b, tg.x, tg.z, BOT_SPD * slowAt(b.x, b.z), dt); b.mv = 1; if (j === 'walk' && (r === 'stuck' || r === 'here')) b.wp = -1; continue; }
+    b.wt += dt; if (J.p) b.f = Math.atan2(tg.x - b.x, tg.z - b.z);
+    if (j === 'fire') {
+      if (b.wt < 1.2) continue; b.wt = 0; ST.fire = Math.max(0, ST.fire - 22);
+      emit({ k: 'botfoam', n: b.n, x: r2(b.x), z: r2(b.z), a: r2(b.f) });
+      if (ST.fire <= 0) { ST.fixes++; emit({ k: 'fixed', w: 'fire', who: botWho(b) }); b.J = null; }
+      pushState(); continue;
+    }
+    if (BOTFIX[j]) {
+      if (b.wt < BOTFIX[j]) continue; b.wt = 0; b.J = null; let ok = 0;
+      if (j === 'jam' && ST.jam) { ST.jam = 0; ok = 1; } else if (j === 'cm' && !ST.cm) { ST.cm = 1; ok = 1; } else if (j === 'heat' && ST.heat) { ST.heat = 0; ok = 1; }
+      else if (j === 'power' && !ST.pw) { ST.pw = 1; ok = 1; } else if (j === 'rain' && ST.rain) { ST.rain = 0; ok = 1; } else if (j === 'excel' && ST.xl) { ST.xl = null; ok = 1; }
+      if (ok) { ST.fixes++; emit({ k: 'fixed', w: j, who: botWho(b) }); pushState(); }
+      continue;
+    }
+    if (j.startsWith('desk')) {
+      if (b.wt < .8) continue; b.wt = 0; b.J = null;
+      if (ST.desk[J.i] && !pestOf(J.i)) { ST.desk[J.i] = 0; b.it = 'sheets'; emit({ k: 'take', i: J.i, who: botWho(b) }); pushState(); }
+      continue;
+    }
+    if (j === 'feed') {
+      if (b.wt < .5) continue; b.wt = 0; b.J = null; b.it = '';
+      ST.fed++; emit({ k: 'msg', txt: `📥 ${botWho(b)} поклав дані в принтер: ${Math.min(ST.fed, ST.need)}/${ST.need}` });
+      if (cur() === 'data' && ST.fed >= ST.need) advance(botWho(b));
+      pushState(); continue;
+    }
+    if (J.z) {
+      const z = J.z; b.J = null; if (z.stun > 0 || !ST.zom.includes(z)) continue;
+      z.stun = 5; z.cd = 3; if (z.carry) { toFloor(z.carry.it, z.carry.n, z.x, z.z); z.carry = null; }
+      emit({ k: 'shoo', id: z.id, x: r2(z.x), z: r2(z.z), who: botWho(b) }); pushState(); continue;
+    }
+    if (b.wt > 1.5) { b.wt = 0; b.J = null; }
+  }
+}
 function authTick(dt) {
   const c = crew();
   if (!ST.on && !ST.zom.length) { spawnZombie(); spawnZombie(); }
@@ -916,13 +1022,14 @@ function authTick(dt) {
   if (!ST.on) {
     // лобі: голоси, «готові», таймер старту
     countVotes(); lobbyCheck(dt); if (ST.on) return;
-    const sig = ST.vo.join() + ST.nx + JSON.stringify(ST.lp) + (ST.rt < 0 ? -1 : Math.ceil(ST.rt)); if (sig !== AU.vsig) { AU.vsig = sig; pushState(); }
+    const sig = ST.vo.join() + ST.nx + JSON.stringify(ST.lp) + ST.bt.map(b => b.n).join() + ST.fo + (ST.cd < 0 ? -1 : Math.ceil(ST.cd * 5)) + (ST.fw < 0 ? -1 : Math.ceil(ST.fw)); if (sig !== AU.vsig) { AU.vsig = sig; pushState(); }
     if (SIMSIDE && c.length && (AU.stT -= dt) <= 0) { AU.stT = .3; pushState(); } return;
   }
   ST.t += dt;
   if (!c.length) { AU.idle += dt; if (AU.idle > (SIMSIDE ? 10 : 3)) endRound(false, 'На поверсі нікого не лишилось.'); return; }
   AU.idle = 0;
   if (auth3(dt, c)) { AU.stT -= dt; if (AU.stT <= 0) { AU.stT = .2; pushState(); } return; }   // 🚨 нарада: усе завмерло, годинник іде
+  if (AU.botAI) updBots(dt, c);
   updFly(dt, c);
   for (let i = ST.tb.length - 1; i >= 0; i--) { const q = ST.tb[i]; if ((q.t -= dt) > 0) continue; ST.tb.splice(i, 1); const T = TUBE[q.to]; toFloor(q.it, q.n, T.p.x, T.p.z); emit({ k: 'tubeout', to: q.to, it: q.it }); pushState(); }
   if (ST.xl && (ST.xl.t -= dt) <= 0) { const d = DESKS[ST.xl.i]; ST.xl = null; spawnZombie(45, freeSpot(d.p.x, d.p.z)); emit({ k: 'msg', txt: `🧟 ${NAMES[d.i]} так і не зробив ВПР — і став зомбі-офісником!` }); pushState(); }
@@ -935,7 +1042,7 @@ function authTick(dt) {
   }
   AU.chaosT -= dt;
   if (AU.chaosT <= 0) {
-    AU.chaosT = rand(20, 32) * Math.max(.55, 1 - ST.lv * .12);
+    AU.chaosT = rand(28, 45) * Math.max(.55, 1 - ST.lv * .12);
     const s = cur(), pool = ['power', 'rain', 'meeting', 'boom', 'heat', 'jam'];
     if (s === 'print' || s === 'data') pool.push('jam', 'jam'); if (s === 'scan') pool.push('heat', 'heat'); if (ST.steps.includes('sign') && !ST.coffee) pool.push('boom');
     if (AU.excel && !ST.xl) pool.push('excel', 'excel');
@@ -952,6 +1059,7 @@ A.on('tick', dt => {
     const k = Math.min(1, dt * 8);
     for (const z of ST.zom) if (z.tx != null) { z.x = lerp(z.x, z.tx, k); z.z = lerp(z.z, z.tz, k); }
     if (ST.boss.tx != null) { ST.boss.x = lerp(ST.boss.x, ST.boss.tx, k); ST.boss.z = lerp(ST.boss.z, ST.boss.tz, k); }
+    for (const b of ST.bt) if (b.tx != null) { b.x = lerp(b.x, b.tx, k); b.z = lerp(b.z, b.tz, k); }
   }
   if (!SIMSIDE) clientTick(dt);
 });
@@ -959,10 +1067,10 @@ A.on('tick', dt => {
 /* ======================= v3: саботажник, літачки й агресія колег, кулер-пастка, Румба, вогнегасник, молотов =======================
    Усе рахує автор раунду (сервер світу або сам гравець), гравцям — знімок і події. */
 const CUPS = [null, { ic: '☕', n: 'еспресо' }, { ic: '🥛', n: 'лате' }, { ic: '🧋', n: 'раф' }];
-const AGR = { plane: 40, foam: 25, burn: 35, pest: 7, decay: 1.2 };              // скільки агресії дає кожна образа (шкала 0…100)
-const MAXPEST = 4, SAB_CD = 18, MEET_T = 20, PP_N = 6, MOL_N = 2;
+const AGR = { plane: 40, ball: 20, book: 35, foam: 25, burn: 35, pest: 7, decay: 1.2 };              // скільки агресії дає кожна образа (шкала 0…100)
+const MAXPEST = 4, SAB_CD = 18, MEET_T = 20, PP_N = 2, PB_N = 3, MOL_N = 2, BIN_CAP = 8;
 const SABW = { fire: '🔥 підпал серверної', jam: '🖨️ зажований принтер', boom: '☕ зламана кавоварка', power: '⚡ вимкнений щиток', rain: '🚿 відкриті спринклери', steal: '📄 переховані дані', litter: '🗑️ розкидане сміття', mine: '🤖 замінована Румба' };
-Object.assign(ST, { ag: [], pst: [], fire: 0, pud: null, rb: null, lit: [], pp: [], mo: [], burn: [], mt: null, sbC: 0, sk: '', sh: null, clr: [] });
+Object.assign(ST, { ag: [], pst: [], fire: 0, pud: null, rb: null, lit: [], pp: [], mo: [], th: [], burn: [], mt: null, sbC: 0, sk: '', sh: null, clr: [] });
 Object.assign(AU, { sab: '', salt: '', sbT: 40, sbcd: {}, mc: {}, mtCd: 0, spamT: 0, fireMax: 0, pcP: .35, sabP2: .25 });
 const hashS = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h.toString(36); };
 const pestOf = i => ST.pst.find(q => q.i === i);
@@ -994,17 +1102,17 @@ function start3() {
   // онлайн від 3 людей — завжди хтось із гравців; удвох — зрідка; інакше — колега-NPC
   if (SIMSIDE && (hum.length >= 3 || (hum.length === 2 && Math.random() < AU.sabP2))) sab = pick(hum);
   if (!sab && DESKS.length) sab = 'npc:' + pick(DESKS).i;
-  Object.assign(AU, { sab, salt: Math.random().toString(36).slice(2, 10), sbT: rand(30, 45), sbcd: {}, mc: {}, mtCd: 0, spamT: 0, fireMax: 0 });
+  Object.assign(AU, { sab, salt: Math.random().toString(36).slice(2, 10), sbT: rand(40, 60), sbcd: {}, mc: {}, mtCd: 0, spamT: 0, fireMax: 0 });
   // хто саботажник — лише хеш із «сіллю»: гравець перевіряє своє ім'я, у знімку імені немає
-  Object.assign(ST, { ag: DESKS.map(() => 0), pst: [], fire: 0, pud: null, lit: [], pp: [], mo: [], burn: [], mt: null, sbC: 0, sk: sab.startsWith('npc:') ? 'n' : 'p', sh: [AU.salt, hashS(AU.salt + sab)], clr: [] });
+  Object.assign(ST, { ag: DESKS.map(() => 0), pst: [], fire: 0, pud: null, lit: [], pp: [], mo: [], th: [], burn: [], mt: null, sbC: 0, sk: sab.startsWith('npc:') ? 'n' : 'p', sh: [AU.salt, hashS(AU.salt + sab)], clr: [] });
   const d = dock(); ST.rb = { x: d.x, z: d.z, f: 0, arm: 0, t: 0, dead: 0, wp: 0 };
-  emit({ k: 'msg', txt: ST.sk === 'p' ? '🕵️ Серед <b>гравців</b> — САБОТАЖНИК! Підозрюєш когось — 🚨 нарада (клавіша 7).' : '🕵️ Серед <b>колег</b> — САБОТАЖНИК! Стеж за підказками свідків і клич 🚨 нараду (клавіша 7).' });
+  emit({ k: 'msg', txt: ST.sk === 'p' ? '🕵️ Серед <b>гравців</b> — САБОТАЖНИК! Підозрюєш когось — 🚨 нарада (клавіша 8).' : '🕵️ Серед <b>колег</b> — САБОТАЖНИК! Стеж за підказками свідків і клич 🚨 нараду (клавіша 8).' });
 }
 function sabName(k) { return !k ? '' : k.startsWith('npc:') ? NAMES[+k.slice(4)] || 'колега' : k; }
 function end3(win) {
   const r = { sab: sabName(AU.sab), sk: ST.sk, sc: ST.sbC, sw: !win && !ST.sbC && AU.sab ? 1 : 0 };
   for (const q of ST.pst) if (q.own) ST.desk[q.i] = 1;
-  Object.assign(ST, { ag: DESKS.map(() => 0), pst: [], fire: 0, pud: null, lit: [], pp: [], mo: [], burn: [], mt: null });
+  Object.assign(ST, { ag: DESKS.map(() => 0), pst: [], fire: 0, pud: null, lit: [], pp: [], mo: [], th: [], burn: [], mt: null });
   if (ST.rb) Object.assign(ST.rb, { arm: 0, dead: 0 });
   AU.sab = ''; AU.spamT = 0;
   return r;
@@ -1015,7 +1123,7 @@ function snap3() {
   return { ag: ST.ag.map(v => Math.round(v)), ps: ST.pst.map(q => [q.id, q.i, r2(q.x), r2(q.z), r2(q.f), q.want, q.stun > 0 ? 1 : 0, q.cn || q.own ? 'sheets' : '', q.own ? 1 : 0]),
     fi: Math.round(ST.fire), pu: P ? [r2(P.x), r2(P.z), r2(P.r), P.el > 0 ? 1 : 0, P.id] : 0,
     rb: R ? [r2(R.x), r2(R.z), r2(R.f), R.arm, R.dead > 0 ? 1 : 0] : 0, li: ST.lit.map(q => [q.id, q.x, q.z]),
-    pp: ST.pp.map(q => [q.id, r2(q.x), r2(q.z), r2(q.a), r2(q.y)]), mo: ST.mo.map(q => [q.id, r2(q.x0), r2(q.z0), r2(q.x1), r2(q.z1), r2(q.T), r2(q.t)]),
+    pp: ST.pp.map(q => [q.id, r2(q.x), r2(q.z), r2(q.a), r2(q.y)]), mo: ST.mo.map(q => [q.id, r2(q.x0), r2(q.z0), r2(q.x1), r2(q.z1), r2(q.T), r2(q.t)]), th: ST.th.map(q => [q.id, q.w, q.x0, q.z0, q.x1, q.z1, r2(q.T), r2(q.t)]),
     bu: ST.burn.map(q => [q.id, q.x, q.z, q.r, r2(q.t)]),
     mt: M ? [Math.ceil(M.t), M.c, M.n, M.cnt, M.who, M.skip] : 0, sb: [ST.sbC, ST.sk, ST.clr], sh: ST.on && ST.sh ? ST.sh : 0 };
 }
@@ -1031,6 +1139,7 @@ function applySnap3(d) {
   if (Array.isArray(d.li)) ST.lit = d.li.slice(0, 30).map(a => ({ id: a[0], x: +a[1], z: +a[2] }));
   if (Array.isArray(d.pp)) { const old = new Map(ST.pp.map(q => [q.id, q])); ST.pp = d.pp.slice(0, 12).map(a => Object.assign(old.get(a[0]) || { id: a[0], x: +a[1], z: +a[2] }, { tx: +a[1], tz: +a[2], a: +a[3], y: +a[4] })); }
   if (Array.isArray(d.mo)) ST.mo = d.mo.slice(0, 6).map(a => { const o = ST.mo.find(q => q.id === a[0]) || {}; return Object.assign(o, { id: a[0], x0: +a[1], z0: +a[2], x1: +a[3], z1: +a[4], T: Math.max(.2, +a[5]), t: Math.max(o.t || 0, +a[6]) }); });
+  if (Array.isArray(d.th)) ST.th = d.th.slice(0, 10).map(a => { const o = ST.th.find(q => q.id === a[0]) || {}; return Object.assign(o, { id: a[0], w: a[1] === 'bk' ? 'bk' : 'pb', x0: +a[2], z0: +a[3], x1: +a[4], z1: +a[5], T: Math.max(.2, +a[6]), t: Math.max(o.t || 0, +a[7]) }); });
   if (Array.isArray(d.bu)) ST.burn = d.bu.slice(0, 8).map(a => ({ id: a[0], x: +a[1], z: +a[2], r: +a[3], t: +a[4] }));
   ST.mt = Array.isArray(d.mt) ? { t: +d.mt[0], c: (d.mt[1] || []).map(String), n: (d.mt[2] || []).map(String), cnt: (d.mt[3] || []).map(v => v | 0), who: (d.mt[4] || []).map(String), skip: d.mt[5] | 0, v: {} } : null;
   if (Array.isArray(d.sb)) { ST.sbC = d.sb[0] ? 1 : 0; ST.sk = String(d.sb[1] || ''); ST.clr = Array.isArray(d.sb[2]) ? d.sb[2].map(v => v | 0) : []; }
@@ -1045,7 +1154,7 @@ function onReq3(d, k, h, who) {
     M.v[k] = i; const vs = Object.values(M.v); M.cnt = M.c.map((_, j) => vs.filter(v => v === j).length); M.who = Object.keys(M.v); M.skip = vs.filter(v => v < 0).length;
     pushState(); return true;
   }
-  if (ST.mt) return ['meet', 'sab', 'plane', 'molo', 'foam', 'arm', 'kick', 'zap', 'serve'].includes(d.k);   // під час наради — лише голосування
+  if (ST.mt) return ['meet', 'sab', 'plane', 'toss', 'molo', 'foam', 'arm', 'kick', 'zap', 'serve'].includes(d.k);   // під час наради — лише голосування
   if (d.k === 'meet') {
     if (AU.mc[k] || AU.mtCd > 0 || (AU.sab === k && !ST.sbC)) return true;
     AU.mc[k] = 1; startMeeting(k); return true;
@@ -1054,6 +1163,14 @@ function onReq3(d, k, h, who) {
     // ✈️ паперовий літачок: летить рівно 13 м, над столами, стіни зупиняють
     if (ST.pp.length >= 6) return true; const a = +d.a || 0;
     ST.pp.push({ id: ++AU.fid, x: p.x + Math.sin(a) * .5, z: p.z + Math.cos(a) * .5, a, y: 1.4, d: 0, by: k }); emit({ k: 'plane', who: k }); pushState(); return true;
+  }
+  if (d.k === 'toss') {
+    // 🧻 мʼятий папір / 📘 книжка: дуга до точки (над перегородками); там — смітник, зомбі, колега чи просто підлога
+    if (ST.th.length >= 10) return true; const w = d.w === 'bk' ? 'bk' : 'pb', mx = w === 'pb' ? 11 : 9;
+    const tx = isFinite(+d.x) ? +d.x : p.x, tz = isFinite(+d.z) ? +d.z : p.z, dd = clamp(dist2(p.x, p.z, tx, tz), .8, mx), a = Math.atan2(tx - p.x, tz - p.z);
+    const x1 = clamp(p.x + Math.sin(a) * dd, OX - HX + .5, OX + HX - .5), z1 = clamp(p.z + Math.cos(a) * dd, OZ - HZ + .5, OZ + HZ - .5);
+    ST.th.push({ id: ++AU.fid, w, x0: r2(p.x), z0: r2(p.z), x1: r2(x1), z1: r2(z1), T: clamp(dd / 10, .35, 1.1), t: 0, by: k, d: r2(dd) });
+    emit({ k: 'toss', w, who: k }); pushState(); return true;
   }
   if (d.k === 'molo') {
     // 🍾 молотов: дуга до точки, там — палаюча калюжа
@@ -1192,6 +1309,25 @@ function planeHit(q) {
   return '';
 }
 
+/* ---------- 🧻 Мʼятий папір і 📘 книжки: приземлення ---------- */
+function updToss(dt) {
+  for (let i = ST.th.length - 1; i >= 0; i--) {
+    const q = ST.th[i]; q.t += dt; if (q.t < q.T) continue; ST.th.splice(i, 1);
+    const x = q.x1, z = q.z1, R = q.w === 'bk' ? .85 : .7, ex = {}; let hit = '';
+    // «папірець у смітник»: що далі кидок — то більша нагорода
+    if (q.w === 'pb') { const b = (L.pk || []).find(s => s.k === 'pb' && dist2(s.o.x, s.o.z, x, z) < .65); if (b) { hit = 'bin'; ex.d = q.d; ex.x = b.o.x; ex.z = b.o.z; } }
+    if (!hit) for (const o of ST.zom) if (dist2(o.x, o.z, x, z) < R) {
+      hit = 'zom'; o.stun = Math.max(o.stun, q.w === 'bk' ? 3 : 1);
+      if (q.w === 'bk') { o.cd = 3; if (o.carry) { toFloor(o.carry.it, o.carry.n, o.x, o.z); ex.sp = o.carry.it; o.carry = null; } }   // книжкою по голові — і звіт випльовує
+      break;
+    }
+    if (!hit) for (const o of ST.pst) if (dist2(o.x, o.z, x, z) < R) { hit = 'pest'; if (q.w === 'bk') stunPest(o, 2.5); else o.cd = Math.max(o.cd, 1.5); break; }
+    if (!hit) for (const dk of DESKS) { if (pestOf(dk.i)) continue; const cp = colPos(dk.i); if (dist2(cp.x, cp.z, x, z) < R) { hit = 'col'; ex.i = dk.i; anger(dk.i, q.w === 'bk' ? AGR.book : AGR.ball); break; } }
+    if (!hit && q.w === 'pb') addLit(x, z);                                            // промах — папірець на підлозі (Румба прибере)
+    emit(Object.assign({ k: 'thit', w: q.w, hit, who: q.by, x: r2(x), z: r2(z) }, ex)); pushState();
+  }
+}
+
 /* ---------- 🍾 Молотов і палаючі калюжі ---------- */
 function ignite(x, z, r, t, by) {
   ST.burn.push({ id: ++AU.fid, x: r2(x), z: r2(z), r, t });
@@ -1318,9 +1454,9 @@ function auth3(dt, c) {
   if (ST.mt) { const M = ST.mt; M.t -= dt; if (M.t <= 0 || c.every(p => p.name in M.v)) endMeeting(); return !!ST.mt; }
   AU.mtCd = Math.max(0, AU.mtCd - dt);
   for (const k in AU.sbcd) AU.sbcd[k] -= dt;
-  if (AU.sab.startsWith('npc:') && !ST.sbC && ST.t > 20 && (AU.sbT -= dt) <= 0) { AU.sbT = rand(35, 50); botSabotage(); }
+  if (AU.sab.startsWith('npc:') && !ST.sbC && ST.t > 20 && (AU.sbT -= dt) <= 0) { AU.sbT = rand(45, 65); botSabotage(); }
   if (AU.spamT > 0 && (AU.spamT -= dt) <= 0) startFire(35, '🖥️ Комп’ютер заспамив серверну запитами — СЕРВЕРНА ГОРИТЬ!');
-  updFire(dt); updPests(dt, c); updPlanes(dt); updMolo(dt); updPud(dt); updRoomba(dt, c);
+  updFire(dt); updPests(dt, c); updPlanes(dt); updToss(dt); updMolo(dt); updPud(dt); updRoomba(dt, c);
   return false;
 }
 
@@ -1506,7 +1642,7 @@ function buildVariant(i) {
   const K = makeKit(g);
   if (Lx.deco) { Lx.deco(K, Lx); for (const r of Lx.rooms) { if (r.sg) K.sign(r.n, r.c, r.sg[0], r.sg[1]); if (r.ft) K.floorTxt(r.n, r.c, r.ft[0], r.ft[1], r.ft[2]); } }
   else buildV1(g, K);
-  decoCommon(K, Lx); decoExtra(K, Lx);
+  decoCommon(K, Lx); decoExtra(K, Lx); drawPickups(K, Lx);
   makeClock(K);
   V.boss = buildManager(); V.boss.ent = { x: BPATH[0].x, z: BPATH[0].z, y: 0, bh: 2.6 }; V.boss.root.position.set(BPATH[0].x, 0, BPATH[0].z); scene.add(A.dynamic(V.boss.root));
   for (const k of VKEYS) Lx.v[k] = V[k];
@@ -1661,6 +1797,9 @@ function onEvent(e) {
     if (was) { V.act = null; toLobby(`🛗 Ліфт везе на ${L.n}!`); }
   }
   else if (e.k === 'voted') { if (isMe(e.who)) toast(`🗳️ Твій голос: <b>${LAY[e.v].n}</b>. Тепер — «✅ Я готовий».`); else if (here) toast(`🗳️ ${nm} голосує за ${LAY[e.v].n}`); }
+  else if (e.k === 'botj') { if (here) { toast(`🤖 Бот ${escapeHTML(e.n)} приєднався до лобі · ${e.cnt | 0}/${TEAM}`); sfx('ui'); } }
+  else if (e.k === 'botl') { if (here) toast(`🤖 Бот ${escapeHTML(e.n)} поступився місцем живому гравцю`); }
+  else if (e.k === 'botfoam') { if (here) { foamFX(+e.x, +e.z, +e.a); sfx('splash', +e.x, +e.z); } }
   else if (e.k === 'ready') { if (here && !isMe(e.who) && e.on) toast(`✅ ${nm} готовий до аврала`); }
   else if (e.k === 'take') { const d = DESKS[e.i]; if (d && here) { ftext(d.x, 2.4, d.z, '📄 +1', 'gold'); if (V.cols[e.i]) bubble(V.cols[e.i].ent, pick(['Ось мої цифри!', 'Тримай, тільки не загуби', 'Я це вчора мав здати…', 'Удачі з принтером!']), false, 2); sfx('page', d.x, d.z); } }
   else if (e.k === 'pick') { if (me) sfx('pick'); }
@@ -1710,9 +1849,9 @@ function onEvent(e) {
     const v = V.zm.get(e.id); if (v) bubble(v.ent, e.sp ? 'Тьху… несмачний квартал…' : 'Ой! Присмоктало!', false, 2);
     if (e.sp === 'report') toast(`🪠 ${nm} вантузом змусив зомбі виплюнути звіт! Підбери (F).`);
   }
-  else if (e.k === 'throw') { if (here) { sfx('throw'); if (!isMe(e.who)) toast(`📘 ${nm} кидає звіт — лови!`); } }
-  else if (e.k === 'catch') { if (here) { if (isMe(e.who)) { ftext(pl.x, 2.6, pl.z, 'Спіймав! 📘', 'gold'); sfx('catch'); } else toast(`📘 ${nm} ловить звіт!`); } }
-  else if (e.k === 'land') { if (here) { toast('📘 Звіт упав на підлогу — швидше підбери, поки не з’їли!'); sfx('land', +e.x, +e.z); } }
+  else if (e.k === 'throw') { if (here) { sfx('throw'); if (!isMe(e.who)) toast(`📑 ${nm} кидає звіт — лови!`); } }
+  else if (e.k === 'catch') { if (here) { if (isMe(e.who)) { ftext(pl.x, 2.6, pl.z, 'Спіймав! 📑', 'gold'); sfx('catch'); } else toast(`📑 ${nm} ловить звіт!`); } }
+  else if (e.k === 'land') { if (here) { toast('📑 Звіт упав на підлогу — швидше підбери, поки не з’їли!'); sfx('land', +e.x, +e.z); } }
   else if (e.k === 'intercept' || e.k === 'grab') { if (here) { banner('🧟 Зомбі схопив звіт і ЖУЄ його! Лупи вантузом 🪠!'); sfx('bite', +e.x, +e.z); const v = V.zm.get(e.id); if (v) bubble(v.ent, 'Ням! Квартальний!', true, 2); } }
   else if (e.k === 'eaten') { if (here) { banner('🍽️ Зомбі з’їв звіт! Друкуй заново 🖨️ (дані вже в принтері)'); burst(+e.x, 1.4, +e.z, '#FFFFFF', 20, 4, .9, 3); sfx('break', +e.x, +e.z); } }
   else if (e.k === 'tube') { if (here) { sfx('whoosh'); if (isMe(e.who)) toast(`📮 Відправлено пневмопоштою — заберіть біля іншої колби за ${TUBE_T} с.`); } }
@@ -1724,7 +1863,7 @@ function finish(e) {
   const was = V.joined || inOffice(pl.x, pl.z); V.joined = false; V.act = null;
   if (!was || !running) return;
   const win = !!e.win, left = Math.max(0, +e.left || 0), fx = Math.max(0, e.fx | 0), pf = win && e.pf;
-  const stars = win ? (left >= 90 ? 3 : left >= 40 ? 2 : 1) : 0;
+  const stars = win ? (left >= 126 ? 3 : left >= 56 ? 2 : 1) : 0;
   let coins = win ? 50 + stars * 25 + Math.min(10, fx) * 5 + (pf ? 30 : 0) : 10 + (e.done | 0) * 3, xp = win ? 120 + stars * 20 : 30;
   const sab = V.wasSab; V.wasSab = false;
   if (sab) { coins = e.sw ? 160 : 15; xp = e.sw ? 160 : 30; } else if (e.sc) coins += 40;   // 🕵️ саботажник: своя нагорода; команда, що його спіймала, — +40
@@ -1740,7 +1879,7 @@ function finish(e) {
     : `🕵️ Саботажником ${e.sk === 'n' ? 'був(ла) колега' : 'був(ла)'} <b>${escapeHTML(e.sab)}</b>${e.sc ? ' — і ви його викрили! +40 🪙' : e.sw ? ' — і саботаж удався 😈' : ''}.`), 1800);
   sfx(win ? (pf ? 'perfect' : 'level') : 'hurt'); refreshHUD(); save();
 }
-const clockStr = t => { const s = 17 * 3600 + 55 * 60 + Math.floor(Math.max(0, t)); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+const clockStr = t => { const s = T0 + Math.floor(Math.max(0, t)); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
 
 /* ---------- 🪠 Вантуз: летить на мотузці до зомбі, присмоктується — той випльовує звіт ---------- */
 function plgMesh() {
@@ -1790,7 +1929,7 @@ function updPlg(dt) {
     if (P_.back && P_.t > P_.T * 2 + .25) { scene.remove(P_.m); scene.remove(P_.rope); V.plg.splice(i, 1); }
   }
 }
-/* ---------- 📘 Кинути звіт: напарнику, на якого дивишся (або вперед на 7 м) ---------- */
+/* ---------- 📑 Кинути звіт: напарнику, на якого дивишся (або вперед на 7 м) ---------- */
 function throwTarget() {
   let best = null, bs = 1e9;
   for (const id in NET.players) {
@@ -1802,7 +1941,7 @@ function throwTarget() {
   return best;
 }
 function throwReport() {
-  if (!running || pl.dead || myHeld().it !== 'report') { toast('📘 Кидати можна лише надрукований звіт, коли він у тебе в руках.'); return; }
+  if (!running || pl.dead || myHeld().it !== 'report') { toast('📑 Кидати можна лише надрукований звіт, коли він у тебе в руках.'); return; }
   if (ST.fly) return;
   const r = throwTarget();
   if (r) { pl.face = Math.atan2(r.x - pl.x, r.z - pl.z); req('throw', { x: r2(r.x), z: r2(r.z), to: r.name }); }
@@ -1825,9 +1964,12 @@ function setBar() {
   if (key === V.barOn || typeof modeBar !== 'function') return; V.barOn = key;
   modeBar(on ? { slots: [
     { id: 'plg', ic: '🪠', n: 'Вантуз', use: () => firePlunger() },
-    { id: 'thr', ic: '📘', n: 'Кинути звіт', count: () => myHeld().it === 'report' && !ST.fly ? 1 : 0, use: throwReport },
+    // 📑 звіт у руках — кидаєш його напарнику; руки вільні — кидаєш 📘 книжку
+    { id: 'bk', get ic() { return myHeld().it === 'report' ? '📑' : '📘'; }, get n() { return myHeld().it === 'report' ? 'Кинути звіт' : V.bk > 0 ? 'Книжка' : 'Книжка · де: шафа'; },
+      count: () => myHeld().it === 'report' ? (ST.fly ? 0 : 1) : V.bk, use: () => myHeld().it === 'report' ? throwReport() : toss('bk') },
     { id: 'cof', ic: '☕', n: 'Кава-ривок', count: () => V.cof, use: coffeeDash },
-    { id: 'pp', ic: '✈️', n: 'Літачок', count: () => V.pp, use: throwPlane },
+    { id: 'pp', ic: '✈️', get n() { return V.pp > 0 ? 'Літачок' : 'Літачок · де: лоток паперу'; }, count: () => V.pp, use: throwPlane },
+    { id: 'pb', ic: '🧻', get n() { return V.pb > 0 ? 'Мʼятий папір' : 'Папір · де: смітник'; }, count: () => V.pb, use: () => toss('pb') },
     { id: 'ext', ic: '🧯', n: 'Вогнегасник', count: () => Math.max(0, Math.round(V.ext)), use: () => spray() },
     { id: 'mol', ic: '🍾', n: 'Молотов', count: () => V.mol, use: throwMolotov },
     key === 'S' ? { id: 'sab', ic: '🕵️', n: 'Саботаж', count: () => V.sbcd > 0 ? 0 : 1, use: sabotage } : { id: 'meet', ic: '🚨', n: 'Нарада', count: () => V.mc, use: callMeeting },
@@ -1860,15 +2002,20 @@ function roomLabels(dt) {
 const ABOUT = ['Класика: коридор, опенспейс, переговорна, кабінет начальника, кухня й копіцентр.', 'Сховище, операційний зал з касами, кільцева галерея та бек-офіс.', 'Атріум зі скляним мостом, мейл-рум, бариста-бар, серверна й гірка 🛝.'];
 const nmLb = k => k === 'me' || isMe(k) ? 'Ти' : String(k);
 function lobbyMe() { const k = myKey(), e = ST.lp.find(a => a[0] === k || (k !== 'me' && isMe(a[0]))); return e || null; }
+function lobbyInfo() {
+  const H = ST.lp.length, rd = ST.lp.filter(a => a[1]).length, N = H + ST.bt.length;
+  if (ST.cd >= 0) return `🚀 Усі на місці — старт за <b>${Math.max(1, Math.ceil(ST.cd))}</b>…`;
+  if (!ST.fo) return `Чекаємо гравців ${N}/${TEAM} — натисни «✅ Я готовий», і 🤖 боти доповнять лобі…`;
+  if (N < TEAM) return ST.lj ? `🤖 Бот ${escapeHTML(ST.lj)} приєднався · ${N}/${TEAM} — боти доповнюють лобі…` : `Чекаємо гравців ${N}/${TEAM} — боти доповнять лобі…`;
+  return `Усі ${N}/${TEAM} на місці — чекаємо готовності людей (${rd}/${H})${ST.fw >= 0 ? ` · без решти старт за <b>${Math.ceil(ST.fw)} с</b>` : ''}`;
+}
 function lobbyDef() {
-  const me = lobbyMe(), c = ST.lp.length, rd = ST.lp.filter(a => a[1]).length, nx = LAY[ST.nx];
+  const me = lobbyMe(), nx = LAY[ST.nx];
   const mine = me && me[2] >= 0 ? me[2] : V.vote, ready = !!(me && me[1]);
   const tie = ST.vo.some(Boolean) && ST.vo.filter(v => v === Math.max(...ST.vo)).length > 1;
-  const info = ST.rt >= 0 ? `⏳ Старт за <b>${Math.ceil(ST.rt)} с</b> (або щойно всі будуть готові) · готові ${rd}/${c}`
-    : rd && rd < c ? `Чекаємо, поки всі будуть готові · ${rd}/${c}` : 'Чекаємо, поки всі будуть готові';
-  return { title: '⏰ Дедлайн о 18:00 · лобі', sub: `Обери поверх — клікни по картці. Коли всі в лобі готові — ліфт везе на поверх з найбільшою кількістю голосів. Зараз: <b>${nx.n}</b>${tie ? ' (нічия — жереб)' : ''}.`,
+  return { title: '⏰ Дедлайн о 18:00 · лобі', sub: `Обери поверх — клікни по картці. У раунді ${TEAM} учасників: люди + 🤖 боти, що доповнюють лобі. Ліфт везе на поверх з найбільшою кількістю голосів. Зараз: <b>${nx.n}</b>${tie ? ' (нічия — жереб)' : ''}.`,
     maps: LAY.map((q, i) => ({ n: q.n, img: `addons/deadline/map${i + 1}.jpg`, about: ABOUT[i] || '' })), votes: ST.vo, mine, ready,
-    players: ST.lp.map(a => ({ n: nmLb(a[0]), ready: !!a[1], vote: a[2] })), info,
+    players: ST.lp.map(a => ({ n: nmLb(a[0]), ready: !!a[1], vote: a[2] })).concat(ST.bt.map(b => ({ n: '🤖 Бот ' + b.n, ready: true, vote: -1 }))), info: lobbyInfo(),
     onVote: i => { if (ST.on || i < 0 || i >= LAY.length) return; V.vote = i; req('vote', { v: i }); },
     onReady: () => { if (!ST.on) req('ready', { on: !(lobbyMe() || [])[1] }); },
     onHide: () => { V.lobHide = true; closeLobby(); toast('🗳️ Лобі сховано. Відкрити знову — <b>F</b> біля стійки «🗳️ ЛОБІ» або кнопка у вкладці ⏰.'); } };
@@ -1949,7 +2096,7 @@ function clientTick(dt) {
   ST.tb.forEach((q, i) => { if (!AUTH()) q.t -= dt; const P2 = alongPath(tubePath(1 - q.to), 1 - q.t / TUBE_T), m = V.caps[i]; m.position.set(P2.x, 2.5, P2.z); m.rotation.y = -P2.a; });
   // годинник
   if (V.clock) {
-    const s = 17 * 3600 + 55 * 60 + (ST.on ? ST.t : 0), sec = s % 60, min = (s / 60) % 60, hr = (s / 3600) % 12;
+    const s = T0 + (ST.on ? ST.t : 0), sec = s % 60, min = (s / 60) % 60, hr = (s / 3600) % 12;
     V.clock.s.rotation.z = -sec / 60 * Math.PI * 2; V.clock.m.rotation.z = -min / 60 * Math.PI * 2; V.clock.h.rotation.z = -hr / 12 * Math.PI * 2;
     const left = ST.dur - ST.t; V.clock.g.scale.setScalar(V.clockK * (ST.on && left < 30 ? 1 + Math.abs(Math.sin(t * 6)) * .06 : 1));
   }
@@ -2020,7 +2167,7 @@ function goal() {
   if (V.act) return { txt: `${V.act.ic} ${V.act.l}… ${Math.min(100, Math.round(V.act.t / V.act.need * 100))}% — стій поруч!` };
   const signLater = ST.steps.indexOf('sign') >= ST.si && ST.steps.includes('sign') && !ST.coffee;
   // звіт у повітрі — лови
-  if (ST.fly && !h.it) return { id: 'catch', tg: { x: ST.fly.x1, z: ST.fly.z1 }, txt: '📘 Звіт летить! Стань під нього — зловиш автоматично.' };
+  if (ST.fly && !h.it) return { id: 'catch', tg: { x: ST.fly.x1, z: ST.fly.z1 }, txt: '📑 Звіт летить! Стань під нього — зловиш автоматично.' };
   // зомбі жує звіт — вантузом його!
   const chew = nearest(ST.zom.filter(z => z.carry && z.carry.it === 'report' && z.stun <= 0));
   if (chew) return { id: 'chew', tg: { x: chew.x, z: chew.z }, txt: `🧟 Зомбі <b>жує звіт</b> (цілість ${Math.round(ST.rhp)}%)! Лупи вантузом 🪠 — клавіша <b>1</b> або <b>F</b> поруч.` };
@@ -2042,7 +2189,7 @@ function goal() {
       if (!ST.coffee && !h.cup) return ST.cm ? { id: 'coffee', tg: COFFEE.p, txt: `✍️ Начальник без кави не підписує. Звари <b>☕ каву</b> ${RN.atCoffee} (звіт можна не випускати з рук).` } : { id: 'cm', tg: COFFEE.p, txt: '💥 Кавоварка зламана — полагодь її (F), а тоді звари каву начальнику.' };
       return { id: 'boss', tg: bossPos(), txt: '✍️ Підійди до <b>начальника</b> з звітом і тримай F — підпише.' };
     }
-    const S = STEPS[s]; if (S && S.at) return { id: s, tg: S.at.p, txt: `${S.ic} Неси звіт: <b>${S.n}</b> — F і тримайся поруч. Важкий? Кинь напарнику (📘, клавіша 2).` };
+    const S = STEPS[s]; if (S && S.at) return { id: s, tg: S.at.p, txt: `${S.ic} Неси звіт: <b>${S.n}</b> — F і тримайся поруч. Важкий? Кинь напарнику (📑, клавіша 2).` };
   }
   if (h.it === 'sheets') {
     if (s === 'data') { const d = nearest(DESKS.filter(q => ST.desk[q.i] && !pestOf(q.i))); if (d && h.n + ST.fed < ST.need) return { id: 'desk', tg: d.p, txt: `📄 У руках ${h.n}. Ще дані в колеги з 📄 над головою — F біля столу. Або неси вже в 🖨️ принтер.` }; }
@@ -2061,7 +2208,7 @@ function goal() {
   if (ST.rain) return { id: 'rain', tg: VALVE.p, txt: '💦 Спринклери ллють! Закрути <b>вентиль</b> (F) — папери розлітаються.' };
   if (ST.xl) return { id: 'excel', tg: DESKS[ST.xl.i].p, txt: `📊 ${NAMES[ST.xl.i]} не може зробити ВПР — допоможи (F, 3 с), інакше за ${Math.ceil(ST.xl.t)} с стане зомбі. Нагорода: +1 ☕ ривок.` };
   const holder = Object.keys(ST.held).find(q => ST.held[q].it === 'report' && q !== k);
-  if (holder) { const z = nearest(ST.zom.filter(q => q.stun <= 0 && !q.carry)); return z && near(z) < 6 ? { id: 'zombie', tg: { x: z.x, z: z.z }, txt: '🧟 Звіт у колеги. Відганяй зомбі-офісників (F поруч або 🪠 вантузом), щоб не вкрали!' } : { txt: `📘 Звіт несе ${escapeHTML(holder)} — прикривай: 🪠 вантуз по зомбі, лагодь поломки, лови звіт, якщо кине.` }; }
+  if (holder) { const z = nearest(ST.zom.filter(q => q.stun <= 0 && !q.carry)); return z && near(z) < 6 ? { id: 'zombie', tg: { x: z.x, z: z.z }, txt: '🧟 Звіт у колеги. Відганяй зомбі-офісників (F поруч або 🪠 вантузом), щоб не вкрали!' } : { txt: `📑 Звіт несе ${escapeHTML(holder)} — прикривай: 🪠 вантуз по зомбі, лагодь поломки, лови звіт, якщо кине.` }; }
   if (s === 'data') return { id: 'printer', tg: PRINTER.p, txt: `📄 Дані в дорозі — чекай біля принтера (${ST.fed}/${ST.need}).` };
   return { txt: 'Стеж за хаосом і зомбі — і поспішай, 18:00 близько!' };
 }
@@ -2092,7 +2239,7 @@ function guide() {
   }
   V.glbl.style.opacity = g.tg ? 1 : 0;
   if (g.tg) {
-    const P = PLACES.find(q => q.id === g.id), t = '👉 ' + (P ? txt(P) : { desk: '📄 Дані тут (F)', boss: '👔 Начальник', thief: '🧟 Злодій! (F)', chew: '🧟 Жує звіт! 🪠', catch: '📘 Лови тут!', floor: '📄 Підібрати (F)', zombie: '🧟 Прожени (F)', cm: '🔧 Кавоварка', jam: '🔧 Принтер', printer: '🖨️ Принтер', excel: '📊 Допомогти з Excel (F)', fire: '🔥 Гаси пожежу! 🧯', refill: '🧯 Заправити', pest: '😤 Пригостити кавою (F)', pestc: '☕ Кавоварка' }[g.id] || 'Сюди');
+    const P = PLACES.find(q => q.id === g.id), t = '👉 ' + (P ? txt(P) : { desk: '📄 Дані тут (F)', boss: '👔 Начальник', thief: '🧟 Злодій! (F)', chew: '🧟 Жує звіт! 🪠', catch: '📑 Лови тут!', floor: '📄 Підібрати (F)', zombie: '🧟 Прожени (F)', cm: '🔧 Кавоварка', jam: '🔧 Принтер', printer: '🖨️ Принтер', excel: '📊 Допомогти з Excel (F)', fire: '🔥 Гаси пожежу! 🧯', refill: '🧯 Заправити', pest: '😤 Пригостити кавою (F)', pestc: '☕ Кавоварка' }[g.id] || 'Сюди');
     if (V.glbl.textContent !== t) V.glbl.textContent = t; pos(V.glbl, g.tg.x, 3, g.tg.z);
     const d = dist2(pl.x, pl.z, g.tg.x, g.tg.z);
     V.gMark.position.set(g.tg.x, .08, g.tg.z); V.gMark.scale.setScalar(1 + Math.sin(gameTime * 5) * .12);
@@ -2107,15 +2254,16 @@ function intro(force) {
   el.innerHTML = `<div style="max-width:500px;width:100%;background:#2E2346;color:#fff;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)">
     <div style="font:800 20px system-ui;margin-bottom:4px">⏰ Дедлайн о 18:00 — як грати</div>
     <div style="color:#FFE066;margin-bottom:6px">🏙️ ${L.n} · хмарочос у центрі міста</div>
-    <div>1. 🗳️ <b>Лобі</b> — вікно з картами поверхів (42 · Опенспейс, 57 · Банк, 63 · Стартап): клікни картку, щоб проголосувати, і тисни <b>«✅ Я готовий»</b>. Коли всі готові — годинник іде з 17:55. Сховав вікно — F біля стійки «🗳️ ЛОБІ».</div>
+    <div>1. 🗳️ <b>Лобі</b> — вікно з картами поверхів (42 · Опенспейс, 57 · Банк, 63 · Стартап): клікни картку, щоб проголосувати, і тисни <b>«✅ Я готовий»</b>. У раунді <b>5 учасників</b>: якщо людей менше — у лобі по одному приходять 🤖 боти (вони теж працюють: носять дані, лагодять, гасять). Усі на місці й готові — «старт за 3…2…1», годинник іде з 17:53 (7 хвилин). Сховав вікно — F біля стійки «🗳️ ЛОБІ».</div>
     <div>2. 📄 Збери дані в колег (📄 над головою) → 🖨️ <b>принтер</b> → друкуй (F, тримайся поруч).</div>
     <div>3. Зі звітом пройди пункти чекліста праворуч: 📎 🔏 🗂️ 📠 ✍️ (начальнику спершу ☕ каву!) → 📤 «Відправка».</div>
-    <div>4. 📘 <b>Звіт — гаряча картопля</b>: важкий (ходиш повільніше), його можна <b>кинути</b> напарнику через перегородки (клавіша <b>2</b>).</div>
+    <div>4. 📑 <b>Звіт — гаряча картопля</b>: важкий (ходиш повільніше), його можна <b>кинути</b> напарнику через перегородки (клавіша <b>2</b>).</div>
     <div>5. 🧟 Зомбі хапають звіт і <b>ЖУЮТЬ</b> його (цілість падає; 0 — передруковуй). <b>🪠 Вантуз</b> (клавіша <b>1</b>) — і зомбі випльовує звіт.</div>
     <div>6. ☕ <b>Кава-ривок</b> (клавіша <b>3</b>, 3 на раунд) · 📮 <b>пневмопошта</b> між кімнатами · 🚪 пожежні сходи / 🛝 гірка — короткий шлях · 📊 колега з Excel кличе — допоможи, бо стане зомбі · 💯 бездоганний звіт без укусів — бонус.</div>
-    <div>7. 🕵️ <b>Саботажник</b>: серед вас (або серед колег-NPC) — шкідник. Він тихо палить сервер, жує принтер, мінує Румбу. Підозрюєш — <b>🚨 Нарада</b> (клавіша <b>7</b>), голосуй. Спіймали — +20 с і +40 🪙; помилились — колега ображається. Якщо саботажник — ти, тобі прийде секретна картка 🤫.</div>
-    <div>8. ✈️ <b>Літачок</b> (4): у колегу — його агресія росте (шкала над головою); у ПК — може заспамити серверну і спричинити 🔥 пожежу; у кулер — калюжа. Злий колега стає <b>😤 зайобуючим</b>: чіпляється, краде папери, заводить інших. Заспокой — <b>кавою, яку він хоче</b> (іконка над головою; на кавоварці F ще раз — перелити в 🥛/🧋).</div>
-    <div>9. 🧯 <b>Вогнегасник</b> (5): гасить пожежу, відкидає зомбі; у кріслі на коліщатках — реактивний ривок назад! 🍾 <b>Молотов</b> (6): палаюча калюжа. 🚰 Копни <b>кулер</b> — слизька калюжа, кинь у неї подовжувач — ⚡ електропастка. 🤖 <b>Румба</b> прибирає сміття; примотай до неї молотов (F) — і вона поїде в натовп зомбі.</div>
+    <div>7. 🕵️ <b>Саботажник</b>: серед вас (або серед колег-NPC) — шкідник. Він тихо палить сервер, жує принтер, мінує Румбу. Підозрюєш — <b>🚨 Нарада</b> (клавіша <b>8</b>), голосуй. Спіймали — +20 с і +40 🪙; помилились — колега ображається. Якщо саботажник — ти, тобі прийде секретна картка 🤫.</div>
+    <div>8. ✈️ <b>Літачок</b> (4; папір — у лотках біля принтера/сканера/столів, світло-блакитне коло, F +3): у колегу — його агресія росте (шкала над головою); у ПК — може заспамити серверну і спричинити 🔥 пожежу; у кулер — калюжа. Злий колега стає <b>😤 зайобуючим</b>: чіпляється, краде папери, заводить інших. Заспокой — <b>кавою, яку він хоче</b> (іконка над головою; на кавоварці F ще раз — перелити в 🥛/🧋).</div>
+    <div>9. 🧯 <b>Вогнегасник</b> (6): гасить пожежу, відкидає зомбі; у кріслі на коліщатках — реактивний ривок назад! 🍾 <b>Молотов</b> (7): палаюча калюжа. 🚰 Копни <b>кулер</b> — слизька калюжа, кинь у неї подовжувач — ⚡ електропастка. 🤖 <b>Румба</b> прибирає сміття; примотай до неї молотов (F) — і вона поїде в натовп зомбі.</div>
+    <div>10. 🧻 <b>Мʼятий папір</b> (5) — біля 🗑️ смітників (зелене коло, F +5): кидай дугою туди, де курсор. Влучив у смітник — «папірець у смітник»: що далі, то більше 🪙 і XP (до 8 нагород за раунд). 📘 <b>Книжка</b> (2, коли руки вільні) — з 📚 книжкових шаф (помаранчеве коло, F +2): оглушує зомбі, і той випльовує звіт; у колегу — агресія. Кидати: клавіша слота або ЛКМ, коли слот вибрано. Коли чогось 0 — підказка внизу покаже, де взяти.</div>
     <div style="margin-top:8px;color:#FFE066">Жовта стрілка й мітка завжди показують, куди йти зараз. Підказка — внизу екрана 👇</div>
     <button class="btn" style="margin-top:12px;width:100%">Зрозуміло, працюємо!</button></div>`;
   document.body.appendChild(el);
@@ -2136,6 +2284,7 @@ getInteract = function () {
     if (!ST.on) {
       if (near(START.p, 1.6)) return { l: `🗳️ Лобі: голос за поверх і «Я готовий» · ${LAY[ST.nx].n}`, fn: () => { openLobby(); sfx('ui'); } };
       if (near(L.exit, 1.3)) return { l: '⬇️ Ліфт у хаб', fn: () => { leaveDeadline(); goHub('⬇️ Ліфт приїхав у «Гущу». Дедлайн почекає… до 18:00.'); } };
+      { const r = pkInteract(); if (r) return r; }
     }
     else {
       { const r = interact3(true, near, h); if (r) return r; }
@@ -2163,7 +2312,7 @@ getInteract = function () {
         return { l: `${S.ic} ${S.n.replace(/ \(.*\)/, '')}${ST.steps.includes(w) ? '' : ' — сьогодні не треба'}`, fn: () => { } };
       }
       if (near(SEND.p, 1.5)) return h.it === 'report' && s === 'send' ? { l: '📤 Здати квартальний звіт!', fn: () => { req('send'); sfx('coin'); } } : { l: `📤 Відправка: ${s === 'send' ? 'потрібен звіт у руках' : 'звіт ще не готовий'}`, fn: () => { } };
-      { const r = interact3(false, near, h); if (r) return r; }
+      { const r = pkInteract() || interact3(false, near, h); if (r) return r; }
     }
     // пневмопошта й короткий шлях — пневмопошта — під час аврала, короткий шлях — завжди
     for (let i = 0; i < 2; i++) if (ST.on && near(TUBE[i].p, 1.3)) return h.it ? { l: `📮 Відправити ${ITEM[h.it].ic} пневмопоштою (${TUBE_T} с)`, fn: () => req('tube', { i }) } : { l: '📮 Пневмопошта: поклади сюди папери чи звіт — вилетять в іншій колбі', fn: () => { } };
@@ -2200,16 +2349,16 @@ function hud() {
     const chaos = [ST.jam ? '🖨️ принтер зажований' : '', !ST.cm ? '💥 кавоварка' : '', !ST.pw ? '⚡ нема світла' : '', ST.heat ? '🔥 сервер' : '', ST.rain ? '💦 спринклери' : '', ST.xl ? '📊 колега з Excel' : '', ST.zom.length > 4 ? '🧟 нарада' : '', ...hud3()].filter(Boolean).join(' · ');
     const rep = ST.si > ST.steps.indexOf('print') && ST.si < ST.steps.length, rc = ST.rhp > 60 ? '#7FE08A' : ST.rhp > 30 ? '#FFD27A' : '#FF5C7A';
     const chew = ST.zom.some(z => z.carry && z.carry.it === 'report');
-    const bar = rep ? `<br><span style="font-size:12px">📘 цілість звіту <span style="display:inline-block;width:90px;height:8px;border-radius:4px;background:#4E4A6E;vertical-align:middle"><span style="display:block;width:${Math.round(ST.rhp)}%;height:100%;border-radius:4px;background:${rc}"></span></span> ${Math.round(ST.rhp)}%${chew ? ' · <span style="color:#FF5C7A">🧟 ЖУЮТЬ!</span>' : ST.fly ? ' · 🪂 летить' : ''}${ST.pf ? ' 💯' : ''}</span>` : '';
+    const bar = rep ? `<br><span style="font-size:12px">📑 цілість звіту <span style="display:inline-block;width:90px;height:8px;border-radius:4px;background:#4E4A6E;vertical-align:middle"><span style="display:block;width:${Math.round(ST.rhp)}%;height:100%;border-radius:4px;background:${rc}"></span></span> ${Math.round(ST.rhp)}%${chew ? ' · <span style="color:#FF5C7A">🧟 ЖУЮТЬ!</span>' : ST.fly ? ' · 🪂 летить' : ''}${ST.pf ? ' 💯' : ''}</span>` : '';
     h = `${fl} · <span style="font-size:17px;color:${col}">⏰ ${clockStr(ST.t)}</span> · до 18:00: <span style="color:${col}">${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}</span>${mh.it || mh.cup ? ` · у руках ${mh.it ? ITEM[mh.it].ic + (mh.n > 1 ? '×' + mh.n : '') : ''}${mh.cup ? '☕' : ''}` : ''}${V.dashT > 0 ? ' · ☕💨' : ''}${V.act ? ` · ${V.act.ic} ${Math.round(V.act.t / V.act.need * 100)}%` : ''}${bar}${chaos ? `<br><span style="font-size:12px;color:#FF8A7A">${chaos}</span>` : ''}`;
     const rows = ST.steps.map((id, i) => { const S = STEPS[id], done = i < ST.si, now = i === ST.si; return `<div style="${done ? 'opacity:.6;text-decoration:line-through' : now ? 'color:#FFE066' : 'opacity:.85'}">${done ? '✅' : now ? '▶' : '⬜'} ${S.ic} ${S.n}${id === 'data' ? ` <b>${Math.min(ST.fed, ST.need)}/${ST.need}</b>` : ''}${id === 'sign' && ST.coffee ? ' ☕✔' : ''}</div>`; }).join('');
     const lv = `<div style="font:800 13px system-ui;margin-bottom:3px">📋 Чекліст звіту${ST.lv ? ` · рівень ${ST.lv + 1}` : ''}</div>`;
     if (V.list.innerHTML !== lv + rows) V.list.innerHTML = lv + rows;
   } else {
     const nx = LAY[ST.nx], vo = ST.vo.some(Boolean) ? ' · 🗳️ ' + LAY.map((q, i) => `${q.fl}: ${ST.vo[i]}`).join(' · ') : '';
-    h = `${fl} · ⏰ 17:55 · <span style="font-weight:600">звіт ще не почато</span><br><span style="font-size:12px">🛗 наступний раунд: <b style="color:${nx.pc}">${nx.n}</b>${vo}</span>`;
+    h = `${fl} · ⏰ 17:53 · <span style="font-weight:600">звіт ще не почато</span><br><span style="font-size:12px">🛗 наступний раунд: <b style="color:${nx.pc}">${nx.n}</b>${vo}</span>`;
   }
-  const gt = V.goal && V.goal.txt ? `👉 ${V.goal.txt}${ST.on && V.sab && !ST.sbC ? `<br><span style="font-size:12px;color:#7A1F3D">🕵️ Ти — саботажник: клавіша <b>7</b> біля сервера, принтера, кавоварки, щитка, вентиля, столу з даними чи Румби${V.sbcd > 0 ? ` (перезарядка ${Math.ceil(V.sbcd)} с)` : ''}. І роби вигляд, що працюєш!</span>` : ''}` : ''; V.goalEl.style.display = gt ? '' : 'none'; if (V.goalEl.innerHTML !== gt) V.goalEl.innerHTML = gt;
+  const ph = pkHint(), gt = V.goal && V.goal.txt ? `👉 ${V.goal.txt}${ph ? `<br><span style="font-size:12px;color:#3E2F7A">${ph}</span>` : ''}${ST.on && V.sab && !ST.sbC ? `<br><span style="font-size:12px;color:#7A1F3D">🕵️ Ти — саботажник: клавіша <b>8</b> біля сервера, принтера, кавоварки, щитка, вентиля, столу з даними чи Румби${V.sbcd > 0 ? ` (перезарядка ${Math.ceil(V.sbcd)} с)` : ''}. І роби вигляд, що працюєш!</span>` : ''}` : ''; V.goalEl.style.display = gt ? '' : 'none'; if (V.goalEl.innerHTML !== gt) V.goalEl.innerHTML = gt;
   if (V.hud.innerHTML !== h) V.hud.innerHTML = h;
 }
 
@@ -2246,23 +2395,25 @@ function goDeadline() {
   return true;
 }
 function leaveDeadline() { V.act = null; V.lobHide = false; closeLobby(); if (myHeld().it || myHeld().cup) req('drop'); V.barOn = false; if (typeof modeBar === 'function') modeBar(null); return true; }
-if (A.mode) A.mode({ id: 'deadline', ic: '⏰', n: 'Дедлайн о 18:00', sub: 'кооп на 1–4: три поверхи хмарочоса, звіт до 18:00', go: goDeadline, here: () => running && floorOf(pl.x, pl.z) >= 0, leave: leaveDeadline });
+if (A.mode) A.mode({ id: 'deadline', ic: '⏰', n: 'Дедлайн о 18:00', sub: 'кооп до 5 (з ботами): три поверхи хмарочоса, звіт до 18:00', go: goDeadline, here: () => running && floorOf(pl.x, pl.z) >= 0, leave: leaveDeadline });
 A.tab('deadline', '⏰ Дедлайн', () => {
   const d = A.data(), here = floorOf(pl.x, pl.z) >= 0, fl = d.floors || {};
   return `<h3>⏰ Дедлайн о 18:00</h3>
-    <p style="font-size:13px;line-height:1.5;margin:4px 0 10px">Кооператив на 1–4 гравці на високих поверхах хмарочоса в центрі міста. 17:55, п’ятниця. Квартальний звіт треба здати до 18:00 — а принтер жує папір, кавоварка вибухає, а зомбі-офісники на нараді гризуть звіти.</p>
+    <p style="font-size:13px;line-height:1.5;margin:4px 0 10px">Кооператив до 5 учасників (люди + 🤖 боти) на високих поверхах хмарочоса в центрі міста. 17:53, п’ятниця. Квартальний звіт треба здати до 18:00 — а принтер жує папір, кавоварка вибухає, а зомбі-офісники на нараді гризуть звіти.</p>
     <div class="btns"><button class="btn alt" data-dl="help">❓ Як грати</button>${here ? (ST.on ? '' : '<button class="btn" data-dl="lobby">🗳️ Лобі</button>') : '<button class="btn" data-dl="go">🛗 На поверх</button>'}</div>
     <div class="list" style="margin-top:10px;font-size:13px;line-height:1.55">
       <div>🏙️ <b>Поверхи</b>: 42 · Опенспейс (класичний офіс з коридором) · 57 · Банк (сховище, операційний зал, кільцева галерея) · 63 · Стартап (атріум зі скляним мостом, мейл-рум, бариста-бар, гірка). Поверх обирають голосуванням у вікні 🗳️ Лобі; раунд стартує, коли всі готові (онлайн — щонайпізніше за 20 с після першого «готового»).</div>
       <div>📄 <b>Дані</b> — у колег з 📄 над головою (F біля столу). Неси в 🖨️ принтер, друкуй (тримайся поруч 4 с).</div>
       <div>📋 <b>Чекліст</b> щораунду інший: 3 з 5 — 📎 степлер, 🔏 печатка, 🗂️ реєстраційний номер, 📠 скан, ✍️ підпис начальника (спершу ☕ кава!). Потім 📤 «Відправка».</div>
-      <div>📘 <b>Звіт — гаряча картопля</b>: важкий (повільніше ходиш), кидай напарнику дугою через перегородки (клавіша 2). Зомбі перехоплюють і <b>жують</b> звіт — 0% цілості = передрук.</div>
+      <div>📑 <b>Звіт — гаряча картопля</b>: важкий (повільніше ходиш), кидай напарнику дугою через перегородки (клавіша 2). Зомбі перехоплюють і <b>жують</b> звіт — 0% цілості = передрук.</div>
       <div>🪠 <b>Вантуз</b> (клавіша 1): присмоктується до зомбі — той випльовує звіт. ☕ <b>Кава-ривок</b> (3): 3 ривки на раунд.</div>
       <div>📮 Пневмопошта між кімнатами · 🚪 пожежні сходи / 🛝 гірка — короткий шлях · 📊 колега з Excel кличе на допомогу (не допоможеш — стане зомбі; допоможеш — +1 ривок) · 💯 бездоганний звіт без укусів — +30 🪙.</div>
       <div>💥 <b>Хаос</b>: принтер, кавоварка, світло (щиток), сервер (вентилятор), спринклери (вентиль). F і тримайся поруч.</div>
-      <div>🕵️ <b>Саботажник</b>: онлайн від 3 гравців — один з вас (рідше й при двох), інакше — хтось із колег-NPC. Лише він бачить картку «🕵️ Ти — САБОТАЖНИК» і замість наради має клавішу 7 «Саботаж» (сервер, принтер, кавоварка, щиток, вентиль, дані на столах, міна в Румбу, сміття). 🚨 <b>Нарада</b> (7, раз за раунд): голосування; спіймали — +20 с до дедлайну й +40 🪙, помилились — ображений колега стає 😤 або годинник біжить на 20 с. Свідки після саботажу колеги-NPC дають алібі двом невинним. Не спіймали і зірвали дедлайн — саботажник виграє.</div>
-      <div>✈️ <b>Літачок</b> (4, 6 на раунд) · 😤 <b>агресія колег</b>: влучив у колегу — шкала над головою росте; повна — колега стає «зайобуючим» зомбі: ходить за людьми, відволікає, ставить підніжки, краде папери й каву та заводить сусідів (ланцюгова реакція!). Заспокоює лише кава, яку він хоче (☕ еспресо · 🥛 лате · 🧋 раф — на кавоварці F ще раз переливає). Літачок у ПК може заспамити серверну → 🔥 пожежа.</div>
-      <div>🧯 <b>Вогнегасник</b> (5): гасить серверну, відкидає зомбі й «зайобуючих»; сидиш у кріслі на коліщатках — реактивний ривок у протилежний бік. Заправка — біля 🚿 вентиля (F). 🍾 <b>Молотов</b> (6, 2 на раунд): палаюча калюжа на 6 с. 🚰 <b>Кулер</b>: копни (F) чи влуч літачком/кріслом — калюжа; F «подовжувач» — ⚡ електропастка, що оглушує всіх у ній. 🤖 <b>Румба</b> прибирає папірці; F з молотовом — примотати, і вона везе його в натовп зомбі.</div>
+      <div>🕵️ <b>Саботажник</b>: онлайн від 3 гравців — один з вас (рідше й при двох), інакше — хтось із колег-NPC. Лише він бачить картку «🕵️ Ти — САБОТАЖНИК» і замість наради має клавішу 8 «Саботаж» (сервер, принтер, кавоварка, щиток, вентиль, дані на столах, міна в Румбу, сміття). 🚨 <b>Нарада</b> (8, раз за раунд): голосування; спіймали — +20 с до дедлайну й +40 🪙, помилились — ображений колега стає 😤 або годинник біжить на 20 с. Свідки після саботажу колеги-NPC дають алібі двом невинним. Не спіймали і зірвали дедлайн — саботажник виграє.</div>
+      <div>✈️ <b>Літачок</b> (4; на старті 2, ще — F біля лотків з папером, +3) · 😤 <b>агресія колег</b>: влучив у колегу — шкала над головою росте; повна — колега стає «зайобуючим» зомбі: ходить за людьми, відволікає, ставить підніжки, краде папери й каву та заводить сусідів (ланцюгова реакція!). Заспокоює лише кава, яку він хоче (☕ еспресо · 🥛 лате · 🧋 раф — на кавоварці F ще раз переливає). Літачок у ПК може заспамити серверну → 🔥 пожежа.</div>
+      <div>🧯 <b>Вогнегасник</b> (6): гасить серверну, відкидає зомбі й «зайобуючих»; сидиш у кріслі на коліщатках — реактивний ривок у протилежний бік. Заправка — біля 🚿 вентиля (F). 🍾 <b>Молотов</b> (7, 2 на раунд): палаюча калюжа на 6 с. 🚰 <b>Кулер</b>: копни (F) чи влуч літачком/кріслом — калюжа; F «подовжувач» — ⚡ електропастка, що оглушує всіх у ній. 🤖 <b>Румба</b> прибирає папірці; F з молотовом — примотати, і вона везе його в натовп зомбі.</div>
+      <div>🧻 <b>Мʼятий папір</b> (5; F біля 🗑️ смітників, +5) і 📘 <b>книжка</b> (2, коли руки вільні; F біля 📚 шаф, +2) летять дугою туди, де курсор (клавіша або ЛКМ на вибраному слоті). Папірець у смітник здалеку — 🪙 і XP (що далі, то більше, до 8 нагород за раунд). Книжка оглушає зомбі (звіт випльовує) і злить колег.</div>
+      <div>🤖 <b>Боти</b>: у раунді 5 учасників — після першого «✅ Я готовий» лобі доповнюють боти (Кент, Віта, Толік…). У раунді вони носять дані в принтер, лагодять поломки, гасять серверну й проганяють зомбі від людей.</div>
       <div>⭐ Зірки — за запас часу. Кожна перемога підвищує складність, а ліфт без голосів везе на наступний поверх.</div>
     </div>
     <p class="muted" style="font-size:12px;margin-top:10px">Раундів: ${d.rounds || 0} · звітів здано: ${d.wins || 0} · бездоганних: ${d.perfect || 0} · поверхи підкорено: ${LAY.map((q, i) => fl[i] ? q.fl + '✅' : q.fl + '⬜').join(' ')} · найбільший запас: ${d.best ? Math.floor(d.best / 60) + ':' + String(d.best % 60).padStart(2, '0') : '—'} · найкраща оцінка: ${'⭐'.repeat(d.stars || 0) || '—'} · хаосу приборкано: ${d.fixes || 0}</p>`;
@@ -2276,7 +2427,7 @@ if (!SIMSIDE && typeof document !== 'undefined') {
     const card = document.createElement('div'); card.className = 'mm-card'; card.id = 'mm-deadline';
     card.innerHTML = `<div class="mm-img-wrap"><div class="mm-card-img" style="background-image:url('menu/deadline-bg.jpg'),url('addons/deadline/deadline-bg.jpg'),linear-gradient(160deg,#FF8A7A,#B07CF0 55%,#2E2346)"></div></div>
       <div class="mm-card-body"><h2>ДЕДЛАЙН</h2><div class="mm-subtitle">О 18:00</div>
-      <div class="mm-desc">Квартальний звіт за 5 хвилин на 42-му, 57-му чи 63-му поверсі: принтер, печатки, кава начальнику, звіт-«гаряча картопля» і вантуз проти зомбі. Кооп на 4.</div></div>`;
+      <div class="mm-desc">Квартальний звіт за 7 хвилин на 42-му, 57-му чи 63-му поверсі: принтер, печатки, кава начальнику, звіт-«гаряча картопля» і вантуз проти зомбі. Кооп до 5: боти доповнюють команду.</div></div>`;
     const locked = [...box.children].filter(c => c.classList.contains('mm-locked')).pop();
     box.insertBefore(card, locked || null);
     card.addEventListener('click', () => {
@@ -2288,8 +2439,8 @@ if (!SIMSIDE && typeof document !== 'undefined') {
 }
 A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(goDeadline, 700); });
 /* ======================= v3 у гравця: набір, ефекти, моделі, шкали агресії, нарада, картка ролі ======================= */
-Object.assign(V, { pp: PP_N, mol: MOL_N, ext: 100, mc: 1, sab: false, wasSab: false, sbcd: 0, stunT: 0, slowT: 0, ppCd: 0, exCd: 0, rid3: -1, roleRid: -1, roleT: 0, zapId: 0, hurtT: 0, slipT: 0, litT: 0,
-  m3: { ps: new Map(), pp: new Map(), li: new Map(), bu: new Map(), mo: new Map(), rb: null, pud: null, fire: null }, agEl: new Map(), agBox: null, mtEl: null, mtSig: '' });
+Object.assign(V, { pp: PP_N, bk: 0, pb: PB_N, binN: 0, tsCd: 0, pkCd: {}, pkEl: new Map(), pkAnim: [], pkHi: '', mol: MOL_N, ext: 100, mc: 1, sab: false, wasSab: false, sbcd: 0, stunT: 0, slowT: 0, ppCd: 0, exCd: 0, rid3: -1, roleRid: -1, roleT: 0, zapId: 0, hurtT: 0, slipT: 0, litT: 0,
+  m3: { ps: new Map(), pp: new Map(), th: new Map(), li: new Map(), bu: new Map(), mo: new Map(), rb: null, pud: null, fire: null }, agEl: new Map(), agBox: null, mtEl: null, mtSig: '' });
 /* кулер (на 57-му й 63-му — новий; на 42-му вже стоїть) і док-станція Румби */
 function decoExtra(K, Lx) {
   if (Lx.vi !== 0) { const c = COOLER.l; K.cyl(c.x, .5, c.z, .22, .22, 1, '#E8E3F0', 10, .3); K.cyl(c.x, 1.2, c.z, .18, .2, .45, '#8FD9FF', 10); K.box(c.x, 1.03, c.z, .26, .06, .26, '#4E4A6E'); }
@@ -2297,18 +2448,20 @@ function decoExtra(K, Lx) {
   const d = dock(); K.box(d.x - OX, .03, d.z - OZ, .9, .04, .9, '#4E4A6E'); K.glow(d.x - OX, .06, d.z - OZ - .38, .5, .02, .06, '#7FE08A');
 }
 const can3 = () => running && !pl.dead && ST.on && inOffice(pl.x, pl.z) && !ST.mt;
-const angTo = o => Math.abs(((Math.atan2(o.x - pl.x, o.z - pl.z) - pl.face + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-function aimAt(list, cone, maxD) {
+const angTo = (o, b = pl.face) => Math.abs(((Math.atan2(o.x - pl.x, o.z - pl.z) - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+// куди цілимось: на курсор миші (якщо він на підлозі), інакше — куди дивишся
+const aimBase = () => typeof input !== 'undefined' && input.aimOk && dist2(pl.x, pl.z, input.ax, input.az) > 1 ? Math.atan2(input.ax - pl.x, input.az - pl.z) : pl.face;
+function aimAt(list, cone, maxD, base) {
   let best = null, bs = 1e9;
-  for (const o of list) { const d = dist2(pl.x, pl.z, o.x, o.z), da = angTo(o); if (d > maxD || d < .4 || da > cone) continue; if (d + da * 6 < bs) { bs = d + da * 6; best = o; } }
+  for (const o of list) { const d = dist2(pl.x, pl.z, o.x, o.z), da = angTo(o, base); if (d > maxD || d < .4 || da > cone) continue; if (d + da * 6 < bs) { bs = d + da * 6; best = o; } }
   return best;
 }
 /* ✈️ літачок: летить туди, куди дивишся (легке самонаведення на колегу, ПК, кулер чи зомбі) */
 function throwPlane() {
   if (!can3() || V.ppCd > 0) return;
-  if (V.pp <= 0) { toast('✈️ Папір для літачків скінчився (6 на раунд).'); return; }
-  const tg = aimAt([...DESKS.filter(d => !pestOf(d.i)).map(d => colPos(d.i)), ...DESKS.map(d => ({ x: d.x, z: d.z - .15 })), ...ST.pst, ...ST.zom, COOLER.o], .3, 12);
-  const a = tg ? Math.atan2(tg.x - pl.x, tg.z - pl.z) : pl.face; pl.face = a;
+  if (V.pp <= 0) { emptyToast('pp'); return; }
+  const b0 = aimBase(), tg = aimAt([...DESKS.filter(d => !pestOf(d.i)).map(d => colPos(d.i)), ...DESKS.map(d => ({ x: d.x, z: d.z - .15 })), ...ST.pst, ...ST.zom, COOLER.o], .3, 12, b0);
+  const a = tg ? Math.atan2(tg.x - pl.x, tg.z - pl.z) : b0; pl.face = a;
   V.pp--; V.ppCd = .5; req('plane', { a: r2(a) }); sfx('throw');
 }
 /* 🧯 вогнегасник: струмінь піни (−15% заряду); у кріслі на коліщатках — реактивний ривок у протилежний бік */
@@ -2375,7 +2528,7 @@ function interact3(first, near, h) {
 }
 /* «що робити зараз» (v3) */
 function goal3(h, s) {
-  if (ST.fire > 0 && (s === 'scan' || ST.fire > 50)) return V.ext >= 15 ? { id: 'fire', tg: fireC(), txt: `🔥 <b>Серверна горить</b> (${Math.round(ST.fire)}%)${s === 'scan' ? ' — сканер не працює' : ''}! Гаси 🧯 вогнегасником: клавіша <b>5</b> або F поруч.` }
+  if (ST.fire > 0 && (s === 'scan' || ST.fire > 50)) return V.ext >= 15 ? { id: 'fire', tg: fireC(), txt: `🔥 <b>Серверна горить</b> (${Math.round(ST.fire)}%)${s === 'scan' ? ' — сканер не працює' : ''}! Гаси 🧯 вогнегасником: клавіша <b>6</b> або F поруч.` }
     : { id: 'refill', tg: VALVE.p, txt: '🧯 Вогнегасник порожній — заправ біля 🚿 вентиля (F), а тоді гаси серверну!' };
   if (h.cup) { const q = ST.pst.filter(o => o.want === h.cup).sort((a, b) => dist2(pl.x, pl.z, a.x, a.z) - dist2(pl.x, pl.z, b.x, b.z))[0]; if (q) return { id: 'pest', tg: q, txt: `${CUPS[h.cup].ic} Пригости <b>${NAMES[q.i]}</b> — він(вона) хоче саме ${CUPS[q.want].n} (F поруч).` }; }
   return null;
@@ -2387,6 +2540,8 @@ const PEST_TALK = { talk: ['А ти бачив мій мем у загально
 function pestEnt(id, i) { const m = V.m3.ps.get(id); return m ? m.ent : V.cols[i] ? V.cols[i].ent : null; }
 function onEvent3(e, here, nm) {
   const k = e.k, me = isMe(e.who);
+  if (k === 'toss') { if (here && !me) sfx('throw'); return true; }
+  if (k === 'thit') { if (here) tossHit(e, me); return true; }
   if (k === 'pest') {
     if (here) { banner(`😤 ${NAMES[e.i]} ${e.why === 'fired' ? 'образився(лась) після наради' : e.why === 'chain' ? 'заразився(лась) від колеги' : 'дійшов(ла) до точки кипіння'} — тепер ЗАЙОБУЄ всіх! Заспокоїть ${CUPS[e.want].ic} ${CUPS[e.want].n}.`); sfx('warn'); }
   } else if (k === 'pester') {
@@ -2412,7 +2567,7 @@ function onEvent3(e, here, nm) {
     sfx('hit', +e.x, +e.z);
   } else if (k === 'plane' || k === 'molo') { if (here && !me) sfx('throw'); }
   else if (k === 'ignite') { if (here) { burst(+e.x, .5, +e.z, '#FF8A3C', 22, 3, .8, 3); sfx('boom', +e.x, +e.z); } }
-  else if (k === 'fire') { if (here) { banner(e.txt || '🔥 СЕРВЕРНА ГОРИТЬ! Гаси 🧯 вогнегасником (клавіша 5).'); sfx('warn'); } }
+  else if (k === 'fire') { if (here) { banner(e.txt || '🔥 СЕРВЕРНА ГОРИТЬ! Гаси 🧯 вогнегасником (клавіша 6).'); sfx('warn'); } }
   else if (k === 'foam') {
     if (here && !me) { foamFX(+e.x, +e.z, +e.a); sfx('splash', +e.x, +e.z); if (running && !pl.dead && dist2(pl.x, pl.z, +e.x, +e.z) > .6 && coneHit({ x: +e.x, z: +e.z }, +e.a, pl.x, pl.z, 5, .5)) knockMe(+e.a, 12, '🧯 Піною в обличчя!'); }
   } else if (k === 'spill') { if (here) { banner('💦 Кулер перекинуто — калюжа! Слизько… Кинь подовжувач (F) — буде ⚡ пастка.'); burst(COOLER.pc.x, .4, COOLER.pc.z, '#8FD9FF', 16, 3, .6, 2); sfx('splash', COOLER.pc.x, COOLER.pc.z); } }
@@ -2445,8 +2600,8 @@ function roleCard(sab) {
   if (!el) { el = document.createElement('div'); el.id = 'dl-role'; el.style.cssText = 'position:fixed;left:50%;top:16%;transform:translateX(-50%);z-index:30;width:max-content;max-width:min(440px,92vw);border-radius:16px;padding:14px 18px;font:14px/1.45 system-ui,sans-serif;color:#fff;box-shadow:0 12px 36px rgba(0,0,0,.45);cursor:pointer;text-align:center'; el.addEventListener('click', () => { el.style.display = 'none'; }); document.body.appendChild(el); }
   el.dataset.role = sab ? 'sab' : 'crew';
   el.style.background = sab ? 'linear-gradient(160deg,#7A1F3D,#2E2346)' : 'linear-gradient(160deg,#2F8F7A,#2E2346)';
-  el.innerHTML = sab ? `<div style="font:900 22px system-ui">🕵️ Ти — САБОТАЖНИК</div><div>Тихо зривай дедлайн: клавіша <b>7</b> біля сервера 🔥, принтера 🖨️, кавоварки ☕, щитка ⚡, вентиля 🚿, столу з даними 📄 чи Румби 💣 (2,5 с, перезарядка ${SAB_CD} с). Роби вигляд, що працюєш, — і не попадись на нараді!</div><div style="opacity:.7;font-size:12px;margin-top:6px">🤫 цю картку бачиш лише ти · клікни, щоб сховати</div>`
-    : `<div style="font:900 20px system-ui">👔 Ти — сумлінний працівник</div><div>Серед ${ST.sk === 'p' ? '<b>гравців</b>' : '<b>колег</b>'} ховається 🕵️ саботажник. Підозрюєш — 🚨 <b>нарада</b> (клавіша 7, раз за раунд).</div><div style="opacity:.7;font-size:12px;margin-top:6px">клікни, щоб сховати</div>`;
+  el.innerHTML = sab ? `<div style="font:900 22px system-ui">🕵️ Ти — САБОТАЖНИК</div><div>Тихо зривай дедлайн: клавіша <b>8</b> біля сервера 🔥, принтера 🖨️, кавоварки ☕, щитка ⚡, вентиля 🚿, столу з даними 📄 чи Румби 💣 (2,5 с, перезарядка ${SAB_CD} с). Роби вигляд, що працюєш, — і не попадись на нараді!</div><div style="opacity:.7;font-size:12px;margin-top:6px">🤫 цю картку бачиш лише ти · клікни, щоб сховати</div>`
+    : `<div style="font:900 20px system-ui">👔 Ти — сумлінний працівник</div><div>Серед ${ST.sk === 'p' ? '<b>гравців</b>' : '<b>колег</b>'} ховається 🕵️ саботажник. Підозрюєш — 🚨 <b>нарада</b> (клавіша 8, раз за раунд).</div><div style="opacity:.7;font-size:12px;margin-top:6px">клікни, щоб сховати</div>`;
   el.style.display = ''; V.roleT = 6;
 }
 
@@ -2517,6 +2672,17 @@ function render3(dt, t) {
   // 🔥 палаючі калюжі
   syncMap(M3.bu, ST.burn, q => { const g = new THREE.Group(); const d = new THREE.Mesh(new THREE.CircleGeometry(1, 24), basicM('#FF6A2C', .55)); d.rotation.x = -Math.PI / 2; d.position.y = .07; g.add(d); for (let k = 0; k < 5; k++) { const f = new THREE.Mesh(new THREE.ConeGeometry(.22, .8, 6), basicM(k % 2 ? '#FFD27A' : '#FF8A3C', .85)); f.position.set(Math.sin(k * 1.3) * .5, .4, Math.cos(k * 1.3) * .5); g.add(f); } g.position.set(q.x, 0, q.z); scene.add(g); return g; },
     (m, q) => { m.scale.set(q.r, 1, q.r); m.children.forEach((c, k) => { if (k) c.scale.y = .7 + Math.abs(Math.sin(t * 9 + k)) * .6; }); if (Math.random() < dt * 8) burst(q.x + rand(-q.r, q.r) * .6, .5, q.z + rand(-q.r, q.r) * .6, pick(['#FF8A3C', '#857C99']), 1, 1, .7, 2); });
+  // 🧻 / 📘 у польоті: дуга, слід і мітка, куди впаде
+  syncMap(M3.th, ST.th, q => {
+    const root = new THREE.Group(), o = q.w === 'bk' ? new THREE.Group() : mesh(new THREE.IcosahedronGeometry(.13, 0), '#F4F0E8', false);
+    if (q.w === 'bk') { put(o, mesh(new THREE.BoxGeometry(.3, .07, .22), pick(['#C2335A', '#5CC8FF', '#7FE08A']), false), 0, 0, 0); put(o, mesh(new THREE.BoxGeometry(.28, .06, .2), '#FFFFFF', false), .015, 0, 0); }
+    const ring = new THREE.Mesh(new THREE.RingGeometry(.35, .5, 20), basicM(q.w === 'bk' ? '#FFB35C' : '#FFFFFF', .7)); ring.rotation.x = -Math.PI / 2; ring.position.set(q.x1, .08, q.z1);
+    root.add(o); root.add(ring); scene.add(root); return { root, o, ring };
+  }, (m, q) => {
+    const s = clamp(q.t / q.T, 0, 1), y = 1.3 + 1.8 * 4 * s * (1 - s) - s * 1.1;
+    m.o.position.set(lerp(q.x0, q.x1, s), y, lerp(q.z0, q.z1, s)); m.o.rotation.x += dt * 10; m.o.rotation.z += dt * 7; m.ring.scale.setScalar(1 + Math.sin(t * 12) * .15);
+    if (Math.random() < dt * 25) burst(m.o.position.x, m.o.position.y, m.o.position.z, '#FFFFFF', 1, .3, .25, 0);
+  });
   // 🍾 молотов у польоті
   syncMap(M3.mo, ST.mo, () => { const g = new THREE.Group(); put(g, mesh(flat(new THREE.CylinderGeometry(.07, .09, .3, 8)), '#3E8F5A', false), 0, 0, 0); put(g, mesh(new THREE.BoxGeometry(.05, .12, .05), '#FFD27A', false), 0, .2, 0); scene.add(g); return g; },
     (m, q) => { if (!AUTH()) q.t += 0; const s = clamp(q.t / q.T, 0, 1); m.position.set(lerp(q.x0, q.x1, s), 1.2 + 2.2 * 4 * s * (1 - s) - s, lerp(q.z0, q.z1, s)); m.rotation.x += dt * 12; if (Math.random() < dt * 20) burst(m.position.x, m.position.y + .2, m.position.z, '#FF8A3C', 1, .5, .3, 0); });
@@ -2537,21 +2703,164 @@ function render3(dt, t) {
   { const g = M3.fire; g.visible = ST.on && ST.fire > 0; if (g.visible) { const C = fireC(), R = fireR(); g.position.set(C.x, 0, C.z); g.scale.set(R, 1, R); g.children.forEach((c, k) => { if (k) c.scale.y = .6 + Math.abs(Math.sin(t * 8 + k)) * .9 * (.5 + ST.fire / 100); }); if (Math.random() < dt * 14) burst(C.x + rand(-R, R) * .6, 1, C.z + rand(-R, R) * .6, pick(['#FF8A3C', '#4E4A6E', '#857C99']), 1, 1, 1.2, 3); } }
 }
 
+/* ---------- 🤖 Боти-колеги: модель з антеною, ім'я над головою, папери в руках ---------- */
+const BOTC = ['#5CC8FF', '#7FE08A', '#FFB35C', '#C9A0FF', '#FF8FB1'];
+function renderBots(dt, t) {
+  if (!V.bm) V.bm = new Map();
+  const vis = running && !panel && inOffice(pl.x, pl.z), seen = new Set();
+  for (const b of ST.bt) {
+    seen.add(b.n); let m = V.bm.get(b.n);
+    if (!m) {
+      const h = humanoid({ skin: '#D9DEE8', shirt: BOTC[b.c % BOTC.length], pants: '#3E3A5C' });
+      put(h.body, mesh(flat(new THREE.CylinderGeometry(.025, .025, .32, 6)), '#9F98B8', false), 0, 1.86, 0);
+      put(h.body, mesh(new THREE.SphereGeometry(.07, 8, 6), bulb('#FF5C7A'), false), 0, 2.04, 0);
+      put(h.body, mesh(new THREE.BoxGeometry(.42, .1, .06), bulb('#6BE7FF'), false), 0, 1.52, .26);   // «візор» замість очей
+      h.root.position.set(b.x, 0, b.z); scene.add(h.root);
+      const el = document.createElement('div'); el.className = 'dl-lbl'; el.style.background = 'rgba(30,60,90,.82)';
+      m = { h, el, ent: { x: b.x, z: b.z, y: 0, bh: 2.3 }, it: '', cm: null }; V.bm.set(b.n, m);
+    }
+    const h = m.h; h.root.visible = vis; m.ent.x = b.x; m.ent.z = b.z;
+    h.root.position.set(b.x, 0, b.z); h.root.rotation.y = lerpAng(h.root.rotation.y, b.f || 0, Math.min(1, dt * 8));
+    const sw = b.mv ? Math.sin(t * 9 + b.c) * .55 : 0; h.l1.rotation.x = sw; h.l2.rotation.x = -sw;
+    h.aR.rotation.x = b.it ? -1.2 : b.ic && !b.mv ? -1.6 + Math.sin(t * 10) * .3 : -sw * .6; h.aL.rotation.x = b.it ? -1.2 : sw * .6;
+    if (m.it !== b.it) { m.it = b.it; if (m.cm) { h.root.remove(m.cm); m.cm = null; } if (b.it) { m.cm = itemMesh(b.it, 1, 0, 100); m.cm.position.set(0, 1.05, .45); h.root.add(m.cm); } }
+    if (V.lbl && !m.el.parentNode) V.lbl.appendChild(m.el);
+    const q = vis ? screenPos(b.x, 2.45, b.z) : null, txt = `🤖 ${b.n}${ST.on && b.ic ? ' ' + b.ic : ''}`;
+    m.el.style.display = q && q.vis ? '' : 'none';
+    if (q && q.vis) { if (m.el.textContent !== txt) m.el.textContent = txt; m.el.style.transform = `translate(${Math.round(q.x)}px,${Math.round(q.y)}px) translate(-50%,-100%)`; }
+  }
+  for (const [n, m] of V.bm) if (!seen.has(n)) { scene.remove(m.h.root); m.el.remove(); V.bm.delete(n); }
+}
+
+/* ---------- Метальне: ✈️ лотки з папером, 📘 книжкові шафи, 🧻 смітники (видно здалеку, F — узяти) ---------- */
+const PKI = {
+  pp: { ic: '✈️', lbl: '✈️ Папір для літачків', f: 'F — скласти літачок (+3)', add: 3, max: 9, hint: 'візьми папір у лотку', where: 'лотки з папером біля принтера, сканера й столів (світло-блакитне коло)', col: '#6BE7FF' },
+  bk: { ic: '📘', lbl: '📘 Книжкова шафа', f: 'F — взяти книжку (+2)', add: 2, max: 4, hint: 'книжки — у книжковій шафі', where: 'книжкові шафи біля архіву, кабінету начальника й печатки (помаранчеве коло)', col: '#FFB35C' },
+  pb: { ic: '🧻', lbl: '🧻 Смітник · мʼятий папір', f: "F — нам'яти паперу (+5)", add: 5, max: 15, hint: 'мʼятий папір — біля смітника', where: 'смітники на кухні, біля столів і в холі (зелене коло)', col: '#7FE08A' },
+};
+const PK_CD = 8;   // с, поки та сама шафа/лоток «перезаряджається» для тебе
+function emptyToast(k) { const I = PKI[k]; toast(`${I.ic} <b>0</b> — де взяти: ${I.where}. Підійди й натисни <b>F</b>.`); }
+function drawPickups(K, Lx) {
+  const g = K.g; if (!g || !Lx.pk) return;
+  for (const s of Lx.pk) {
+    const I = PKI[s.k], q = K.grp(s.o.x - OX, s.o.z - OZ, s.ry);
+    const ring = put(g, mesh(new THREE.RingGeometry(.62, .78, 28), bulb(I.col), false), s.o.x, .07, s.o.z); ring.rotation.x = -Math.PI / 2;
+    if (s.k === 'pp') {
+      // тумба з лотком і стосами білого паперу
+      K.GB(q, 0, .36, 0, .62, .72, .42, '#C9CDD9'); K.GB(q, 0, .73, 0, .66, .03, .46, '#9F98B8'); K.GB(q, 0, .5, .215, .5, .05, .02, '#4E4A6E');
+      for (let i = 0; i < 7; i++) K.GB(q, -.14, .76 + i * .028, 0, .27, .022, .2, i % 2 ? '#FFFFFF' : '#EEF2FA');
+      for (let i = 0; i < 4; i++) K.GB(q, .16, .76 + i * .028, .02, .27, .022, .2, i % 2 ? '#FFFFFF' : '#EEF2FA');
+      const pl_ = new THREE.Group(); const w = put(pl_, mesh(new THREE.ConeGeometry(.16, .46, 3), '#FFFFFF', false), 0, 0, 0); w.rotation.x = Math.PI / 2; w.scale.x = 1.5;
+      pl_.position.set(s.o.x, 1.45, s.o.z); scene.add(A.dynamic(pl_)); V.pkAnim.push({ m: pl_, y: 1.45, k: s.id });
+    } else if (s.k === 'bk') {
+      // книжкова шафа з кольоровими корінцями
+      const BK = ['#C2335A', '#5CC8FF', '#FFD27A', '#7FE08A', '#B07CF0', '#E07A3C', '#3E8F5A'];
+      K.GB(q, 0, .82, 0, 1.05, 1.64, .36, '#8C6A4E');
+      for (let r = 0; r < 4; r++) { K.GB(q, 0, .14 + r * .4, .02, .95, .03, .34, '#6E5240'); for (let b = 0; b < 6; b++) K.GB(q, -.4 + b * .16, .29 + r * .4, .17, .11, .26 + ((b + r) % 3) * .03, .04, BK[(b * 3 + r) % BK.length]); }
+      K.GB(q, .25, 1.68, 0, .3, .06, .22, '#C2335A'); K.GB(q, .25, 1.73, 0, .28, .05, .2, '#5CC8FF');
+    } else {
+      // смітник, переповнений мʼятим папером, і купка поруч
+      K.GC(q, 0, .3, 0, .24, .19, .6, '#7A8299', 12); K.GC(q, 0, .61, 0, .25, .25, .03, '#5A6278', 12);
+      for (let i = 0; i < 6; i++) put(q, mesh(new THREE.IcosahedronGeometry(.09 + (i % 3) * .015, 0), i % 2 ? '#FFFFFF' : '#F4F0E8', false), Math.sin(i * 2.1) * .12, .66 + (i % 2) * .07, Math.cos(i * 2.1) * .12);
+      for (let i = 0; i < 4; i++) put(q, mesh(new THREE.IcosahedronGeometry(.1, 0), '#F4F0E8', false), .38 + Math.sin(i * 1.7) * .1, .09, .1 + Math.cos(i * 1.7) * .12);
+    }
+  }
+}
+const pkNear = (r = 1.4) => (L.pk || []).filter(s => dist2(pl.x, pl.z, s.o.x, s.o.z) < r && dist2(pl.x, pl.z, s.x, s.z) < r + .4).sort((a, b) => dist2(pl.x, pl.z, a.o.x, a.o.z) - dist2(pl.x, pl.z, b.o.x, b.o.z))[0] || null;
+function pkInteract() {
+  const s = pkNear(); if (!s) return null; const I = PKI[s.k];
+  if (!ST.on) return { l: `${I.lbl} — бери під час раунду`, fn: () => { } };
+  const cd = V.pkCd[L.vi + ':' + s.id] || 0;
+  if (V[s.k] >= I.max) return { l: `${I.ic} У тебе вже повно (${V[s.k]}/${I.max})`, fn: () => { } };
+  if (cd > 0) return { l: `${I.ic} Тут порожньо — ще ${Math.ceil(cd)} с`, fn: () => { } };
+  return { l: `${I.f} · у тебе ${V[s.k]}`, fn: () => pickUp(s) };
+}
+function pickUp(s) {
+  const I = PKI[s.k]; V[s.k] = Math.min(I.max, V[s.k] + I.add); V.pkCd[L.vi + ':' + s.id] = PK_CD;
+  ftext(pl.x, 2.6, pl.z, `${I.ic} +${I.add} (${V[s.k]})`, 'gold'); sfx('pick'); burst(s.o.x, 1, s.o.z, '#FFFFFF', 6, 2, .4, 1.5);
+  if (!V['tip' + s.k]) { V['tip' + s.k] = 1; toast(`${I.ic} <b>Як кидати:</b> клавіша <b>${{ pp: 4, bk: 2, pb: 5 }[s.k]}</b> (або вибери слот і клікни ЛКМ) — летить туди, куди курсор.${s.k === 'pb' ? ' Влучиш у 🗑️ смітник здалеку — більше 🪙!' : s.k === 'bk' ? ' Книжка оглушає зомбі (і він випускає звіт).' : ' У колегу — його агресія росте, у ПК — може спалахнути серверна.'}`); }
+}
+/* 🧻 / 📘 кинути дугою: самонаведення на смітник, зомбі чи колегу біля курсора, інакше — у точку курсора */
+function toss(w) {
+  if (!can3() || V.tsCd > 0) return;
+  if (V[w] <= 0) { emptyToast(w); return; }
+  const base = aimBase(), mx = w === 'pb' ? 11 : 9;
+  const bins = w === 'pb' ? (L.pk || []).filter(q => q.k === 'pb').map(q => q.o) : [];
+  const tg = aimAt([...bins, ...ST.zom, ...ST.pst, ...DESKS.filter(d => !pestOf(d.i)).map(d => colPos(d.i))], .3, mx, base);
+  const cur_ = typeof input !== 'undefined' && input.aimOk ? dist2(pl.x, pl.z, input.ax, input.az) : 0;
+  let x, z; if (tg) { x = tg.x; z = tg.z; } else if (cur_ > 1 && cur_ <= mx) { x = input.ax; z = input.az; } else { x = pl.x + Math.sin(base) * mx * .65; z = pl.z + Math.cos(base) * mx * .65; }
+  pl.face = Math.atan2(x - pl.x, z - pl.z); V[w]--; V.tsCd = .45; req('toss', { w, x: r2(x), z: r2(z) }); sfx('throw');
+}
+function tossHit(e, me) {
+  const x = +e.x, z = +e.z; burst(x, .6, z, e.w === 'bk' ? '#FFB35C' : '#FFFFFF', e.hit ? 10 : 4, 2.5, .5, 2); sfx(e.hit ? 'hit' : 'land', x, z);
+  if (e.hit === 'bin') {
+    let txt = `🗑️ У смітник! ${Math.round(+e.d || 0)} м`;
+    if (me) {
+      const d = +e.d || 0, coins = 2 + Math.floor(d / 2), xp = 4 + Math.round(d * 2), D = A.data();
+      if (V.binN < BIN_CAP) { V.binN++; P.coins += coins; addXP(xp); D.bins = (D.bins || 0) + 1; D.binBest = Math.max(D.binBest || 0, Math.round(d * 10) / 10); txt += ` · +${coins} 🪙 +${xp} XP`; refreshHUD(); }
+      else txt += ' · ліміт нагород на раунд';
+    }
+    ftext(x, 1.6, z, txt, 'gold');
+  } else if (e.hit === 'zom') ftext(x, 2.4, z, e.w === 'bk' ? (e.sp === 'report' ? '📘 БАЦ! Звіт випльовано!' : '📘 БАЦ! Оглушено') : '🧻 Пац!', 'gold');
+  else if (e.hit === 'col') { ftext(x, 2.4, z, e.w === 'bk' ? '📘 Ай! 😤😤' : '🧻 Гей! 😤', 'bad'); if (V.cols[e.i]) bubble(V.cols[e.i].ent, pick(['Хто кинув?!', 'Я все бачу!', 'Ще раз — і я зайобу!', 'Ну дякую…']), true, 2); }
+  else if (e.hit === 'pest') ftext(x, 2.4, z, e.w === 'bk' ? '📘 Оглушено!' : '🧻 Відволікся!', 'gold');
+}
+/* підписи над місцями видачі (видно з усього поверху) */
+function pkLabels(t) {
+  for (const a of V.pkAnim) { a.m.position.y = a.y + Math.sin(t * 2.5 + a.k) * .12; a.m.rotation.y = t * 1.5 + a.k; }
+  if (!V.lbl) return;
+  const show = running && !pl.dead && !panel && inOffice(pl.x, pl.z), list = show && L.pk ? L.pk : [], seen = new Set();
+  for (const s of list) {
+    const id = L.vi + ':' + s.id; seen.add(id); let el = V.pkEl.get(id);
+    if (!el) { el = document.createElement('div'); el.className = 'dl-lbl'; el.style.background = 'rgba(46,35,70,.86)'; el.style.border = `2px solid ${PKI[s.k].col}`; V.lbl.appendChild(el); V.pkEl.set(id, el); }
+    const d = dist2(pl.x, pl.z, s.o.x, s.o.z), q = screenPos(s.o.x, s.k === 'bk' ? 2.2 : 1.85, s.o.z), hi = V.pkHi === id;
+    el.style.display = q.vis ? '' : 'none'; el.style.opacity = d < 8 || hi ? 1 : .7;
+    el.style.background = hi ? '#FFE066' : 'rgba(46,35,70,.86)'; el.style.color = hi ? '#2E2346' : '#fff';
+    const txt = (hi ? '👉 ' : '') + PKI[s.k].lbl + (ST.on && d < 2.2 ? ` · ${PKI[s.k].f}` : '');
+    if (el.textContent !== txt) el.textContent = txt;
+    if (q.vis) el.style.transform = `translate(${Math.round(q.x)}px,${Math.round(q.y)}px) translate(-50%,-100%)`;
+  }
+  for (const [id, el] of V.pkEl) if (!seen.has(id)) el.style.display = 'none';
+}
+/* рядок у підказці: чого 0 і де найближче взяти (зі стрілкою й відстанню) */
+function pkHint() {
+  V.pkHi = '';
+  if (!ST.on || !L.pk || ST.mt || pl.dead) return '';
+  for (const k of ['pp', 'pb', 'bk']) {
+    if (V[k] > 0) continue;
+    const s = L.pk.filter(q => q.k === k).sort((a, b) => dist2(pl.x, pl.z, a.o.x, a.o.z) - dist2(pl.x, pl.z, b.o.x, b.o.z))[0]; if (!s) continue;
+    const dx = s.o.x - pl.x, dz = s.o.z - pl.z, d = Math.hypot(dx, dz), ar = '↑↗→↘↓↙←↖'[Math.round(((Math.atan2(dx, -dz) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8];
+    const rm = roomAt(s.o.x, s.o.z); V.pkHi = L.vi + ':' + s.id;
+    return `${PKI[k].ic} 0 — ${PKI[k].hint}${rm ? ` (${rm.n.toLowerCase()})` : ''} <b>${d < 1.6 ? 'тут, F' : ar + ' ' + Math.round(d) + ' м'}</b>`;
+  }
+  return '';
+}
+// ЛКМ, коли вибрано метальний слот, — кидок (а не удар)
+if (!SIMSIDE && typeof atkDown === 'function') {
+  const _ad = atkDown;
+  atkDown = function () {
+    if (typeof MODEBAR !== 'undefined' && MODEBAR && V.barOn && can3() && !panel) { const sl = MODEBAR.slots[MODEBAR.sel]; if (sl && ['pp', 'bk', 'pb', 'mol'].includes(sl.id)) { sl.use(); return; } }
+    return _ad.apply(this, arguments);
+  };
+}
+
 /* ---------- Кадр гравця (v3) ---------- */
 function client3(dt) {
-  if (ST.rid !== V.rid3) { V.rid3 = ST.rid; Object.assign(V, { pp: PP_N, mol: MOL_N, ext: 100, mc: 1, sbcd: 0, stunT: 0, slowT: 0, wasSab: false }); }
+  if (ST.rid !== V.rid3) { V.rid3 = ST.rid; Object.assign(V, { pp: PP_N, bk: 0, pb: PB_N, binN: 0, pkCd: {}, mol: MOL_N, ext: 100, mc: 1, sbcd: 0, stunT: 0, slowT: 0, wasSab: false }); }
   V.sab = !!(ST.on && ST.sh && hashS(ST.sh[0] + myKey()) === ST.sh[1]); if (V.sab) V.wasSab = true;
   if (ST.on && ST.sh && V.roleRid !== ST.rid && running && !pl.dead && inOffice(pl.x, pl.z)) { V.roleRid = ST.rid; roleCard(V.sab); }
   if (V.roleT > 0 && ((V.roleT -= dt) <= 0 || !ST.on)) { V.roleT = 0; const r = document.getElementById('dl-role'); if (r) r.style.display = 'none'; }
-  for (const k of ['stunT', 'slowT', 'ppCd', 'exCd', 'sbcd', 'hurtT', 'litT']) if (V[k] > 0) V[k] -= dt;
+  for (const k of ['stunT', 'slowT', 'ppCd', 'tsCd', 'exCd', 'sbcd', 'hurtT', 'litT']) if (V[k] > 0) V[k] -= dt;
+  for (const k in V.pkCd) if (V.pkCd[k] > 0) V.pkCd[k] -= dt;
   if (!AUTH()) {
     const k = Math.min(1, dt * 8);
     for (const q of ST.pst) if (q.tx != null) { q.x = lerp(q.x, q.tx, k); q.z = lerp(q.z, q.tz, k); }
     for (const q of ST.pp) if (q.tx != null) { q.tx += Math.sin(q.a) * 9 * dt; q.tz += Math.cos(q.a) * 9 * dt; q.x = lerp(q.x, q.tx, k); q.z = lerp(q.z, q.tz, k); }
     for (const q of ST.mo) q.t += dt;
+    for (const q of ST.th) q.t += dt;
     if (ST.rb && ST.rb.tx != null) { ST.rb.x = lerp(ST.rb.x, ST.rb.tx, k); ST.rb.z = lerp(ST.rb.z, ST.rb.tz, k); }
   }
-  render3(dt, gameTime); agBars(); meetUI();
+  render3(dt, gameTime); renderBots(dt, gameTime); pkLabels(gameTime); agBars(); meetUI();
   if (!running || pl.dead || !ST.on || !inOffice(pl.x, pl.z)) return;
   // що діє на мене: вогонь, палаючі калюжі, калюжа (слизько / ⚡), папірці під ногами
   const hurt = (d, src, o) => { V.hurtT = .7; pl.hp = Math.max(1, pl.hp - d); ftext(pl.x, 2.5, pl.z, `${src} −${d}`, 'bad'); knockMe(Math.atan2(pl.x - o.x, pl.z - o.z), 6); sfx('hurt'); };

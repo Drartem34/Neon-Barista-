@@ -51,22 +51,29 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   // голосування кліками по картках: обоє за «Атріум»
   lob(a).querySelector('[data-lv="1"]').click(); lob(b).querySelector('[data-lv="1"]').click(); await tick([a, b], 1);
   assert(R.ST.v === 1 && Q.ST.v === 1 && R.voteCounts()[1] === 2 && /🗳️ 2/.test(lob(a).querySelector('[data-lv="1"] .vc').textContent), `голоси в попапі — сервер обрав «${R.VARS[R.ST.v].n}» (2 голоси), бачать обоє`);
-  // Гонщик готовий — Суперник ще ні: лобі з таймером, ніхто не стартує
+  // Гонщик готовий — Суперник ще ні: лобі заповнюється (сервер), ніхто не стартує
+  const info = T => lob(T).querySelector('.row span').textContent, who = T => lob(T).querySelector('.who').textContent;
   lob(a).querySelector('.rdy').click(); await tick([a, b], 1);
-  assert(R.ST.ph === 'lobby' && Q.ST.racers.length === 1 && /Старт за/.test(lob(b).textContent) && /✅/.test(lob(b).querySelector('.who').textContent), 'Гонщик готовий — у Суперника в попапі ✅ і «Старт за … с»');
+  assert(R.ST.ph === 'lobby' && Q.ST.lob === 'fill' && Q.ST.racers.length === 1 && /Чекаємо гравців 2\/5/.test(info(b)) && /✅ Гонщик/.test(who(b)), `Гонщик готовий — у Суперника в попапі ✅ Гонщик і «${info(b)}»`);
   assert(lob(a).querySelector('.rdy.on'), 'у Гонщика кнопка тепер «Не готовий»');
-  // Суперник готовий — усі готові: старт одразу, попапи закриваються
+  // боти приходять по одному (сервер): перший через ~4 с
+  for (let i = 0; i < 30 && !Q.ST.racers.some(r => r.bot); i++) await tick([a, b], .2);
+  await tick([a, b], .3);
+  assert(Q.ST.racers.filter(r => r.bot).length === 1 && /✅ 🤖 Бот Кент/.test(who(b)) && /✅ 🤖 Бот Кент/.test(who(a)) && /Бот Кент приєднався · 3\/5/.test(info(b)) && R.ST.ph === 'lobby', `бот зайшов у лобі — обоє бачать «✅ 🤖 Бот Кент», «${info(b)}»`);
+  // Суперник готовий; лобі добирає ботів до 5 — і «Старт за 3…2…1»
   lob(b).querySelector('.rdy').click();
-  for (let i = 0; i < 10 && R.ST.ph === 'lobby'; i++) await tick([a, b], .2);
-  assert(R.ST.ph === 'count' || R.ST.ph === 'race', 'усі готові — заїзд стартував, не чекаючи 20 с');
+  let goSeen = false;
+  for (let i = 0; i < 80 && R.ST.ph === 'lobby'; i++) { await tick([a, b], .2); if (lob(a) && /Усі на місці — старт за/.test(info(a)) && R.ST.racers.length === 5) goSeen = true; }
+  assert(goSeen, 'лобі повне 5/5 (2 гравці + 3 боти), усі готові — в обох «Усі на місці — старт за 3…»');
+  assert(R.ST.ph === 'count' || R.ST.ph === 'race', 'відлік минув — заїзд стартував');
   await tick([a, b], .3); assert(!lob(a) && !lob(b), 'заїзд почався — попапи в обох закрились');
   for (let i = 0; i < 40 && R.ST.ph !== 'race'; i++) await tick([a, b], .5);
-  assert(R.ST.ph === 'race' && R.ST.racers.length === 4 && R.RC.on && Q.RC.on, 'двоє гравців + 2 боти, поїхали');
+  assert(R.ST.ph === 'race' && R.ST.racers.length === 5 && R.ST.racers.filter(r => r.bot).length === 3 && R.RC.on && Q.RC.on, `двоє гравців + 3 боти з лобі (${R.ST.racers.map(r => r.k).join(', ')}), поїхали`);
   assert(R.floorAt(a.pl.x, a.pl.z) === 1 && R.floorAt(b.pl.x, b.pl.z) === 1, 'обох перенесло на поверх 57 (обраний голосуванням)');
-  { const mb = a.w.document.querySelector('#modebar'); assert(mb && !mb.hidden && /💣/.test(mb.textContent) && /🪠/.test(mb.textContent) && /🧯/.test(mb.textContent) && /🍾/.test(mb.textContent), 'у кріслі хотбар режиму — 💣 🪠 🧯 🍾'); }
-  const bot = R.ST.racers.find(r => r.bot), bx = bot.x;
+  { const mb = a.w.document.querySelector('#modebar'); assert(mb && !mb.hidden && /💣/.test(mb.textContent) && /🪠/.test(mb.textContent) && /🧯/.test(mb.textContent) && /🍾/.test(mb.textContent) && /✈️/.test(mb.textContent), 'у кріслі хотбар режиму — 💣 🪠 🧯 🍾 ✈️'); }
+  const bot = R.ST.racers.find(r => r.bot), bx = bot.x, bz = bot.z;
   await tick([a, b], 1.5);
-  assert(Math.abs(Q.ST.racers.find(r => r.k === bot.k).x - bx) > 2, 'боти їздять на сервері — бачать обоє');
+  { const qb = Q.ST.racers.find(r => r.k === bot.k); assert(Math.hypot(qb.x - bx, qb.z - bz) > 2, 'боти їздять на сервері — бачать обоє'); }
   // ставлю Гонщика на d позаду Суперника й цілюсь у нього (крісло й гравець — разом, інакше «встає»)
   const behind = async d => { Q.RC.v = 0; Q.RC.spin = 0; Q.RC.slow = 0; R.RC.spin = 0; R.RC.v = 0; R.RC.pull = null; R.RC.slow = 0;
     // точка траси на d метрів позаду (уздовж траси — щоб не винесло за скло поверху на повороті)
@@ -102,9 +109,15 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
     if (R.RC.jet) R.toggleJet(); await tick([a, b], .3);
     assert(!Q.ST.racers.find(r => r.k === 'Гонщик').jet, 'реактив вимкнено — у Суперника шлейф зник'); }
   if (process.env.DBG) console.log('  t', R.ST.t.toFixed(1), JSON.stringify(R.ST.racers.map(r => [r.k, r.lap])));
+  // ✈️ паперовий літачок: Гонщик запускає — Суперник бачить літачок і пригальмовує (сервер розсилає влучання)
+  let hit = false; { let seenFx = false;
+    for (let tr = 0; tr < 3 && !hit; tr++) { if (tr) await tick([a, b], 1.2); const p = await behind(4); R.RC.spin = 0; R.RC.planes = 2; const n0 = R.RC.planes;
+      assert(R.throwPlane({ x: p.x, z: p.z }) && R.RC.planes === n0 - 1, '✈️ Гонщик запустив літачок у Суперника');
+      for (let i = 0; i < 20 && !hit; i++) { Q.RC.v = 0; await tick([a, b], .05); if (Q.V.planes.length) seenFx = true; if (Q.RC.slow > 0 && !(Q.RC.spin > 0)) hit = true; } }
+    assert(hit && seenFx, '✈️ літачок долетів: Суперник бачив його в повітрі й пригальмував'); }
   // 📎 постріл степлером по суперникові
   // (до 3 спроб: на трасі бувають зомбі-офісники й калюжі — постріл може перехопити випадкова перешкода)
-  let hit = false;
+  hit = false;
   for (let tr = 0; tr < 3 && !hit; tr++) { if (tr) await tick([a, b], 1.2); await behind(3); R.RC.spin = 0; R.RC.item = 'stapler'; R.useItem();
     for (let i = 0; i < 20 && !hit; i++) { await tick([a, b], .1); if (Q.RC.spin > 0) hit = true; } }
   assert(hit, '📎 степлер Гонщика закрутив Суперника');
@@ -114,9 +127,12 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
       for (let i = 0; i < 25 && !hit; i++) { Q.RC.v = 0; await tick([a, b], .1); if (Q.RC.spin > 0 && Q.RC.slow > 0) hit = true; } }
     assert(used >= 1 && R.RC.bombs === b0 - used && hit, '💣 бомба Гонщика вибухнула біля Суперника — закрутило й пригальмувало'); }
   // 🪠 вантуз: чіпляє Суперника, мене тягне вперед
-  { await tick([a, b], 1.6); await behind(6); R.RC.spin = 0; const sx = R.RC.x, sz = R.RC.z; R.RC.plCd = 0; R.shootPlunger(); let pulled = false, moved = 0; hit = false;
-    for (let i = 0; i < 25 && !(pulled && hit); i++) { Q.RC.v = 0; Q.RC.spin = 0; await tick([a, b], .05); if (R.RC.pull) pulled = true; if (Q.RC.slow > 0) hit = true; moved = Math.max(moved, Math.hypot(R.RC.x - sx, R.RC.z - sz)); }
-    for (let i = 0; i < 8; i++) { await tick([a, b], .05); moved = Math.max(moved, Math.hypot(R.RC.x - sx, R.RC.z - sz)); }
+  // (до 3 спроб: між ними може опинитись бот — тоді вантуз чіпляє його)
+  { let pulled = false, moved = 0; hit = false;
+    for (let tr = 0; tr < 3 && !(pulled && hit && moved > 2); tr++) {
+      await tick([a, b], 1.6); await behind(6); R.RC.spin = 0; Q.RC.slow = 0; const sx = R.RC.x, sz = R.RC.z; R.RC.plCd = 0; R.shootPlunger(); pulled = false; moved = 0; hit = false;
+      for (let i = 0; i < 25 && !(pulled && hit); i++) { Q.RC.v = 0; Q.RC.spin = 0; await tick([a, b], .05); if (R.RC.pull) pulled = R.RC.pull.k === 'Суперник'; if (Q.RC.slow > 0) hit = true; moved = Math.max(moved, Math.hypot(R.RC.x - sx, R.RC.z - sz)); }
+      for (let i = 0; i < 8; i++) { await tick([a, b], .05); moved = Math.max(moved, Math.hypot(R.RC.x - sx, R.RC.z - sz)); } }
     assert(pulled && hit && moved > 2 && R.RC.plCd > 0, `🪠 вантуз зачепив Суперника: Гонщика смикнуло вперед на ${moved.toFixed(1)} м, Суперника пригальмувало`); }
   // обоє проходять 3 кола
   for (const [T, X] of [[a, R], [b, Q]]) { X.RC.lap = 2; const g = X.TR[X.N - 2]; X.RC.x = g.x; X.RC.z = g.z; X.RC.idx = X.N - 2; X.RC.prev = X.N - 2; X.RC.spin = 0; X.RC.h = Math.atan2(g.dz, g.dx); X.RC.v = 8; T.pl.x = g.x; T.pl.z = g.z; }
@@ -130,8 +146,11 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   await tick([a, b], .3);
   assert(R.ST.ph === 'idle' && lob(a) && lob(b), 'після заїзду в обох знову відкрилось лобі');
   lob(a).querySelector('.rdy').click(); await tick([a, b], 1);
-  assert(R.ST.ph === 'lobby' && R.ST.cnt > 15, `готовий лише один — сервер чекає (${Math.ceil(R.ST.cnt)} с)`);
-  for (let i = 0; i < 60 && R.ST.ph === 'lobby'; i++) await tick([a, b], .5);
-  assert(R.ST.ph !== 'lobby' && R.ST.racers.some(r => r.k === 'Гонщик') && !R.ST.racers.some(r => r.k === 'Суперник'), 'через 20 с — автостарт з тими, хто готовий');
+  assert(R.ST.ph === 'lobby' && R.ST.lob === 'fill', 'готовий лише один — лобі заповнюється ботами');
+  for (let i = 0; i < 60 && R.ST.lob !== 'wait'; i++) await tick([a, b], .3);
+  await tick([a, b], .6);
+  assert(R.ST.lob === 'wait' && R.ST.racers.length === 4 && R.ST.cnt > 20 && /без них старт за/.test(info(b)), `лобі повне (Суперник — 5-й, не готовий): сервер чекає ${Math.ceil(R.ST.cnt)} с — «${info(b)}»`);
+  for (let i = 0; i < 80 && R.ST.ph === 'lobby'; i++) await tick([a, b], .5);
+  assert(R.ST.ph !== 'lobby' && R.ST.racers.some(r => r.k === 'Гонщик') && !R.ST.racers.some(r => r.k === 'Суперник') && R.ST.racers.length === 5, 'через 25 с — старт без неготового (його місце зайняв ще один бот)');
   console.log('ALL OK'); cleanup(0);
 })().catch(e => { console.error(e); cleanup(1); });

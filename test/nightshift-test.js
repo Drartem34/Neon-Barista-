@@ -13,11 +13,13 @@ w.matchMedia = () => ({ matches: false }); w.requestAnimationFrame = () => 0; w.
 const IV = []; w.setInterval = (f, ms) => { if (ms <= 100) IV.push(f); return 0; };
 w.setTimeout = f => { f(); return 0; };
 w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
+w.__nightshiftFastLobby = 1;   // лобі: боти доповнюють кожні 0,2 с (у грі — 4 с і далі 2,5 с)
 w.__ADDON_CODE = [{ id: 'nightshift', src: 'nightshift/addon.js', code: fs.readFileSync(path.join(root, 'addons/_examples/nightshift/addon.js'), 'utf8') }];
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
-src += ';window.__T={get paused(){return paused},get running(){return running},get P(){return P},pl,MON,ADDONS,STATICS,terrainAt,get MODEBAR(){return MODEBAR},startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),input,keys,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c}))};';
+src += ';window.__T={get paused(){return paused},get running(){return running},get P(){return P},pl,MON,ADDONS,STATICS,terrainAt,get MODEBAR(){return MODEBAR},startGame,frame,openPanel,closePanel,get panel(){return panel},get cv(){return cv},modeBarUse:i=>modeBarUse(i),hookToast:f=>{const _t=toast;toast=function(h){f(h);return _t.apply(this,arguments)}},getInteract:()=>getInteract(),input,keys,keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c}))};';
 w.eval(src);
 const T = w.__T; let now = 1000;
+const TOASTS = []; T.hookToast(h => TOASTS.push(String(h)));
 const N = w.__nightshift;
 let quiet = true;
 // без лякалок, ліфта, прибиральника й датчиків руху — тест передбачуваний
@@ -36,9 +38,14 @@ const startNight = (fi) => {
   assert(lb() && lb().querySelectorAll('[data-lv]').length === 3, 'у лобі відкрито попап з трьома картками поверхів');
   if (fi != null) { card(fi).click(); step(.05); }
   lb().querySelector('.rdy').click(); step(.1);
-  assert(N.ST.on && (fi == null || N.ST.v === fi), '«✅ Я готовий» — ніч почалась' + (fi != null ? ` на «${N.FLOORS[fi].n}»` : ''));
+  assert(!N.ST.on && N.ST.ph === 1, '«✅ Я готовий» — не миттєвий старт: лобі доповнюють боти');
+  for (let k = 0; k < 40 && !N.ST.on; k++) step(.1);
+  assert(N.ST.on && (fi == null || N.ST.v === fi) && N.ST.bo.length === 4, 'боти доповнили лобі до 5 — ніч почалась' + (fi != null ? ` на «${N.FLOORS[fi].n}»` : '') + ` (з ботами: ${N.ST.bo.map(b => b.k).join(', ')})`);
   assert(!lb(), 'попап лобі закрився, коли почалась зміна'); N.AU.calm = 0;
+  if (!keepBots) N.dropBots();   // старі розділи — сам на сам із зомбі (боти перевіряються окремо)
+  me().bk = 1;                   // без підказки «візьми папір» на початку зміни
 };
+let keepBots = false;
 const walk = (x, z, dx, dz, n) => { T.pl.x = x; T.pl.z = z; N.V.lastP = null; step(.05); for (let k = 0; k < n; k++) { T.pl.x += dx; T.pl.z += dz; step(.02); } return { x: T.pl.x, z: T.pl.z }; };
 
 assert(T.ADDONS.list.every(a => a.ok), 'аддон завантажився: ' + T.ADDONS.list.map(a => a.name + (a.ok ? '' : ' ✗ ' + a.err)).join(', '));
@@ -120,22 +127,23 @@ N.FLOORS.forEach((f, k) => {
   assert(N.floorAt(T.pl.x, T.pl.z) === 1 && Math.hypot(T.pl.x - f1.SPAWN.x, T.pl.z - f1.SPAWN.z) < 1.5, 'зміна на 57-му — тебе перенесло в хол «Поверх 57»');
   assert(N.CUR === 1 && N.ST.en.length >= 3 && /Поверх 57/.test(hudTxt()) && /00:0/.test(hudTxt()), `HUD: «${N.FL.n}», годинник 00:00, зомбі: ${N.ST.en.length}`);
   assert(N.ST.en.every(e => N.floorAt(e.x, e.z) === 1), 'зомбі — на тому самому поверсі');
-  assert(T.MODEBAR && T.MODEBAR.slots.map(s => s.ic).join('') === '🔦🧪🔋📻☕🍸' && w.document.getElementById('weapon').hidden, 'набір режиму замість хотбара: 🔦 🧪 🔋 📻 ☕ 🍸');
+  assert(T.MODEBAR && T.MODEBAR.slots.map(s => s.ic).join('') === '🔦🧪✈️🧻📘🧯🍾☕🍸' && w.document.getElementById('weapon').hidden, 'набір режиму замість хотбара: 🔦 🧪 ✈️ 🧻 📘 🧯 🍾 ☕ 🍸 (🔋 — R, 📻 — T)');
   N.ST.en.length = 0;
 }
 const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
 /* ---------- 2. Ліхтарик, батарейки ---------- */
 {
-  assert(me() && me().l === 1 && me().b > 99 && me().sh === 2 && me().bs === 1, 'ліхтарик увімкнений, 100%; у кишені 2 🧪 і 1 запасна 🔋');
+  assert(me() && me().l === 1 && me().b > 99 && me().sh === 2 && me().bs === 1 && me().pb === 2, 'ліхтарик увімкнений, 100%; у кишені 2 🧪, 2 🧻 і 1 запасна 🔋');
   const b0 = me().b; step(2); assert(me().b < b0 - 1, `батарейка сідає (${b0} → ${me().b.toFixed(1)})`);
   T.keydown('KeyL'); step(.05); assert(me().l === 0, 'L — вимкнув ліхтарик'); const b1 = me().b; step(1); assert(me().b === b1, 'вимкнений не сідає');
   T.keydown('Digit1'); step(.05); assert(me().l === 1, '1 (набір режиму) — увімкнув знову');
-  me().b = 40; T.keydown('Digit3'); step(.05); assert(me().b > 99 && me().bs === 0, '3 — вставив запасну батарейку: 100%');
+  me().b = 40; T.keydown('KeyR'); step(.05); assert(me().b > 99 && me().bs === 0, 'R — вставив запасну батарейку: 100%');
   N.ST.bats = [3]; N.ST.shp = [5]; go(F.ITEMS[3]);
   let it = T.getInteract(); assert(it && /батарейку/.test(it.l), 'біля 🔋 F — «Взяти батарейку»'); it.fn(); step(.05);
   assert(me().bs === 1 && !N.ST.bats.includes(3), 'батарейку взяв про запас');
   go(F.ITEMS[5]); it = T.getInteract(); assert(it && /шот/.test(it.l), 'біля 🧪 F — «Взяти неоновий шот»'); it.fn(); step(.05); assert(me().sh === 3, 'шотів: 3');
-  me().b = .5; step(1); assert(me().b === 0 && me().l === 0, 'батарейка сіла — ліхтарик погас');
+  me().b = .5; step(1); assert(me().b > 99 && me().bs === 0 && me().l === 1, 'батарейка сіла — запасну вставлено автоматично');
+  me().b = .5; step(1); assert(me().b === 0 && me().l === 0, 'запасних нема — ліхтарик погас');
   me().b = 100; me().l = 1;
 }
 /* ---------- 3. Зомбі: на світлі завмирає, у темряві підкрадається ---------- */
@@ -258,15 +266,15 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
   assert(N.ST.nx === 0, 'по колу — знову 42');
   startNight(0); const f = N.FLOORS[0]; N.ST.en.length = 0;
   // ☕ лікувальна кава
-  assert((me().cf | 0) === 0 && T.MODEBAR.slots[4].count() === 0, 'кави на початку нема (☕ 0)');
+  assert((me().cf | 0) === 0 && T.MODEBAR.slots[7].count() === 0, 'кави на початку нема (☕ 0)');
   go(f.COFFEE); let it = T.getInteract(); assert(it && /Зварити лікувальну каву/.test(it.l), 'на кухні біля кавомашини F — «Зварити лікувальну каву»');
   it.fn(); step(1); assert((me().cf | 0) === 0 && N.V.act && N.V.act.what === 'brew' && N.AU.brew.me > 0, 'вариться (кавомашина гуде — шум для прибиральника)');
   step(2.4); assert(me().cf === 1, "за 3 с — ☕ 1");
-  T.getInteract().fn(); step(3.4); assert(me().cf === 2 && T.MODEBAR.slots[4].count() === 2, '☕ 2 — лічильник у наборі режиму');
+  T.getInteract().fn(); step(3.4); assert(me().cf === 2 && T.MODEBAR.slots[7].count() === 2, '☕ 2 — лічильник у наборі режиму');
   it = T.getInteract(); assert(it && /вдосталь/.test(it.l), 'більше двох не звариш');
-  T.pl.hp = 10; go({ x: f.cx - 9, z: f.cz }); T.keydown('Digit5'); step(.1); assert(me().cf === 1 && T.pl.hp > 10, `5 — випив: здоров'я ${T.pl.hp}`);
-  me().d = 1; me().l = 0; step(.5); assert(N.ST.on && /5/.test(N.goal().txt) && /кави/.test(T.getInteract().l), 'лежиш, але є ☕ — зміна триває, підказка «5 — підведись сам»');
-  T.keydown('Digit5'); step(.1); assert(!me().d && me().cf === 0 && me().g > 0, 'ковтнув кави — підвівся сам');
+  T.pl.hp = 10; go({ x: f.cx - 9, z: f.cz }); T.keydown('Digit8'); step(.1); assert(me().cf === 1 && T.pl.hp > 10, `8 — випив: здоров'я ${T.pl.hp}`);
+  me().d = 1; me().l = 0; step(.5); assert(N.ST.on && /<b>8<\/b>/.test(N.goal().txt) && /кави/.test(T.getInteract().l), 'лежиш, але є ☕ — зміна триває, підказка «8 — підведись сам»');
+  T.keydown('Digit8'); step(.1); assert(!me().d && me().cf === 0 && me().g > 0, 'ковтнув кави — підвівся сам');
   me().cf = 1; N.ST.pl['Кент'] = { b: 50, l: 0, d: 1, h: 0, a: 0, g: 0, dr: 0, tk: 0, sh: 0, bs: 0, sg: 0, rt: 0, cf: 0 };
   N.onReq({ k: 'coffee', who: 'Кент' }, { id: 0, name: 'me' }); assert(!N.ST.pl['Кент'].d && me().cf === 0, 'кент лежить поруч — напоїв його кавою, підвівся');
   delete N.ST.pl['Кент'];
@@ -290,13 +298,13 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
   // 🍸 коктейль нічного бачення
   {
     const ck = N.ST.cks; assert(ck.length >= 1 && ck.length <= 2 && ck.every(i => !N.ST.bats.includes(i) && !N.ST.shp.includes(i)), `на поверсі ${ck.length} 🍸 (1–2 за ніч, окремо від 🔋 і 🧪)`);
-    const sl = T.MODEBAR.slots[5]; assert(sl && sl.ic === '🍸' && sl.count() === 0 && (me().nc | 0) === 0, 'у наборі режиму слот 🍸 (6), спершу 0');
-    T.keydown('Digit6'); step(.05); assert(!(me().nv > 0), 'без коктейлю 6 нічого не дає');
+    const sl = T.MODEBAR.slots[8]; assert(sl && sl.ic === '🍸' && sl.count() === 0 && (me().nc | 0) === 0, 'у наборі режиму слот 🍸 (9), спершу 0');
+    T.keydown('Digit9'); step(.05); assert(!(me().nv > 0), 'без коктейлю 9 нічого не дає');
     const i = ck[0]; go(N.ITEMS[i]); let it2 = T.getInteract(); assert(it2 && /коктейль нічного бачення/.test(it2.l), 'біля зеленого келиха F — «Взяти коктейль нічного бачення»');
     it2.fn(); step(.05); assert(me().nc === 1 && !N.ST.cks.includes(i) && sl.count() === 1, '🍸 +1 у кишені, келих зник з підлоги');
     go({ x: f.cx - 9, z: f.cz }); step(.1); assert(N.V.darkA > .8 && N.nvK() === 0, `без нічного бачення — темно (${N.V.darkA})`);
-    T.keydown('Digit6'); step(.1);
-    assert(me().nc === 0 && me().nv > 4 && N.nvK() > .9 && N.V.darkA < .25, `6 — випив: нічне бачення ${me().nv.toFixed(1)} с, темряву знято (${N.V.darkA.toFixed(2)})`);
+    T.keydown('Digit9'); step(.1);
+    assert(me().nc === 0 && me().nv > 4 && N.nvK() > .9 && N.V.darkA < .25, `9 — випив: нічне бачення ${me().nv.toFixed(1)} с, темряву знято (${N.V.darkA.toFixed(2)})`);
     assert(/👁️/.test(hudTxt()), 'у HUD — 👁️ відлік нічного бачення');
     step(5.2); assert(!(me().nv > 0) && N.nvK() === 0 && N.V.darkA > .8, 'за 5 с нічне бачення минуло — знову темно');
   }
@@ -322,6 +330,129 @@ const F = N.FLOORS[1], L = (x, z) => ({ x: F.cx + x, z: F.cz + z });
   T.keydown('Escape'); step(.05); const b = body().querySelector('[data-mode]:not([data-mode="nightshift"])'); if (b) { b.click(); step(.6); }
   step(.2); assert(!T.MODEBAR || N.floorAt(T.pl.x, T.pl.z) >= 0, 'пішов в інший режим — звичайний хотбар');
   N.endNight(false, 'тест'); step(.1);
+}
+/* ---------- 9. Лобі заповнюється ботами: «готовий» → бот через 4 с, далі кожні 2,5 с → «Усі на місці — старт за 3» ---------- */
+{
+  T.keydown('Escape'); step(.05); body().querySelector('[data-mode="nightshift"]').click(); step(.6);
+  const lbTxt = () => lb() ? lb().textContent : '';
+  assert(lb() && N.ST.ph === 0 && /Чекаємо гравців 1\/5/.test(lbTxt()), 'лобі відкрилось: «Чекаємо гравців 1/5 — натисни «Я готовий», і боти доповнять…»');
+  w.__nightshiftFastLobby = 0; TOASTS.length = 0;   // справжній темп лобі
+  lb().querySelector('.rdy').click(); step(.1);
+  assert(!N.ST.on && N.ST.ph === 1 && /боти доповнять лобі/.test(lbTxt()), '«✅ Я готовий» — НЕ телепорт у раунд: фаза заповнення ботами');
+  step(3.6); assert(N.ST.lp.length === 1 && !N.ST.on, 'перші ~4 с у лобі лише ти');
+  step(.5);
+  const b1 = N.ST.lp.find(q => q[3]);
+  assert(N.ST.lp.length === 2 && b1 && b1[2] === 1 && /^🤖 Бот /.test(b1[0]), `через 4 с приєднався перший бот: «${b1 && b1[0]}» (✅ готовий)`);
+  assert(lb().querySelector('.who').textContent.includes(b1[0]) && /приєднався · 2\/5/.test(lbTxt()) && TOASTS.some(t => t.includes(b1[0] + ' приєднався до лобі')), 'бот — у списку гравців попапу, info «🤖 Бот … приєднався · 2/5» і тост «… приєднався до лобі»');
+  step(2.6); assert(N.ST.lp.length === 3, 'ще 2,5 с — другий бот (3/5)');
+  step(2.5); assert(N.ST.lp.length === 4, 'третій (4/5)');
+  step(2.5); assert(N.ST.lp.length === 5 && N.ST.ph === 2 && /Усі на місці — старт за 3/.test(lbTxt()) && !N.ST.on, 'п’ятий — «Усі на місці — старт за 3», раунд ще не почався');
+  const names = N.ST.lp.filter(q => q[3]).map(q => q[0]);
+  assert(new Set(names).size === 4, 'імена ботів різні: ' + names.join(', '));
+  step(1.1); assert(/старт за 2/.test(lbTxt()), '…старт за 2');
+  step(2.1);
+  assert(N.ST.on && N.ST.bo.map(b => b.k).join() === names.join() && !lb(), 'відлік скінчився — зміна почалась, у ній ТІ САМІ боти, що були в лобі; попап закрито');
+  w.__nightshiftFastLobby = 1;
+}
+/* ---------- 10. 🤖 Боти-кенти в зміні: ходять слідом, світять на зомбі, піднімають, витягають із підвалу ---------- */
+{
+  const f = N.FL; N.ST.en.length = 0; N.AU.calm = 0;
+  assert(N.ST.bo.every(b => N.ST.pl[b.k] && N.ST.pl[b.k].l === 1) && N.V.bots.size === 4, 'у зміні 4 боти з увімкненими ліхтариками (моделі є)');
+  step(3); const far = N.ST.bo.map(b => Math.hypot(b.x - T.pl.x, b.z - T.pl.z)); assert(far.every(d => d < 4.5), 'боти тримаються поруч (' + far.map(d => d.toFixed(1)).join(', ') + ' м)');
+  // ти пішов — боти за тобою
+  const P1 = { x: f.cx - 3.5, z: f.cz }; for (let k = 0; k < 30; k++) { T.pl.x += (P1.x - T.pl.x) * .15; T.pl.z += (P1.z - T.pl.z) * .15; N.V.lastP = null; step(.1); }
+  step(4); assert(N.ST.bo.filter(b => Math.hypot(b.x - T.pl.x, b.z - T.pl.z) < 5).length >= 3, 'пішов коридором — боти пішли слідом');
+  for (const b of N.ST.bo) b.fl = 99;   // (не «трусять» ліхтариком у цьому тесті)
+  me().l = 0; const bb = N.ST.bo[0]; const z = N.addEnemy(0, { x: bb.x + 3.5, z: bb.z }); z.st = 'wander'; step(1.5);
+  assert(z.lit === 1 && N.isBot(N.litBy(z)), `бот побачив зомбі й світить на нього — той завмер (світить «${N.litBy(z)}»)`);
+  N.ST.en.length = 0; me().l = 1;
+  // лежиш — бот підходить і піднімає
+  me().d = 1; me().l = 0; let tm = 0; for (let k = 0; k < 80 && me().d; k++) { step(.1); tm += .1; }
+  assert(!me().d, `ти лежав — 🤖 бот підбіг і підняв тебе за ${tm.toFixed(1)} с`);
+  // затягли в підвал — бот іде до ліфта й тримає виклик
+  const svc = f.SVC[0]; Object.assign(me(), { d: 1, tk: 1, l: 0 }); tm = 0; for (let k = 0; k < 400 && me().tk; k++) { step(.1); tm += .1; }
+  assert(!me().tk && !me().d && Math.hypot(T.pl.x - svc.p.x, T.pl.z - svc.p.z) < 2, `тебе затягли в підвал — бот прийшов до «${svc.n}» і витяг (${tm.toFixed(1)} с)`);
+  // бота хапають — він брикається, а ти можеш посвітити
+  const bt = N.ST.bo[1], s = N.ST.pl[bt.k]; s.g = 0; const zb = N.addEnemy(0, { x: bt.x + .5, z: bt.z }); zb.st = 'chase'; zb.tg = bt.k;
+  for (const b of N.ST.bo) { N.ST.pl[b.k].l = 0; b.fl = 99; } me().l = 0;
+  for (let k = 0; k < 30 && !s.dr; k++) step(.05);
+  assert(s.dr === zb.id && zb.vic === bt.k && N.dragged().some(q => q.k === bt.k), `зомбі схопив бота «${bt.k}» — у підказках «тягнуть!»`);
+  tm = 0; for (let k = 0; k < 100 && s.dr; k++) { step(.1); tm += .1; }
+  assert(!s.dr && !s.d && tm < 8 && (zb.st === 'stun' || zb.st === 'flee'), `бот вибрикався сам за ${tm.toFixed(1)} с, зомбі оглушений`);
+  N.endNight(false, 'тест'); step(.2);
+  assert(!N.ST.bo.length && N.V.bots.size === 0 && !N.AU.lb.length, 'зміна скінчилась — боти пішли додому (моделі прибрано), лобі знову порожнє');
+}
+/* ---------- 11. Кидалки: де брати на кожному поверсі, ✈️ шум кличе зомбі, 🧻 у смітник, 📘 збиває, 🧯 піна, 🍾 вогонь ---------- */
+{
+  N.FLOORS.forEach((f, k) => {
+    const by = t => f.PICK.filter(q => q.t === t).length;
+    assert(by('paper') >= 3 && by('books') >= 2 && by('bin') >= 3 && by('ext') >= 2 && by('molo') >= 2, `${f.n}: місця з кидалками — ✈️ ${by('paper')}, 📘 ${by('books')}, 🧻 ${by('bin')}, 🧯 ${by('ext')}, 🍾 ${by('molo')}`);
+    N.useVar(k); const g = N.grid(), NC = N.NC, seen = new Uint8Array(g.length), s0 = N.cellOf(f.SPAWN.x, f.SPAWN.z), q = [s0]; seen[s0] = 1;
+    for (let h = 0; h < q.length; h++) { const c = q[h], i = c % NC, j = Math.floor(c / NC); for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= NC || jj * NC >= g.length) continue; const n = jj * NC + ii; if (!g[n] && !seen[n]) { seen[n] = 1; q.push(n); } } }
+    const bad = f.PICK.filter(p => !seen[N.cellOf(p.x, p.z)]); assert(!bad.length, `${f.n}: до всіх кидалок можна дійти` + (bad.length ? ': ' + bad.map(p => p.t).join(',') : ''));
+    const acts = [f.COFFEE, f.EXIT, f.ELEC, ...f.CARD_SPOTS, ...f.NOTE_SPOTS, ...f.CABS.map(c => c.s), ...f.SVC.map(c => c.p), ...f.ITEMS];
+    const clash = f.PICK.filter(p => acts.some(a => Math.hypot(a.x - p.x, a.z - p.z) < 1.4)); assert(!clash.length, `${f.n}: кидалки не заступають інших дій F`);
+    assert(N.V.vm[k].picks.length === f.PICK.length && N.V.places[k].filter(P => P.pk).length === f.PICK.length, `${f.n}: у кожного місця — 3D-модель (тумба з папером / шафа / кошик / шафка / візок) і підпис`);
+  });
+  startNight(0); const f = N.FLOORS[0]; N.ST.en.length = 0; me().bk = 0; me().pb = 0; step(.1);
+  assert(N.goal().id && /^pk/.test(N.goal().id) && /✈️ 0 — візьми папір біля принтера/.test(N.goal().txt) && N.V.gArrow.visible, 'на початку зміни, коли кидалок 0: «✈️ 0 — візьми папір біля принтера →» і жовта стрілка');
+  // табличка видно здалеку навіть у темряві
+  { const P = N.V.places[0].find(P => P.pk && N.PICK[+P.id.slice(2)].t === 'books'), q = P.p; go({ x: q.x + 0, z: q.z + 6 }); T.pl.face = 0; me().l = 0; step(.1);
+    assert(P.el.style.opacity === '1' && /Книжкова шафа/.test(P.el.textContent), `підпис «${P.el.textContent}» видно за 6 м у темряві`); me().l = 1; }
+  const sl = i => T.MODEBAR.slots[i];
+  assert(sl(2).ic === '✈️' && sl(2).count() === 0 && /де: принтер/.test(w.document.getElementById('modebar').textContent), 'порожній слот ✈️ підписаний «де: принтер»');
+  TOASTS.length = 0; T.keydown('Digit3'); step(.05);
+  assert(TOASTS.some(t => /Де взяти/.test(t) && /принтер/.test(t)) && N.V.want === 'pp' && /^pk/.test(N.goal().id), '3 без літачків — тост «Де взяти: папір біля принтера», стрілка веде до лотка');
+  const paper = N.PICK.find(q => q.t === 'paper'); go(paper); let it = T.getInteract();
+  assert(it && /скласти літачок \(\+3\)/.test(it.l), `біля лотка з папером: «F — ${it && it.l}»`); it.fn(); step(.05);
+  assert(me().pp === 3 && sl(2).count() === 3 && sl(2).n === 'Літачок' && !N.V.want, 'склав 3 ✈️ — у слоті 3, стрілка «де взяти» зникла');
+  // ✈️ шурхіт кличе зомбі
+  { const P0 = { x: f.cx - 8, z: f.cz }, Z0 = { x: f.cx - 1, z: f.cz }; go(P0); me().l = 0;
+    const z = N.addEnemy(0, Z0); z.st = 'wander'; step(.05);
+    T.input.aimOk = true; T.input.ax = f.cx + 6; T.input.az = f.cz; T.keydown('Digit3'); step(.05);
+    assert(me().pp === 2 && N.V.fly.some(q => q.k === 'pp'), '3 — кинув літачок туди, куди мишка (летить по дузі)');
+    assert(z.st === 'lure' && Math.abs(z.wx - (f.cx + 6)) < 1, 'зомбі почув шурхіт і пішов туди, де впав літачок');
+    const d0 = Math.hypot(z.x - P0.x, z.z - P0.z); step(1.5); assert(Math.hypot(z.x - P0.x, z.z - P0.z) > d0 + 1.5, 'і віддаляється від тебе');
+    N.ST.en.length = 0; me().l = 1; }
+  // 🧻 папірець у смітник: що далі, то більше 🪙
+  { const bin = N.PICK.find(q => q.t === 'bin'), bi = N.PICK.indexOf(bin); go(bin); it = T.getInteract(); assert(it && /нам’яти паперу \(\+5\)/.test(it.l), 'біля кошика: «F — нам’яти паперу (+5)»'); it.fn(); step(.05);
+    assert(me().pb === 5, '🧻 5');
+    go({ x: bin.m.x, z: bin.m.z - 4 }); const c0 = T.P.coins; T.input.ax = bin.m.x; T.input.az = bin.m.z; TOASTS.length = 0;
+    T.modeBarUse(3); step(1.2);
+    assert(me().pb === 4 && T.P.coins > c0 && TOASTS.some(t => /Папірець у смітник/.test(t)), `4 — папірець у кошик з ~4 м: +${T.P.coins - c0} 🪙`);
+    // ЛКМ, коли слот вибрано, — теж кидок
+    const ev = new w.MouseEvent('pointerdown', { button: 0, bubbles: true }); T.cv.dispatchEvent(ev); step(.05);
+    assert(me().pb === 3, 'ЛКМ (слот 🧻 вибраний) — ще один кидок'); }
+  // 📘 книжка: зомбі, що тягне кента, — відкинутий, кент вільний
+  { const books = N.PICK.find(q => q.t === 'books'); go(books); T.getInteract().fn(); step(.05); assert(me().bk === 2, 'взяв 2 📘 з книжкової шафи');
+    const P0 = { x: f.cx - 8, z: f.cz }; go(P0); const z = N.addEnemy(0, { x: P0.x + 4, z: P0.z }); N.ST.pl['Кент'] = { b: 50, l: 0, d: 1, h: 0, a: 0, g: 0, dr: z.id, tk: 0, sh: 0, bs: 0, sg: 0, rt: 0, cf: 0 };
+    Object.assign(z, { st: 'drag', vic: 'Кент', to: 0 }); const x0 = z.x;
+    T.input.ax = z.x; T.input.az = z.z; T.keydown('Digit5'); step(.05);
+    assert(me().bk === 1 && z.st === 'stun' && z.x > x0 + .8 && !N.ST.pl['Кент'].dr, `5 — книжкою в зомбі: відлетів на ${(z.x - x0).toFixed(1)} м, оглушений, кинув кента`);
+    delete N.ST.pl['Кент']; N.ST.en.length = 0; }
+  // 🧯 вогнегасник: піна конусом відкидає
+  { const ex = N.PICK.find(q => q.t === 'ext'); go(ex); it = T.getInteract(); assert(it && /вогнегасник/.test(it.l), 'біля червоної шафки: «F — взяти вогнегасник»'); it.fn(); step(.05); assert(me().ex === 6, '🧯 6 пшиків');
+    const P0 = { x: f.cx - 8, z: f.cz }; go(P0); const z = N.addEnemy(0, { x: P0.x + 2, z: P0.z }); z.st = 'chase'; z.tg = 'me'; me().g = 5;
+    T.input.ax = P0.x + 4; T.input.az = P0.z; T.keydown('Digit6'); step(.05);
+    assert(me().ex === 5 && (z.st === 'stun') && z.x - P0.x > 3.5, `6 — пшик піною: зомбі відлетів (${(z.x - P0.x).toFixed(1)} м) і оглушений`);
+    N.ST.en.length = 0; me().g = 0; }
+  // 🍾 Молотов: калюжа вогню оглушує, 🧯 гасить
+  { const mo = N.PICK.find(q => q.t === 'molo'); go(mo); it = T.getInteract(); assert(it && /Молотова/.test(it.l), 'біля візка: «F — зібрати коктейль Молотова (+1)»'); it.fn(); step(.05); assert(me().mo === 1, '🍾 1');
+    const P0 = { x: f.cx - 8, z: f.cz }; go(P0); const z = N.addEnemy(0, { x: P0.x + 5, z: P0.z }); z.st = 'wander'; me().l = 0;
+    T.input.ax = z.x; T.input.az = z.z; T.keydown('Digit7'); step(.3);
+    assert(me().mo === 0 && N.ST.fi.length === 1 && N.fireAt(P0.x + 5, P0.z) && z.st === 'stun', '7 — Молотов: калюжа вогню там, де стояв зомбі, — він оглушений');
+    assert(N.V.fi.size === 1, 'вогонь видно (3D-полум’я)');
+    const hp = T.pl.hp; go({ x: N.ST.fi[0].x, z: N.ST.fi[0].z }); step(.5); assert(T.pl.hp < hp && T.pl.hp >= 1 && N.ST.on, 'стоїш у вогні — трохи пече (але не вбиває)');
+    go(P0); T.pl.hp = 9999; z.x = P0.x + 8.5; z.z = P0.z; z.st = 'chase'; z.tg = 'me'; me().g = 0; N.AU.calm = 0; step(1.5);
+    assert(!N.fireAt(z.x, z.z) && z.x > P0.x + 5 + 1.7 && z.x < P0.x + 8.3, `зомбі підійшов до вогню, але крізь нього не йде (${(z.x - P0.x).toFixed(1)} м)`);
+    N.ST.en.length = 0; T.input.ax = N.ST.fi[0].x; T.input.az = N.ST.fi[0].z; go({ x: P0.x + 2, z: P0.z }); T.keydown('Digit6'); step(.3);
+    assert(!N.ST.fi.length && me().ex === 4, '🧯 загасив калюжу'); step(.1); assert(N.V.fi.size === 0, 'полум’я зникло');
+  }
+  // з повною кишенею — не бере
+  { me().mo = 2; const mo = N.PICK.find(q => q.t === 'molo'); go(mo); it = T.getInteract(); assert(it && /уже повно/.test(it.l), 'більше максимуму не береш (🍾 2/2)'); }
+  assert(/✈️ 2/.test(hudTxt()) && /🧯 4/.test(hudTxt()), 'у HUD лічильники кидалок');
+  N.endNight(false, 'тест'); step(.2);
+  assert(!T.MODEBAR && !N.ST.fi.length, 'зміна скінчилась — звичайний хотбар, вогонь зник');
 }
 // контури ворогів: без ліхтаря далеко — не видно; поруч — «чуття небезпеки»; після ліхтаря — світиться кілька секунд
 { const NS = w.__nightshift;

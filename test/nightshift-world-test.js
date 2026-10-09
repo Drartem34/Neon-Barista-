@@ -12,6 +12,8 @@ for (const f of ['start.py']) fs.copyFileSync(path.join(root, f), path.join(tmpR
 for (const d of ['dist', 'src', 'server']) fs.cpSync(path.join(root, d), path.join(tmpRoot, d), { recursive: true });
 fs.symlinkSync(path.join(root, 'node_modules'), path.join(tmpRoot, 'node_modules'));
 fs.cpSync(path.join(root, 'addons/_examples/nightshift'), path.join(tmpRoot, 'addons/nightshift'), { recursive: true });
+// тестові прапорці (і на сервері, і в гравців): лобі доповнюється ботами кожні 0,2 с; боти йдуть зі зміни через 5 с (далі — старий сценарій на двох)
+{ const f = path.join(tmpRoot, 'addons/nightshift/addon.js'); fs.writeFileSync(f, 'window.__nightshiftFastLobby = 1; window.__nightshiftBotsOut = 5;\n' + fs.readFileSync(f, 'utf8')); }
 const srv = spawn('python3', [path.join(tmpRoot, 'start.py'), '--no-ui', '--tunnel', 'none', '--port', String(PORT)], { stdio: 'ignore' });
 function cleanup(code) { if (code && process.env.NS_LOG) try { for (const f of fs.readdirSync(path.join(tmpRoot, 'logs'))) console.error(fs.readFileSync(path.join(tmpRoot, 'logs', f), 'utf8').split('\n').filter(l => /VOTE|rror|аддон/i.test(l)).slice(-30).join('\n')); } catch (e) { } try { srv.kill(); } catch (e) { } try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (e) { } process.exit(code); }
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); cleanup(1); } console.log('ok -', m); };
@@ -64,15 +66,27 @@ const tp = (T, p, dx = 0, dz = 0) => { T.pl.x = p.x + dx; T.pl.z = p.z + dz; T.p
   cardOf(b, 0).click(); await tick(AB, 1.5);
   assert(F.ST.vt[2] === 1 && F.ST.vt[0] === 1 && G.ST.vt[0] === 1, 'Батарейка передумала (42) — 1:1, бачать обоє');
   cardOf(b, 2).click(); await tick(AB, 1.5); assert(F.ST.vt[2] === 2 && F.ST.nx === 2, 'повернулась на 63 — знову 63');
-  rdyOf(a).click(); await tick(AB, 1.5);
-  assert(!F.ST.on && G.ST.lp.some(q => q[0] === a.name && q[2] === 1) && /Старт за \d+ с/.test(lbOf(b).textContent), 'Ліхтар готовий — Батарейка бачить ✅ і відлік автостарту, ніч ще не почалась');
-  rdyOf(b).click(); await tick(AB, 1.5);
-  assert(F.ST.on && G.ST.on && F.ST.v === 2 && G.ST.v === 2 && F.ST.en.length >= 4, `обоє готові — ніч почалась в обох на 63-му (рахує сервер), зомбі: ${F.ST.en.length}`);
+  rdyOf(a).click(); await tick(AB, .25);
+  for (let k = 0; k < 40 && G.ST.lp.length < 5; k++) await tick(AB, .25);
+  const botsL = G.ST.lp.filter(q => q[3]).map(q => q[0]);
+  assert(!F.ST.on && G.ST.lp.some(q => q[0] === a.name && q[2] === 1) && botsL.length === 3 && botsL.every(n => /^🤖 Бот /.test(n)) && F.ST.lp.filter(q => q[3]).map(q => q[0]).join() === botsL.join(),
+    `Ліхтар готовий — лобі доповнили боти до 5 (${botsL.join(', ')}), бачать обоє; ніч ще не почалась (Батарейка не готова)`);
+  assert(AB.every(T => botsL.every(n => lbOf(T).querySelector('.who').textContent.includes(n))) && /чекаємо, поки всі будуть готові/.test(lbOf(b).textContent), 'боти — у списку гравців попапу в обох; info «Усі на місці — чекаємо, поки всі будуть готові»');
+  rdyOf(b).click();
+  for (let k = 0; k < 40 && !(F.ST.on && G.ST.on); k++) await tick(AB, .25);
+  assert(F.ST.on && G.ST.on && F.ST.v === 2 && G.ST.v === 2 && F.ST.en.length >= 4, `обоє готові — «старт за 3» — ніч почалась в обох на 63-му (рахує сервер), зомбі: ${F.ST.en.length}`);
   assert(!lbOf(a) && !lbOf(b), 'попап лобі закрився в обох');
+  assert(F.ST.bo.map(q => q.k).join() === botsL.join() && G.ST.bo.map(q => q.k).join() === botsL.join(), 'у зміні ті самі 3 боти, що й у лобі (бачать обоє)');
+  await tick(AB, 1);
+  { const md = Math.max(...F.ST.bo.map(q => { const o = G.ST.bo.find(r => r.k === q.k); return o ? Math.hypot(o.x - q.x, o.z - q.z) : 99; }));
+    assert(md < 1.2 && a.w.__nightshift.V.bots.size === 3 && b.w.__nightshift.V.bots.size === 3 && F.ST.bo.every(q => F.ST.pl[q.k] && F.ST.pl[q.k].l === 1),
+      `боти-кенти з ліхтариками в обох на тих самих місцях (розбіжність ${md.toFixed(2)})`); }
+  for (let k = 0; k < 40 && (F.ST.bo.length || G.ST.bo.length); k++) await tick(AB, .25);
+  assert(!F.ST.bo.length && !G.ST.bo.length, '(тест) боти пішли зі зміни — далі сценарій на двох');
   let it;
   const FL = G.FLOORS[2];
   assert(AB.every(T => T.w.__nightshift.floorAt(T.pl.x, T.pl.z) === 2) && G.CUR === 2 && F.CUR === 2, 'обох перенесло на 63-й поверх');
-  assert(a.MODEBAR && b.MODEBAR && a.MODEBAR.slots.length === 6, 'в обох набір режиму 🔦🧪🔋📻☕🍸');
+  assert(a.MODEBAR && b.MODEBAR && a.MODEBAR.slots.length === 9, 'в обох набір режиму 🔦🧪✈️🧻📘🧯🍾☕🍸');
   // спільні вороги
   await tick(AB, 1.5);
   {
@@ -94,10 +108,22 @@ const tp = (T, p, dx = 0, dz = 0) => { T.pl.x = p.x + dx; T.pl.z = p.z + dz; T.p
     }
     assert(it && /коктейль нічного бачення/.test(it.l), 'Батарейка біля келиха: F — «Взяти коктейль нічного бачення»' + (it && /коктейль/.test(it.l) ? '' : ' ' + JSON.stringify({ it: it && it.l, a: G.ST.pl[a.name], b: G.ST.pl[b.name] }))); it.fn(); await tick(AB, .6);
     assert(G.ST.pl[b.name].nc === 1 && F.ST.pl[b.name].nc === 1 && !F.ST.cks.includes(ci), 'у Батарейки 🍸 1 — келих зник в обох');
-    b.keydown('Digit6'); await tick(AB, .6);
+    b.keydown('Digit9'); await tick(AB, .6);
     assert(G.ST.pl[b.name].nc === 0 && G.ST.pl[b.name].nv > 3 && G.nvK() > .9 && F.nvK() === 0, 'Батарейка випила: у неї нічне бачення, у Ліхтаря — ні');
     for (let k = 0; k < 30 && G.ST.pl[b.name].nv > 0; k++) await tick(AB, .25);
     assert(!(G.ST.pl[b.name].nv > 0) && G.nvK() === 0, 'за 5 с нічне бачення минуло');
+  }
+  // ✈️ кидалки рахує сервер: Батарейка складає літачки біля лотка з папером і кидає — бачать обоє
+  {
+    guards = [a, b]; const pq = G.PICK.find(q => q.t === 'paper'), pi = G.PICK.indexOf(pq);
+    for (let r = 0; r < 4; r++) { tp(b, pq); tp(a, pq, 1, 0); await tick(AB, .4); it = b.getInteract(); if (it && /скласти літачок/.test(it.l)) break; for (let k = 0; k < 50 && G.ST.pl[b.name].dr; k++) { b.keydown('Space'); await tick(AB, .1); } }
+    assert(it && /скласти літачок \(\+3\)/.test(it.l), 'Батарейка біля лотка з папером: «F — скласти літачок (+3)»'); it.fn(); await tick(AB, .6);
+    assert(G.ST.pl[b.name].pp === 3 && F.ST.pl[b.name].pp === 3, 'у Батарейки ✈️ 3 — бачать обоє (рахує сервер)');
+    b.input.aimOk = true; b.input.ax = pq.x + 5; b.input.az = pq.z; b.keydown('Digit3'); let fl = false;
+    for (let k = 0; k < 10 && !fl; k++) { await tick(AB, .1); fl = a.w.__nightshift.V.fly.some(q => q.k === 'pp'); }
+    await tick(AB, .4);
+    assert(G.ST.pl[b.name].pp === 2 && F.ST.pl[b.name].pp === 2 && fl, 'Батарейка кинула літачок: ✈️ 2, Ліхтар бачить, як він летить');
+    b.input.aimOk = false; guards = [];
   }
   // 💢 Батарейку хапають — вона сама вирветься (F / Пробіл часто-часто); сервер оглушує зомбі, бачать обоє
   {

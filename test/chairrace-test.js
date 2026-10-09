@@ -76,13 +76,33 @@ assert(lob(), 'F — попап знову відкрито');
 lob().querySelector('.hide').click(); step(.1); T.openPanel('ax_chairrace'); step(.05);
 { const btn = body().querySelector('[data-cr="lobby"]'); assert(btn, 'у вкладці «🪑 Гонки» є кнопка «🗳️ Лобі»'); btn.click(); step(.1); assert(lob() && !T.panel, 'кнопка «🗳️ Лобі» відкрила попап'); }
 R.AU.noBotArms = true;   // у тесті боти не кидаються бомбами (передбачуваність)
-// «Я готовий» — офлайн старт одразу, боти займають місця, попап закривається
+const TOASTS = []; { const tb = $('#toasts'), ap = tb.appendChild; tb.appendChild = function (el) { TOASTS.push(el.innerHTML); return ap.call(this, el); }; }   // запис тостів (вони зникають миттєво)
+// ✈️ лоток з папером біля принтера в холі: F — +3 літачки на старт
+{ const sx = T.pl.x, sz = T.pl.z, V2 = R.VARS[2]; T.pl.x = V2.TRAY.x + .8; T.pl.z = V2.TRAY.z + .6; step(.1);
+  const lb = R.V.paperLbl[2].find(o => o.tray);
+  assert(lb && lb.e.style.display !== 'none' && /Папір для літачків/.test(lb.e.textContent), 'у холі біля принтера видно табличку «✈️ Папір для літачків»');
+  const it = T.getInteract(); assert(it && /F — скласти літачок \(\+3\)/.test(it.l), 'біля лотка: «✈️ F — скласти літачок (+3)»'); it.fn(); step(.05);
+  assert(R.V.prePlanes === R.PLANE_PRE && /3\/3/.test(lb.e.textContent) && /Уже/.test(T.getInteract().l), `склав ${R.PLANE_PRE} літачки на старт — більше не дає`);
+  T.pl.x = sx; T.pl.z = sz; step(.1); }
+// «Я готовий» — лобі заповнюється ботами по одному (реальний темп: 4 с, далі кожні 2,5 с), потім «Старт за 3…2…1»
+const info = () => lob().querySelector('.row span').textContent, who = () => lob().querySelector('.who').textContent;
 lob().querySelector('.rdy').click(); step(.1);
-assert(R.ST.ph === 'count' && R.ST.racers.length === 4 && R.RC.on, '«Я готовий» — одразу відлік, боти зайняли місця, я в кріслі');
+assert(R.ST.ph === 'lobby' && R.ST.lob === 'fill' && !R.RC.on && lob() && /Чекаємо гравців 1\/5/.test(info()) && /боти доповнять/.test(info()), `«Я готовий» — не стартує одразу, лобі заповнюється: «${info()}»`);
+step(3.5); assert(!R.ST.racers.some(r => r.bot), 'перші 4 с бот ще не прийшов');
+step(.6); assert(R.ST.racers.filter(r => r.bot).length === 1 && /🤖 Бот Кент/.test(who()) && /✅ 🤖 Бот Кент/.test(who()) && /Бот Кент приєднався · 2\/5/.test(info()) && TOASTS.some(t => /🤖 Бот Кент приєднався до лобі/.test(t)), `через 4 с прийшов перший бот: у списку «✅ 🤖 Бот Кент», тост і «${info()}»`);
+// передумав — боти розходяться; знову готовий — заповнення спочатку
+lob().querySelector('.rdy').click(); step(.1); assert(R.ST.ph === 'idle' && !R.ST.racers.length && !/🤖/.test(who()), '«Не готовий» — лобі розійшлось, ботів нема');
+lob().querySelector('.rdy').click(); step(.1); assert(R.ST.ph === 'lobby' && R.ST.lob === 'fill', 'знову «Я готовий» — заповнення спочатку');
+step(6.6); assert(R.ST.racers.filter(r => r.bot).length === 2 && /Бот Віта приєднався · 3\/5/.test(info()), `другий бот через 2,5 с: «${info()}»`);
+step(5.1); assert(R.ST.racers.length === 5 && R.ST.lob === 'go' && /Усі на місці — старт за [123]/.test(info()) && R.ST.ph === 'lobby' && lob(), `лобі повне 5/5 (${R.ST.racers.map(r => r.k).join(', ')}) — «${info()}»`);
+const lobbyBots = R.ST.racers.filter(r => r.bot).map(r => r.k).join();
+step(3.1);
+assert(R.ST.ph === 'count' && R.ST.racers.length === 5 && R.RC.on && R.ST.racers.filter(r => r.bot).map(r => r.k).join() === lobbyBots, '«Старт за 3…2…1» минув — 5 учасників, у заїзді ті самі боти, що прийшли в лобі, я в кріслі');
 assert(!lob(), 'заїзд почався — попап закрито');
 assert(R.floorAt(T.pl.x, T.pl.z) === 2 && R.ST.v === 2, 'гра перенесла на поверх 63 (не трасу за замовчуванням)');
 const mb = $('#modebar');
-assert(mb && !mb.hidden && /💣/.test(mb.textContent) && /🪠/.test(mb.textContent) && /🧯/.test(mb.textContent) && /🍾/.test(mb.textContent) && $('#weapon').hidden && $('#drinks').hidden, 'хотбар режиму: 💣 Бомба, 🪠 Вантуз, 🧯 Вогнегасник, 🍾 Молотов (звичайна зброя й напої сховані)');
+assert(mb && !mb.hidden && /💣/.test(mb.textContent) && /🪠/.test(mb.textContent) && /🧯/.test(mb.textContent) && /🍾/.test(mb.textContent) && /✈️/.test(mb.textContent) && mb.querySelectorAll('[data-ms]').length === 5 && $('#weapon').hidden && $('#drinks').hidden, 'хотбар режиму: 💣 Бомба, 🪠 Вантуз, 🧯 Вогнегасник, 🍾 Молотов, ✈️ Літачок (звичайна зброя й напої сховані)');
+assert(R.RC.planes === R.PLANE_START + R.PLANE_PRE && R.V.prePlanes === 0, `✈️ на старті ${R.RC.planes} літачки (1 + ${R.PLANE_PRE} з лотка в холі)`);
 assert(R.RC.foam === R.FOAM_START && R.RC.molly === 1, `на старті ${R.FOAM_START} с піни у вогнегаснику й 1 коктейль Молотова`);
 assert(R.RC.bombs === 2, 'на старті 2 бомби');
 step(4); assert(R.ST.ph === 'race', 'ПОЇХАЛИ!');
@@ -93,7 +113,9 @@ assert(Math.hypot(R.RC.x - x0, R.RC.z - z0) > 6 && R.RC.lap === 0, `крісло
 // стіна траси не випускає
 { const p = R.TR[R.RC.idx]; R.RC.x += -p.dz * 6; R.RC.z += p.dx * 6; T.pl.x = R.RC.x; T.pl.z = R.RC.z; step(.05); const q = R.TR[R.RC.idx]; const lat = Math.abs(-(R.RC.x - q.x) * q.dz + (R.RC.z - q.z) * q.dx); assert(lat < 2.8 || R.RC.sc, 'борти траси не випускають з траси'); }
 const put = (i, o = 0) => { const p = R.TR[i % R.N]; R.RC.x = p.x - p.dz * o; R.RC.z = p.z + p.dx * o; R.RC.idx = i % R.N; R.RC.prev = R.RC.idx; R.RC.h = Math.atan2(p.dz, p.dx); R.RC.spin = 0; R.RC.slip = 0; R.RC.slow = 0; R.RC.pull = null; T.pl.x = R.RC.x; T.pl.z = R.RC.z; return p; };
-const far = () => R.ST.racers.filter(r => r.bot).forEach((b, k) => { const q = R.TR[(R.RC.idx + R.N / 2 + k * 6) % R.N | 0]; b.x = q.x; b.z = q.z; b.idx = (R.RC.idx + R.N / 2 + k * 6) % R.N | 0; b.prevIdx = b.idx; b.v = 0; });
+// коробки «?» прибрано на 30 с (щоб випадкова коробка не підмішала піну/предмет у перевірку)
+const noBoxes = () => R.ST.boxes.forEach((b, i) => b.forEach((_, s) => { b[s] = 0; R.AU['box' + i + '_' + s] = 30; }));
+const far = () => R.ST.racers.filter(r => r.bot).forEach((b, k) => { b.item = ''; b.jetT = 0; const q = R.TR[(R.RC.idx + R.N / 2 + k * 6) % R.N | 0]; b.x = q.x; b.z = q.z; b.idx = (R.RC.idx + R.N / 2 + k * 6) % R.N | 0; b.prevIdx = b.idx; b.v = 0; });
 // предмети
 put(R.N * .3 | 0); far();
 R.RC.item = 'coffee'; R.useItem(); assert(R.RC.boost > 1 && !R.RC.item, '☕ кава — прискорення');
@@ -113,7 +135,7 @@ R.RC.item = 'tea'; R.useItem(); step(.05); assert(R.ST.racers.some(r => r.bot &&
   assert(pulled && bot.slow > 0 && Math.hypot(R.RC.x - sx, R.RC.z - sz) > 4 && R.RC.plCd > 0, '🪠 вантуз зачепив бота: мене смикнуло вперед, бота пригальмувало, перезарядка');
   T.keydown('Digit2'); assert(R.V.plungers.length === 0, 'на перезарядці вантуз не стріляє'); }
 // 🧯 вогнегасник-реактив: 3 — тяга вперед, піна витрачається, білий шлейф; скінчилась — вимикається
-{ const p = put(R.N * .3 | 0); far(); R.RC.v = 3; R.RC.boost = 0; const sx = R.RC.x, sz = R.RC.z;
+{ noBoxes(); const p = put(R.N * .3 | 0); far(); R.RC.v = 3; R.RC.boost = 0; const sx = R.RC.x, sz = R.RC.z;
   T.keydown('Digit3'); assert(R.RC.jet && R.ST.racers.find(r => r.k === 'me').jet === 1, '3 — увімкнув 🧯 реактивну піну (сервер/автор бачить прапорець jet)');
   T.input.jx = p.dx; T.input.jz = p.dz; step(.4); T.input.jx = T.input.jz = 0;
   const c = R.V.chairs.get('me');
@@ -124,7 +146,7 @@ R.RC.item = 'tea'; R.useItem(); step(.05); assert(R.ST.racers.some(r => r.bot &&
   assert(!R.RC.jet && R.RC.foam === 0 && f0 > 0, 'піна скінчилась — реактив вимкнувся сам');
   T.keydown('Digit3'); assert(!R.RC.jet, 'без піни 3 не вмикає реактив'); }
 // 🍾 коктейль Молотова: 4 — пляшка дугою, на трасі палає калюжа; бот у ній крутиться й обпалюється
-{ const bot = R.ST.racers.filter(r => r.bot)[1]; const p = put(R.N * .3 | 0); far(); R.RC.v = 0; R.ST.fires.length = 0; bot.x = R.RC.x + p.dx * 7; bot.z = R.RC.z + p.dz * 7; bot.spin = 0; bot.slow = 0; bot.burn = 0; bot.burnCd = 0; bot.v = 0; bot.idx = R.nearIdx(bot.x, bot.z); bot.prevIdx = bot.idx;
+{ noBoxes(); const bot = R.ST.racers.filter(r => r.bot)[1]; const p = put(R.N * .3 | 0); far(); R.RC.v = 0; R.ST.fires.length = 0; bot.x = R.RC.x + p.dx * 7; bot.z = R.RC.z + p.dz * 7; bot.spin = 0; bot.slow = 0; bot.burn = 0; bot.burnCd = 0; bot.v = 0; bot.idx = R.nearIdx(bot.x, bot.z); bot.prevIdx = bot.idx;
   const bx = bot.x, bz = bot.z; T.keydown('Digit4'); assert(R.RC.molly === 0 && R.V.bombs.length === 1, '4 — кинув коктейль Молотова (пляшка летить)');
   for (let i = 0; i < 30 && !R.ST.fires.length; i++) { bot.x = bx; bot.z = bz; bot.v = 0; step(.05); }
   const f = R.ST.fires[0]; assert(f && Math.hypot(f.x - bx, f.z - bz) < 1 && R.V.fires.size === 1, `🔥 пляшка розбилась — на трасі палає калюжа (${R.ST.fires.length}), видно полум'я`);
@@ -146,7 +168,7 @@ R.RC.item = 'tea'; R.useItem(); step(.05); assert(R.ST.racers.some(r => r.bot &&
   R.AU.forceItem = 'molly'; R.ST.boxes[1] = [1, 1, 1]; const m0 = R.RC.molly; put(R.ITEM_SPOTS[1]); far(); step(.2); assert(R.RC.molly === m0 + 1, '🍾 коробка «?» — ще один коктейль Молотова');
   R.AU.forceItem = null; }
 // коробка з предметом
-{ R.RC.item = ''; const b0 = R.RC.bombs, f0 = R.RC.foam, m0 = R.RC.molly; R.ST.boxes[1] = [1, 1, 1]; put(R.ITEM_SPOTS[1]); far(); step(.2); assert(R.RC.item || R.RC.bombs > b0 || R.RC.foam > f0 || R.RC.molly > m0, `коробка «?» дала: ${R.RC.item || (R.RC.bombs > b0 ? '💣 бомбу' : R.RC.foam > f0 ? '🧯 піну' : '🍾 пляшку')}`); }
+{ R.RC.item = ''; const b0 = R.RC.bombs, f0 = R.RC.foam, m0 = R.RC.molly, p0 = R.RC.planes; R.ST.boxes[1] = [1, 1, 1]; put(R.ITEM_SPOTS[1]); far(); step(.2); assert(R.RC.item || R.RC.bombs > b0 || R.RC.foam > f0 || R.RC.molly > m0 || R.RC.planes > p0, `коробка «?» дала: ${R.RC.item || (R.RC.bombs > b0 ? '💣 бомбу' : R.RC.foam > f0 ? '🧯 піну' : R.RC.molly > m0 ? '🍾 пляшку' : '✈️ літачки')}`); }
 // 💦 калюжа — ковзає
 { const q = R.VV.PUD[1]; put(R.nearIdx(q.x, q.z)); far(); R.RC.x = q.x; R.RC.z = q.z; T.pl.x = q.x; T.pl.z = q.z; step(.05); assert(R.RC.slip > 0, '💦 калюжа прибиральниці — крісло ковзає'); }
 // 💨 дрифт-буст: накопичений дрифт на прямій перетворюється на прискорення
@@ -160,6 +182,24 @@ R.RC.item = 'tea'; R.useItem(); step(.05); assert(R.ST.racers.some(r => r.bot &&
   const tryCut = open => { const p = put(S.ia); R.RC.x = (S.x0 + S.x1) / 2; T.pl.x = R.RC.x; R.RC.h = Math.PI / 2; R.RC.v = 7; R.ST.t = open ? 18.2 : 23; for (let i = 0; i < 26; i++) { T.input.jx = 0; T.input.jz = 1; step(.05); if (open) R.ST.t = 18.2; else R.ST.t = 23; } T.input.jz = 0; return R.RC.z; };
   const zOpen = tryCut(true); assert(Math.abs(zOpen - S.bz) < 2.2 && Math.abs(R.RC.idx - S.ib) < 8, `відчинені пожежні двері — зріз у другий ряд (idx ${R.RC.idx} ≈ ${S.ib})`);
   const zShut = tryCut(false); assert(Math.abs(zShut - R.TR[S.ia].z) < 2.4, 'зачинені двері — крісло лишається в коридорі'); cl.x -= 100; }
+// ✈️ паперовий літачок: 5 — летить уперед, влучив у бота — той пригальмував
+{ const bot = R.ST.racers.filter(r => r.bot)[3]; const p = put(R.N * .3 | 0); far(); R.RC.v = 0; bot.x = R.RC.x + p.dx * 6; bot.z = R.RC.z + p.dz * 6; bot.spin = 0; bot.slow = 0; bot.v = 0; bot.idx = R.nearIdx(bot.x, bot.z); bot.prevIdx = bot.idx;
+  const n0 = R.RC.planes, bx = bot.x, bz = bot.z; T.keydown('Digit5'); assert(R.RC.planes === n0 - 1 && R.V.planes.length === 1, '5 — ✈️ запустив літачок (летить)');
+  let maxY = 0; for (let i = 0; i < 20 && !(bot.slow > 0); i++) { bot.x = bx; bot.z = bz; bot.v = 0; if (R.V.planes[0]) maxY = Math.max(maxY, R.V.planes[0].m.position.y); step(.05); }
+  assert(bot.slow > 0 && R.RC.nPlaneHit === 1 && maxY > 1.3, `✈️ літачок пролетів дугою (висота до ${maxY.toFixed(1)}) і влучив у бота — пригальмував`); }
+// ✈️ стос паперу біля бортика: проїхав крізь — +3; табличку видно; кулдаун
+{ const q = R.VV.PAPER[0]; R.RC.planes = 0; R.V.papCd = {}; put(q.i); far(); for (let i = 0; i < 12; i++) { put(q.i); R.RC.v = 0; step(.05); }
+  const lb = R.V.paperLbl[R.ST.v][0]; assert(R.VV.PAPER.length >= 2 && lb.e.style.display !== 'none' && /Папір для літачків/.test(lb.e.textContent), `на трасі ${R.VV.PAPER.length} стоси паперу з табличкою «✈️ Папір для літачків»`);
+  R.RC.x = q.x; R.RC.z = q.z; T.pl.x = q.x; T.pl.z = q.z; R.RC.v = 0; step(.05);
+  assert(R.RC.planes === R.PLANE_PICK && R.V.papCd[0] > 0, `проїхав крізь стос — ✈️ +${R.PLANE_PICK}`);
+  step(.1); assert(R.RC.planes === R.PLANE_PICK && /с$/.test(lb.e.textContent), 'стос на перезарядці — табличка показує секунди, ще раз не дає'); }
+// ✈️ 0: підказка, де взяти; порожній слот — тост
+{ R.RC.planes = 0; R.V.papCd = {}; const q = R.VV.PAPER[1]; put((q.i - 20 + R.N) % R.N); far(); R.RC.item = ''; R.RC.bombs = 0; R.RC.molly = 0; step(.05);
+  assert(/✈️ 0 — стос паперу за ~\d+ м попереду/.test($('#race-goal').textContent), `підказка: «${$('#race-goal').textContent}»`);
+  const sl = $('#modebar [data-ms="4"]'); assert(sl && /де взяти/.test(sl.textContent + sl.title), 'у порожньому слоті ✈️ — «де взяти: стоси паперу…»');
+  T.keydown('Digit5'); assert(TOASTS.some(t => /Літачків нема — проїдь крізь білий стос паперу/.test(t)), 'порожній слот — тост, де взяти папір'); R.RC.bombs = 2; }
+// коробка «?» теж дає літачки
+{ R.RC.item = ''; R.AU.forceItem = 'plane'; R.ST.boxes[2] = [1, 1, 1]; const n0 = R.RC.planes; put(R.ITEM_SPOTS[2]); far(); step(.2); R.AU.forceItem = null; assert(R.RC.planes === n0 + R.PLANE_PICK, '📦 коробка «?» — ✈️ +3 літачки'); }
 // проходимо 3 кола — фініш
 put(R.N - 2); R.RC.lap = 0;
 let guard = 0; const c0 = T.P.coins;
@@ -170,9 +210,12 @@ assert(T.P.coins > c0 && T.P.addons.chairrace.races === 1, `нагорода з�
 assert(!R.RC.on && $('#modebar').hidden && !$('#weapon').hidden, 'після фінішу встаєш з крісла — звичайний хотбар повернувся');
 step(9); assert(R.ST.ph === 'idle' && R.ST.v === 0 && !Object.keys(R.ST.votes).length, 'траса вільна; наступна за замовчуванням — інший поверх (ротація), голоси скинуто');
 // вихід через меню режиму посеред заїзду — хотбар відновлюється
-{ assert(lob() && R.floorAt(T.pl.x, T.pl.z) >= 0, 'після заїзду лобі відкрилось знову'); lob().querySelector('.rdy').click(); step(7); assert(R.RC.on && !$('#modebar').hidden && R.floorAt(T.pl.x, T.pl.z) === 0, 'новий заїзд на поверсі 42 (ротація) — знову в кріслі');
+{ assert(lob() && R.floorAt(T.pl.x, T.pl.z) >= 0, 'після заїзду лобі відкрилось знову'); w.__chairraceFastLobby = 1; lob().querySelector('.rdy').click(); step(7); assert(R.RC.on && !$('#modebar').hidden && R.floorAt(T.pl.x, T.pl.z) === 0, 'новий заїзд на поверсі 42 (ротація) — знову в кріслі');
   R.RC.x = R.RC.x; T.pl.x += 30; step(.1); assert(!R.RC.on && $('#modebar').hidden && R.ST.ph === 'idle', 'перенесло деінде — встав з крісла, хотбар відновлено, заїзд скасовано'); }
 // попап закривається, коли йдеш з режиму
 T.keydown('Escape'); step(.05); body().querySelector('[data-mode="chairrace"]').click(); step(.6);
-assert(lob(), 'знову в лобі — попап відкрився'); T.pl.x += 200; step(.1); assert(!lob(), 'пішов з режиму — попап закрився');
+assert(lob(), 'знову в лобі — попап відкрився'); lob().querySelector('.rdy').click(); step(.5); assert(R.ST.ph === 'lobby' && R.ST.racers.some(r => r.bot), 'знову «Я готовий» — боти заходять');
+T.pl.x += 200; step(.1); assert(!lob(), 'пішов з режиму — попап закрився');
+assert(R.ST.ph === 'idle' && !R.ST.racers.length, 'пішов з режиму посеред заповнення — лобі розійшлось (без телепорту назад у крісло)');
+step(3); assert(!R.RC.on && R.ST.ph === 'idle' && $('#modebar').hidden, 'заїзд без мене не стартував, хотбар звичайний');
 console.log('ALL OK'); process.exit(0);

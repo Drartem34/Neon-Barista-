@@ -10,7 +10,7 @@ class FakeRenderer { constructor() { this.shadowMap = {}; } setPixelRatio() { } 
 w.THREE = Object.assign({}, THREE, { WebGLRenderer: FakeRenderer });
 w.matchMedia = () => ({ matches: false }); w.requestAnimationFrame = () => 0; w.console.warn = () => { }; w.__NO_NET = true; w.__ADDON_TEST = true;
 const IV = []; w.setInterval = (f, ms) => { if (ms <= 100) IV.push(f); return 0; };
-w.setTimeout = f => { f(); return 0; };
+w.setTimeout = (f, ms) => { if (ms === 4600) return 0; f(); return 0; };   // тости лишаються на екрані (видно в перевірках)
 w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
 w.__ADDON_CODE = [{ id: 'printerwar', src: 'printerwar/addon.js', code: fs.readFileSync(path.join(root, 'addons/_examples/printerwar/addon.js'), 'utf8') }];
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
@@ -21,11 +21,12 @@ const step = s => { for (let i = 0; i < s * 60; i++) { now += 16.7; T.frame(now)
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exit(1); } console.log('ok -', m); };
 const body = () => w.document.querySelector('#pbody');
 const W = w.__printer;
+const toasts = () => w.document.getElementById('toasts').textContent;
 assert(T.ADDONS.list.every(a => a.ok), 'аддон завантажився: ' + T.ADDONS.list.map(a => a.name + (a.ok ? '' : ' ✗ ' + a.err)).join(', '));
 const pv = w.document.getElementById('mm-pvp'); pv.click();
 assert(w.document.querySelector('#mm-pvp-pick [data-pm="printerwar"]'), 'PVP у головному меню → «Битва за принтер»');
 w.document.querySelector('#mm-pvp-pick .x').click();
-T.startGame(true); T.P.tut = -1; T.pl.hp = 9999; T.P.addons = T.P.addons || {}; T.P.addons.printerwar = { intro2: 1 }; step(.3);
+T.startGame(true); T.P.tut = -1; T.pl.hp = 9999; T.P.addons = T.P.addons || {}; T.P.addons.printerwar = { intro3: 1 }; step(.3);
 
 // --- три поверхи збудовані: острови, тверді стіни, підлога в межах r, навігація зв'язна
 for (const D of W.VAR) {
@@ -38,6 +39,12 @@ for (const D of W.VAR) {
   assert(!bad.length, `${D.n}: від стенда лобі можна дійти до кнопки тривоги, принтера, серверної, Румби${bad.length ? ' ✗ ' + JSON.stringify(bad) : ''}`);
   const near = c => [0, 1, 2, 3, 4, 5, 6, 7].some(k => { const x = c.x + Math.sin(k * .785) * 1.4, z = c.z + Math.cos(k * .785) * 1.4, N = W.navOf(D), i = Math.floor((x - N.x0) / N.cell), j = Math.floor((z - N.z0) / N.cell); return !N.block[i + j * N.nx] && W.reachable(D, D.board.x, D.board.z - 1.4, x, z); });
   assert(D.cof.length && D.coolers.length && D.pcs.length > 10 && D.cof.every(near) && D.coolers.every(near), `${D.n}: кавомашин ${D.cof.length}, кулерів ${D.coolers.length}, ПК ${D.pcs.length} — до всіх можна підійти`);
+}
+for (const D of W.VAR) {   // ✈️ лотки, 📘 шафи, 🧻 смітники — по кілька на кожному поверсі, до всіх можна підійти
+  const c = k => D.picks.filter(p => p.k === k).length, N = W.navOf(D);
+  const near = s => [0, 1, 2, 3, 4, 5, 6, 7].some(k => { const x = s.x + Math.sin(k * .785) * 1.1, z = s.z + Math.cos(k * .785) * 1.1, i = Math.floor((x - N.x0) / N.cell), j = Math.floor((z - N.z0) / N.cell); return !N.block[i + j * N.nx] && W.reachable(D, D.board.x, D.board.z - 1.4, x, z) && Math.hypot(x - s.x, z - s.z) < 2; });
+  assert(c('pl') >= 3 && c('bk') >= 2 && c('cr') >= 3 && D.picks.every(near) && D.bins.length === c('cr'), `${D.n}: ✈️ лотків ${c('pl')}, 📘 шаф ${c('bk')}, 🧻 смітників ${c('cr')} — до всіх можна підійти`);
+  assert(D.v && D.v.picks && D.v.picks.length === D.picks.length && D.v.picks.every(m => m.parent), `${D.n}: над кожним — плаваючий значок (видно здалеку)`);
 }
 assert(new Set(W.VAR.map(D => D.n)).size === 3 && W.VAR[1].route && W.VAR[2].prn.length === 2, 'три різні поверхи: 42 (статичний), 57 (принтер на колесах), 63 (два принтери)');
 
@@ -53,8 +60,23 @@ step(2); assert(W.ST.ph === 'lobby', 'без «Я готовий» раунд н
 pop().querySelector('.hide').click(); step(.2); assert(!pop() && W.ST.ph === 'lobby', '«Сховати» — вікно закрилось, лобі лишилось');
 assert(/Лобі/.test(w.document.getElementById('printer-goal').innerHTML), 'жовта підказка: як відкрити лобі знову');
 let it = T.getInteract(); assert(it && /Лобі/.test(it.l), 'біля стенда F — «Лобі»'); it.fn(); step(.1); assert(pop(), 'F — вікно лобі знову відкрите');
+// --- лобі заповнюється ботами (справжній час): перший через 4 с, далі кожні 2,5 с, потім «старт за 3…2…1»
+assert(/Чекаємо гравців 1\/5/.test(T.MLOBBY.info), `до «Я готовий»: «${T.MLOBBY.info}»`);
 pop().querySelector('.rdy').click(); step(.1);
-assert(W.ST.ph === 'fight' && W.ST.v === 0 && W.ST.ps.length === 4 && W.ST.ps.filter(p => p.bot).length === 3, 'битва на поверсі 42: я + 3 боти');
+assert(W.ST.ph === 'lobby' && W.ST.fill && W.ST.ps.length === 1 && /боти доповнять/.test(T.MLOBBY.info), `натиснув «Я готовий» — НЕ одразу в бій: лобі заповнюється («${T.MLOBBY.info}»)`);
+step(3.5); assert(W.ST.ph === 'lobby' && W.ST.ps.length === 1, 'через 3,5 с ще жодного бота');
+step(.7); { const b = W.ST.ps[1];
+  assert(W.ST.ps.length === 2 && b && b.bot && b.k === 'Бот Кент' && W.ST.ready[b.k], '~4 с — у лобі приєднався 🤖 Бот Кент (✅ готовий)');
+  assert([...pop().querySelectorAll('.who i')].some(e => /🤖 Бот Кент/.test(e.textContent) && /✅/.test(e.textContent)), 'у списку гравців вікна — «✅ 🤖 Бот Кент»');
+  assert(/🤖 Бот Кент приєднався до лобі/.test(toasts()) && /Бот Кент приєднався · 2\/5/.test(T.MLOBBY.info), `тост «🤖 Бот Кент приєднався до лобі», info «${T.MLOBBY.info}»`); }
+step(2.6); assert(W.ST.ps.length === 3 && W.ST.ph === 'lobby', 'ще 2,5 с — третій учасник');
+step(5.1); assert(W.ST.ps.length === 5 && W.ST.ph === 'lobby' && W.ST.go > 0 && /старт за 3/.test(T.MLOBBY.info), `лобі повне 5/5 — «${T.MLOBBY.info}»`);
+const lobbyBots = W.ST.ps.filter(p => p.bot).map(p => p.k).join();
+step(1.5); assert(W.ST.ph === 'lobby' && /старт за [12]/.test(T.MLOBBY.info), `відлік: «${T.MLOBBY.info}»`);
+step(1.7);
+assert(W.ST.ph === 'fight' && W.ST.v === 0 && W.ST.ps.length === 5 && W.ST.ps.filter(p => p.bot).length === 4, 'битва на поверсі 42: я + 4 боти (разом 5)');
+assert(W.ST.ps.filter(p => p.bot).map(p => p.k).join() === lobbyBots, `у раунді ті самі боти, що були в лобі (${lobbyBots})`);
+w.__printerwarFastLobby = 1;   // далі лобі заповнюється швидко (кроки по 0,2 с)
 assert(!pop() && !T.MLOBBY, 'раунд почався — вікно лобі закрилось');
 assert(T.MODEBAR && T.MODEBAR.slots.length === 7 && !w.document.querySelector('#modebar').hidden && /✈️/.test(w.document.querySelector('#modebar').textContent), 'панель режиму (7): ✈️ літачок / 🫣 / 👊 / 🧯 / 🍾 / ☕ / 💣');
 assert(W.ST.npc.length === 3 && W.ST.npc.every(n => !n.zom && n.ag === 0 && W.varAt(n.x, n.z) === 0) && W.ST.rb, 'на поверсі троє нейтральних колег і Румба на док-станції');
@@ -220,6 +242,42 @@ const putMe = (p, face) => { T.pl.x = p.x; T.pl.z = p.z; T.pl.kx = T.pl.kz = 0; 
 }
 W.ST.npc.forEach(n => { n.zom = 0; n.ag = 0; n.x = D0.board.x; n.z = D0.board.z - 1.4; n.wait = 999; n.wx = null; });
 W.ST.ev = '';
+{ // ======= снаряди треба знайти: ✈️ лоток з папером, 📘 книжкова шафа, 🧻 смітник; кидок дугою; папірець у смітник =======
+  away(); W.ST.npc.forEach(n => { n.x = D0.cx - 16; n.z = D0.cz - 12 + n.id % 3; });
+  me.pl = 0; me.bk = 0; me.cr = 0; step(.05);
+  const bar = () => T.MODEBAR.slots, lbl = i => w.document.querySelectorAll('#modebar .slot')[i];
+  assert(bar().map(s => s.ic).join('') === '✈️📘🧻🧯🍾☕💣' && bar().length <= 8, 'панель: 1 ✈️ · 2 📘 · 3 🧻 · 4 🧯 · 5 🍾 · 6 ☕ · 7 💣');
+  assert(/де: лоток/.test(lbl(0).textContent) && /де: шафа/.test(lbl(1).getAttribute('title')) && /де: смітник/.test(lbl(2).textContent), 'порожній слот підказує, де взяти');
+  const lbls = [...W.V.pickLbl.map(o => o.e.textContent)].join('|'); assert(/✈️ Папір для літачків/.test(lbls) && /📘 Книжкова шафа/.test(lbls) && /🧻 Смітник/.test(lbls), 'над лотками, шафами й смітниками — підписи');
+  putMe(L(-13, 3), Math.PI / 2); T.keydown('Digit2'); step(.05); T.keyup('Digit2'); step(.1);
+  assert(W.V.want && W.V.want.k === 'bk' && /Книжка/.test(toasts()) && /книжкова шафа/.test(toasts()), '2 без книжок — тост «де взяти: книжкова шафа»');
+  const g = W.V.goal; assert(g && g.tg && D0.picks.some(p => p.k === 'bk' && p.x === g.tg.x && p.z === g.tg.z) && W.V.gArrow.visible && /📘 0/.test(w.document.getElementById('printer-goal').innerHTML), 'жовта стрілка й підказка «📘 0 — візьми: книжкова шафа» до найближчої шафи');
+  // ✈️ лоток: F — +3
+  const tray = D0.picks.find(p => p.k === 'pl'); putMe({ x: tray.x + 1, z: tray.z }); step(.05);
+  let it = T.getInteract(); assert(it && /^скласти літачок \(\+3\)/.test(it.l), `біля лотка F — «${it && it.l}»`); it.fn(); step(.1);
+  assert(me.pl === 3 && !/де:/.test(lbl(0).textContent), '✈️ склав 3 літачки');
+  it = T.getInteract(); it.fn(); step(.1); assert(me.pl === 3, 'лоток спорожнів — треба зачекати або йти до іншого');
+  // 📘 шафа: F — +2; книжка в бота — збиває з ніг
+  const bs = D0.picks.find(p => p.k === 'bk'); putMe({ x: bs.x + Math.sin(bs.rot) * 1, z: bs.z + Math.cos(bs.rot) * 1 }); step(.05);
+  it = T.getInteract(); assert(it && /взяти книжку \(\+2\)/.test(it.l), 'біля шафи F — «взяти книжку (+2)»'); it.fn(); step(.1); assert(me.bk === 2 && !W.V.want, '📘 взяв 2 книжки (стрілка «де взяти» зникла)');
+  const b = W.ST.ps.find(p => p.bot); putMe(L(-13, 3), Math.PI / 2); b.x = D0.cx - 9; b.z = D0.cz + 3; b.stun = 0; b.cd = 99; b.vx = b.vz = 0; b.hold = true;
+  T.keydown('Digit2'); step(.05); T.keyup('Digit2');
+  let peak = 0; for (let i = 0; i < 12; i++) { step(.03); for (const f of W.V.proj) peak = Math.max(peak, f.m.position.y); }
+  step(.3); assert(me.bk === 1 && b.stun > .3 && !b.hold, '📘 книжка в бота — збила з ніг, впустив пачку');
+  assert(peak > 1.6, `снаряд летить дугою (висота ${peak.toFixed(2)} м)`);
+  // 🧻 смітник: F — +5; папірець у смітник здалеку — 🪙 і досвід
+  const bin = D0.bins.find(p => Math.hypot(p.x - (D0.cx + 7.4), p.z - (D0.cz - 3.4)) < .1); putMe({ x: bin.x - 1, z: bin.z }); step(.05);
+  it = T.getInteract(); assert(it && /нам'яти паперу \(\+5\)/.test(it.l), 'біля смітника F — «нам\'яти паперу (+5)»'); it.fn(); step(.1); assert(me.cr === 5, '🧻 намʼяв 5 папірців');
+  const c0 = T.P.coins, pg0 = me.pages; putMe({ x: bin.x - 1.2, z: bin.z + 6 }, Math.atan2(1.2, -6)); W.ST.ps.forEach(p => { if (p.bot) { p.x = D0.cx - 16; p.z = D0.cz - 10; } });
+  T.keydown('Digit3'); step(.05); T.keyup('Digit3'); step(1);
+  assert(me.cr === 4 && T.P.coins >= c0 + 2 + 9 && me.pages === pg0 + 1 && /смітник з 6/.test(toasts()), `🧻 папірець у смітник з 6 м: +${T.P.coins - c0} 🪙, +1 📄`);
+  // ЛКМ: поруч нікого — кидає вибране (слот 3 🧻)
+  T.MODEBAR.sel = 2; const cr0 = me.cr; W.V.lmbCd = 0; putMe({ x: bin.x, z: bin.z + 3 }, Math.PI); w.__printer.lmb(); step(.6); assert(me.cr === cr0 - 1, 'ЛКМ із вибраним 🧻 — кинув папірець туди, куди дивлюсь');
+  // папірець у колегу — злість росте
+  const n = W.ST.npc[0]; n.x = D0.cx - 9; n.z = D0.cz + 3; n.ag = 0; n.stun = 9; putMe(L(-13, 3), Math.PI / 2); W.throwKind('cr', 'paper'); step(.6);
+  assert(n.ag >= 15, `🧻 папірцем у колегу — шкала злості ${Math.round(n.ag)}%`);
+  n.x = D0.cx - 16;
+}
 // кінець: набрав 100
 const c0 = T.P.coins; me.pages = W.GOAL - 1;
 for (let i = 0; i < 20 && W.ST.ph === 'fight'; i++) { away(); atPrn(); step(.1); }
@@ -233,7 +291,7 @@ step(9); assert(W.ST.ph !== 'fight' && W.ST.v === 1, 'принт-рум віль
   pop().querySelector('[data-lv="2"]').click(); step(.1);
   assert(W.ST.votes.me === 2 && W.lobbyDef().votes.join() === '0,0,1' && /mine/.test(pop().querySelector('[data-lv="2"]').className) && /🗳️ 1/.test(pop().querySelector('[data-lv="2"]').textContent), '🗳️ клік по картці «63» — голос, лічильник 1');
   T.MLOBBY.onVote(0); step(.1); assert(W.lobbyDef().votes.join() === '1,0,0', 'передумав — голос перейшов на 42');
-  T.MLOBBY.onVote(2); step(.1); T.MLOBBY.onReady(); step(.1); me = W.ST.ps.find(p => p.k === 'me'); assert(W.ST.ph === 'fight' && W.ST.v === 2 && W.varAt(T.pl.x, T.pl.z) === 2, 'голосування: раунд на поверсі 63, мене перенесло туди');
+  T.MLOBBY.onVote(2); step(.1); T.MLOBBY.onReady(); step(2.2); me = W.ST.ps.find(p => p.k === 'me'); assert(W.ST.ph === 'fight' && W.ST.v === 2 && W.varAt(T.pl.x, T.pl.z) === 2, 'голосування: раунд на поверсі 63, мене перенесло туди');
   quiet();
   const A0 = W.prnPos(); assert(W.actIdx(2) === 0 && A0 === W.VAR[2].prn[0], 'поверх 63: працює північний принтер');
   let pg = me.pages; for (let i = 0; i < 15; i++) { away(); atPrn(); step(.1); } assert(me.pages > pg, 'друкую на північному');
@@ -248,7 +306,7 @@ step(9); assert(W.ST.ph !== 'fight' && W.ST.v === 1, 'принт-рум віль
   W.req('leave'); step(.1); assert(W.ST.ph !== 'fight', 'вийшов — раунд скинувся');
 }
 // --- поверх 57: принтер на колесах їде колією, зона їде з ним
-{ W.goPrinter(1); step(.5); assert(W.varAt(T.pl.x, T.pl.z) === 1 && W.ST.ph === 'lobby' && pop(), 'меню: поверх 57, вікно лобі'); T.MLOBBY.onReady(); step(.3); me = W.ST.ps.find(p => p.k === 'me');
+{ W.goPrinter(1); step(.5); assert(W.varAt(T.pl.x, T.pl.z) === 1 && W.ST.ph === 'lobby' && pop(), 'меню: поверх 57, вікно лобі'); T.MLOBBY.onReady(); step(2.2); me = W.ST.ps.find(p => p.k === 'me');
   assert(W.ST.ph === 'fight' && W.ST.v === 1, 'раунд на поверсі 57 (без голосів — поверх, де стоїш)');
   quiet();
   const a = W.prnPos(); step(2); const b = W.prnPos(); assert(Math.hypot(b.x - a.x, b.z - a.z) > 1, `принтер на колесах їде (${Math.hypot(b.x - a.x, b.z - a.z).toFixed(1)} м за 2 с)`);

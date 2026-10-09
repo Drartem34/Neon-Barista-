@@ -1,9 +1,11 @@
-/* Аддон «Гонки на офісних кріслах» v2 (PVP, до 4 гравців + боти).
+/* Аддон «Гонки на офісних кріслах» v2 (PVP, 5 учасників: люди + боти).
    Три траси на високих поверхах хмарочосів у центрі міста:
    «Поверх 42 · Коридори» (коло коридорами між кабінетами), «Поверх 57 · Скляний атріум» (вісімка з перехрестям),
    «Поверх 63 · Колл-центр» (довгий серпантин між рядами операторів + ризикований зріз крізь пожежні двері).
    - Лобі (ліфтовий хол): попап з картинками трас — клік по картці = голос, «✅ Я готовий» — у заїзд.
-     Старт, коли готові всі в лобі (онлайн — ще й самі через 20 с після першого «готовий»). «Сховати» → F у холі або вкладка відкриють знову.
+     Після першого «готовий» лобі заповнюється ботами до 5 учасників (по одному), потім «Старт за 3…2…1»
+     (онлайн неготових чекаємо 25 с). «Сховати» → F у холі або вкладка відкриють знову.
+   - ✈️ Паперові літачки (5): білі стоси паперу біля бортика (проїдь крізь — +3), коробки «?», лоток у холі (F — +3 на старт).
    - У кріслі хотбар порожній, крім двох штук: 💣 Бомба (1 / ЛКМ — кидок дугою вперед або в курсор) і 🪠 Вантуз (2 / ПКМ — чіпляєш суперника попереду й підтягуєшся).
    - 🧯 Вогнегасник (3): реактивна тяга піною назад (WALL-E стайл) — поки є піна; гасить вогонь, по якому їдеш.
    - 🍾 Коктейль Молотова (4): кидок дугою — на трасі кілька секунд горить калюжа; хто в неї в'їде — закрутить, пригальмує й обпалить сідушку.
@@ -11,14 +13,16 @@
    - Свої фішки: дрифт-буст на поворотах, слипстрім за суперником, мокра підлога від прибиральниці, пожежні двері-зріз.
    - 3 кола. Нагорода — за місце. У спільному світі заїзд, боти, бомби й голосування рахує сервер.
    Картинку для меню поклади поруч: addons/chairrace/chairrace-bg.jpg (або menu/chairrace-bg.jpg). */
-const A = Addon.info({ name: 'Гонки на офісних кріслах', version: '2.1', desc: 'PVP-режим: гонки на кріслах на трьох поверхах хмарочосів — бомби, вантузи, вогнегасник-реактив, коктейлі Молотова, дрифт, слипстрім, 3 кола.' });
+const A = Addon.info({ name: 'Гонки на офісних кріслах', version: '2.2', desc: 'PVP-режим: гонки на кріслах на трьох поверхах хмарочосів — бомби, вантузи, вогнегасник-реактив, коктейлі Молотова, паперові літачки, дрифт, слипстрім, 3 кола.' });
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);
-const TW = 5.6, LAPS = 3, MAXR = 4, VMAX = 11, VBOOST = 16, LOB = 7.5, RAD = 3.2;
+const TW = 5.6, LAPS = 3, MAXR = 5, VMAX = 11, VBOOST = 16, LOB = 7.5, RAD = 3.2;
 const BOMB_R = 2.9, HOOK_CD = 4.5, START_BOMBS = 2, MAX_BOMBS = 5;
 // 🧯 вогнегасник-реактив (піна в секундах тяги) і 🍾 коктейль Молотова (палаюча калюжа)
 const JET_V = 21, FOAM_START = 2.5, FOAM_BOX = 2.5, FOAM_MAX = 6, MOLLY_START = 1, MAX_MOLLY = 3, FIRE_R = 1.7, FIRE_T = 6, BURN_T = 4;
+// ✈️ паперові літачки: стоси паперу біля бортика (проїхав крізь — +3), коробки «?», лоток у холі (F — на старт)
+const PLANE_START = 1, PLANE_PICK = 3, PLANE_MAX = 6, PLANE_PRE = 3, PAPER_CD = 8, PLANE_SLOW = 1.8;
 const inR = (R, x, z, m = 0) => x > R.x0 + m && x < R.x1 - m && z > R.z0 + m && z < R.z1 - m;
 const angD = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
@@ -30,7 +34,7 @@ const VARS = [
     B: { x0: -26, x1: 26, z0: -17.2, z1: 18 }, loop: [[-22, -14], [22, -14], [22, -2], [2, -2], [2, 14], [-22, 14]], start: [-8, -14],
     pal: { base: '#C9CDD9', lobby: '#E9E2FA', track: ['#5A6BB5', '#5464AC'], kerb: ['#FFFFFF', '#FF5C7A'], wall: '#ECE6FB', top: '#9F8BE0' }, glass: i => ((i / 9) | 0) % 3 === 1,
     items: [.12, .4, .63, .86], boosts: [.27, .54, .95], zomb: [{ f: .2, sp: .7 }, { f: .5, sp: .55 }, { f: .75, sp: .8 }, { f: .345, sp: .35, mop: 1 }],
-    puddles: [{ f: .33, o: .9 }, { f: .68, o: -.9 }],
+    puddles: [{ f: .33, o: .9 }, { f: .68, o: -.9 }], paper: [{ f: .07, o: 1 }, { f: .45, o: -1 }],
     ow: [
       { x1: -19, z1: 3.5, x2: -1, z2: 3.5, doors: [-14, -5], glass: 1 }, { x1: -10, z1: 3.5, x2: -10, z2: 11, doors: [7], glass: 1 },
       { x1: -1, z1: -11, x2: -1, z2: -5, doors: [-8] }, { x1: 9, z1: -11, x2: 9, z2: -5, doors: [-8] }, { x1: 15, z1: 1, x2: 15, z2: 18, doors: [9] },
@@ -58,7 +62,7 @@ const VARS = [
     B: { x0: -26, x1: 26, z0: -17.2, z1: 18 }, loop: [[20, 0], [20, -14], [0, -14], [0, 14], [-20, 14], [-20, 0]], start: [-6, 14], cross: [0, 0],
     pal: { base: '#E4EEEC', lobby: '#F2F7F6', track: ['#2F9C94', '#2A928A'], kerb: ['#FFFFFF', '#FFB347'], wall: '#E6F4F1', top: '#5FB3A8' }, glass: i => ((i / 7) | 0) % 3 !== 2,
     items: [.1, .43, .6, .72], boosts: [.18, .55, .97], zomb: [{ f: .05, sp: .6 }, { f: .5, sp: .7 }, { f: .66, sp: .55 }, { f: .29, sp: .4, mop: 1 }],
-    puddles: [{ f: .27, o: .6 }, { f: .8, o: -.8 }],
+    puddles: [{ f: .27, o: .6 }, { f: .8, o: -.8 }], paper: [{ f: .36, o: 1 }, { f: .88, o: -1 }],
     ow: [{ x1: 14, z1: 3, x2: 14, z2: 18, doors: [10], glass: 1 }],
     rooms: [{ n: '🌳 Скляний атріум', x: -14, z: -14.5, b: [-26, -17.2, -3, -3] }, { n: '📚 Бібліотека', x: -10, z: 9.8, b: [-17, 3, -3, 11] }, { n: '😴 Кімната сну', x: 10, z: -10.2, b: [3, -11, 17, -3] }, { n: '🏋️ Спортзал', x: 8.5, z: 16, b: [3, 3, 14, 18] }, { n: '🎨 Креативна агенція', x: 20, z: 16.4, b: [14, 3, 26, 18] }],
     floors: [[-26, -17.2, -3, -3, '#F4F1EA', '#E8E2D6'], [-17, 3, -3, 11, '#8C5A3C'], [3, -11, 17, -3, '#7E6FB8'], [3, 3, 14, 18, '#3E3A5C'], [14, 3, 26, 18, '#FFD6A8']],
@@ -86,7 +90,7 @@ const VARS = [
     B: { x0: -27.3, x1: 27.3, z0: -18.2, z1: 18.4 }, loop: [[24, -15], [24, -5], [-14, -5], [-14, 5], [24, 5], [24, 15], [-24, 15], [-24, -15]], start: [-12, -15],
     pal: { base: '#B8BECC', lobby: '#D9D2EE', track: ['#C4683A', '#B85F34'], kerb: ['#FFFFFF', '#2E2346'], wall: '#DCD6EA', top: '#E0607E' }, glass: i => ((i / 11) | 0) % 4 === 3,
     items: [.06, .33, .55, .72], boosts: [.2, .45, .88], zomb: [{ f: .15, sp: .7 }, { f: .39, sp: .6 }, { f: .62, sp: .75 }, { f: .8, sp: .55 }, { x: 10, z: -10.2, ax: 1, az: 0, amp: 1.6, sp: .8, mop: 1 }],
-    puddles: [{ x: 10, z: -9 }, { f: .5, o: .7 }, { f: .93, o: -.6 }],
+    puddles: [{ x: 10, z: -9 }, { f: .5, o: .7 }, { f: .93, o: -.6 }], paper: [{ f: .1, o: 1 }, { f: .68, o: -1 }],
     sc: { x0: 7.6, x1: 12.4, z0: -15, z1: -5, a: [10, -15], b: [10, -5] },
     ow: [],
     rooms: [{ n: '☎️ Колл-центр «Алло»', x: -6, z: -10, b: [-21, -12, 21, -8] }, { n: '📈 Відділ продажів', x: 6, z: 0, b: [-11, -2, 21, 2] }, { n: '🖨️ Друкарня', x: -19, z: 0, b: [-21, -12, -17, 12] }, { n: '📦 Склад', x: 3, z: 10, b: [-21, 8, 21, 12] }, { n: '🚒 Пожежні двері', x: 10, z: -8.8, b: [7.6, -12, 12.4, -8] }],
@@ -130,11 +134,13 @@ function prepare(V, vi) {
   const at = f => Math.round(V.N * f) % V.N, idxOf = (x, z) => V.TR.reduce((bi, q, k) => (q.x - x) ** 2 + (q.z - z) ** 2 < (V.TR[bi].x - x) ** 2 + (V.TR[bi].z - z) ** 2 ? k : bi, 0);
   V.ITEMS = V.items.map(at); V.BOOSTS = V.boosts.map(at);
   V.ZOMB = V.zomb.map(o => { if (o.f == null) return { x: X(o.x), z: Z(o.z), ax: o.ax, az: o.az, amp: o.amp, sp: o.sp, ph: 0, mop: o.mop }; const i = at(o.f), p = V.TR[i]; return { x: p.x, z: p.z, ax: -p.dz, az: p.dx, amp: TW / 2 - .6, sp: o.sp, ph: i, mop: o.mop }; });
+  V.PAPER = V.paper.map(o => { const i = at(o.f), p = V.TR[i], d = o.o * (TW / 2 - .75); return { i, x: p.x - p.dz * d, z: p.z + p.dx * d }; });
   V.PUD = V.puddles.map(o => { if (o.f == null) return { x: X(o.x), z: Z(o.z) }; const p = V.TR[at(o.f)]; return { x: p.x - p.dz * o.o, z: p.z + p.dx * o.o }; });
   V.F = { x0: X(V.B.x0), x1: X(V.B.x1), z0: Z(V.B.z0 - LOB), z1: Z(V.B.z1) };   // увесь поверх разом з лобі
   V.BB = { x0: X(V.B.x0), x1: X(V.B.x1), z0: Z(V.B.z0), z1: Z(V.B.z1) };        // частина з трасою
   const L = V.B.z0 - LOB / 2;
   V.START = { x: X(-12), z: Z(L) }; V.SPAWN = { x: X(-13.6), z: Z(L + .8) };
+  V.TRAY = { x: X(12.6), z: Z(L - 2.3) };   // лоток з папером у ліфтовому холі
   if (V.sc) { const s = V.sc; V.SC = { x0: X(s.x0), x1: X(s.x1), z0: Z(s.z0), z1: Z(s.z1), ia: idxOf(X(s.a[0]), Z(s.a[1])), ib: idxOf(X(s.b[0]), Z(s.b[1])), bx: X(s.b[0]), bz: Z(s.b[1]) }; }
   V.OW = [{ x1: V.B.x0, z1: V.B.z0, x2: V.B.x1, z2: V.B.z0, glass: 1, lobby: 1 }].concat(V.ow)
     .map(w => Object.assign({}, w, { x1: X(w.x1), x2: X(w.x2), z1: Z(w.z1), z2: Z(w.z2), doors: (w.doors || []).map(d => d + (w.z1 === w.z2 ? V.cx : V.cz)) }));
@@ -308,10 +314,15 @@ const _buildIsland = buildIsland;
 buildIsland = function (s) { if (s.biome !== 'racetrack') return _buildIsland.apply(this, arguments); return SIMSIDE ? new THREE.Group() : buildFloorMesh(VARS[s.crVar | 0]); };
 
 /* ---------- Стан заїзду (сервер світу або сам гравець) ---------- */
-const ST = { ph: 'idle', t: 0, cnt: 0, racers: [], traps: [], fires: [], boxes: [0, 1, 2, 3].map(() => [1, 1, 1]), res: [], id: 0, v: 0, def: 0, votes: {}, lp: [] };
-const LOBBY_WAIT = 20;   // онлайн: стільки секунд після першого «готовий» — і стартуємо з тими, хто готовий
-const AU = { stT: 0, botId: 0, bombs: [], noBotArms: false };
-const BOT_NAMES = ['Бот Кент', 'Бухгалтерка Люда', 'Стажер Вітя', 'HR Олена', 'Сисадмін Гена'];
+const ST = { ph: 'idle', lob: '', nb: '', t: 0, cnt: 0, racers: [], traps: [], fires: [], boxes: [0, 1, 2, 3].map(() => [1, 1, 1]), res: [], id: 0, v: 0, def: 0, votes: {}, lp: [] };
+const LOBBY_WAIT = 25;   // онлайн: стільки секунд після того, як лобі заповнилось, чекаємо неготових — і стартуємо без них
+// лобі заповнюється: перший бот через 4 с після першого «готовий», далі кожні 2,5 с; потім «старт за 3…2…1»
+// (тест-хук window.__chairraceFastLobby = 1 — усе по 0,2 с)
+const fastLobby = () => typeof window !== 'undefined' && !!window.__chairraceFastLobby;
+const FILL = () => fastLobby() ? { first: .2, step: .2, go: .6 } : { first: 4, step: 2.5, go: 3 };
+const AU = { stT: 0, botId: 0, bombs: [], noBotArms: false, fillT: 0, waitT: 0 };
+const BOT_NAMES = ['Бот Кент', 'Бот Віта', 'Бот Люда', 'Бот Гена', 'Бот Олена'];
+const mkBot = k => ({ k, bot: true, lap: -1, idx: 0, fin: 0, skill: rand(.84, .97) });
 const myKey = () => (NET.on && typeof WORLD !== 'undefined' && WORLD.on ? myName() : 'me');
 const keyOf = from => SIMSIDE ? String(from && from.name || '') : 'me';
 const r2 = v => Math.round(v * 100) / 100;
@@ -327,16 +338,18 @@ function pickVar(final) {   // найбільше голосів; без гол�
 }
 // хто зараз у лобі (люди на поверхах гонки) і чи всі вони готові (= записані в заїзд)
 function lobbyKeys() { return SIMSIDE ? simPlayers().filter(p => inRace(p.x, p.z)).map(p => String(p.name || '')) : ['me']; }
+// хто з людей зараз на поверхах гонки (офлайн — я, якщо не пішов деінде)
+function onFloors() { return new Set(SIMSIDE ? simPlayers().filter(p => inRace(p.x, p.z)).map(p => p.name) : typeof pl !== 'undefined' && running && !pl.dead && inRace(pl.x, pl.z) ? ['me'] : []); }
 function allReady() {
   const hum = ST.racers.filter(r => !r.bot); if (!hum.length) return false;
   return lobbyKeys().every(k => hum.some(r => r.k === k));
 }
 function snap() {
-  return { ph: ST.ph, t: r2(ST.t), c: r2(ST.cnt), id: ST.id, v: ST.v, df: ST.def, vo: Object.entries(ST.votes).slice(0, 16), lp: ST.lp.slice(0, 16), r: ST.racers.map(r => [r.k, r.bot ? 1 : 0, r.lap, r.idx, r2(r.fin || 0), r.bot ? r2(r.x) : 0, r.bot ? r2(r.z) : 0, r.bot ? r2(r.h) : 0, r2(r.spin || 0), r2(r.drunk || 0), r2(r.slow || 0), r2(r.burn || 0), r.jet || (r.jetT > 0) ? 1 : 0]),
+  return { ph: ST.ph, lb: ST.lob, nb: ST.nb, t: r2(ST.t), c: r2(ST.cnt), id: ST.id, v: ST.v, df: ST.def, vo: Object.entries(ST.votes).slice(0, 16), lp: ST.lp.slice(0, 16), r: ST.racers.map(r => [r.k, r.bot ? 1 : 0, r.lap, r.idx, r2(r.fin || 0), r.bot ? r2(r.x) : 0, r.bot ? r2(r.z) : 0, r.bot ? r2(r.h) : 0, r2(r.spin || 0), r2(r.drunk || 0), r2(r.slow || 0), r2(r.burn || 0), r.jet || (r.jetT > 0) ? 1 : 0]),
     tp: ST.traps.map(t => [t.id, r2(t.x), r2(t.z)]), fi: ST.fires.map(f => [f.id, r2(f.x), r2(f.z), r2(f.t)]), b: ST.boxes.map(b => b.map(v => v > 0 ? 1 : 0)), res: ST.res };
 }
 function applySnap(d) {
-  ST.ph = d.ph || 'idle'; ST.t = +d.t || 0; ST.cnt = +d.c || 0; ST.id = d.id | 0; ST.res = Array.isArray(d.res) ? d.res.slice(0, 8) : [];
+  ST.ph = d.ph || 'idle'; ST.lob = String(d.lb || ''); ST.nb = String(d.nb || '').slice(0, 40); ST.t = +d.t || 0; ST.cnt = +d.c || 0; ST.id = d.id | 0; ST.res = Array.isArray(d.res) ? d.res.slice(0, 8) : [];
   ST.def = clamp(d.df | 0, 0, VARS.length - 1);
   ST.lp = Array.isArray(d.lp) ? d.lp.slice(0, 16).map(String) : [];
   if (Array.isArray(d.vo)) { ST.votes = {}; for (const [k, v] of d.vo.slice(0, 16)) ST.votes[String(k)] = clamp(v | 0, 0, VARS.length - 1); }
@@ -367,15 +380,17 @@ function onReq(d, from) {
     if (ST.ph !== 'idle' && ST.ph !== 'lobby') { emit({ k: 'msg', to: k, txt: '🏁 Заїзд уже йде — дочекайся наступного (дивись і вболівай!).' }); return; }
     if (!d.on) {   // передумав
       if (!r) return; ST.racers = ST.racers.filter(q => q !== r);
-      if (!ST.racers.some(q => !q.bot)) { ST.ph = 'idle'; ST.cnt = 0; }
+      if (!ST.racers.some(q => !q.bot)) { ST.ph = 'idle'; ST.lob = ''; ST.nb = ''; ST.cnt = 0; ST.racers = []; }   // людей нема — боти розходяться
+      else if (ST.lob === 'go' && !AU.forced) { ST.lob = 'fill'; ST.cnt = 0; }
       pushState(); return;
     }
-    if (r || ST.racers.filter(q => !q.bot).length >= MAXR) return;
-    ST.racers = ST.racers.filter(q => !q.bot);
+    if (r) return;
+    if (ST.racers.filter(q => !q.bot).length >= MAXR) { emit({ k: 'msg', to: k, txt: '🪑 У лобі вже 5 гравців — дочекайся наступного заїзду.' }); return; }
     ST.racers.push({ k, bot: false, lap: -1, idx: 0, fin: 0 });
-    if (ST.ph === 'idle') { ST.ph = 'lobby'; ST.cnt = LOBBY_WAIT; ST.id++; ST.res = []; }
-    if (SIMSIDE) emit({ k: 'msg', txt: `✅ ${escapeHTML(k)} готовий! Чекаємо решту — або старт за ${Math.ceil(ST.cnt)} с.` });
-    if (allReady()) startCount(); else pushState();
+    { const bi = ST.racers.map(q => q.bot).lastIndexOf(true); if (ST.racers.length > MAXR && bi >= 0) { const b = ST.racers.splice(bi, 1)[0]; emit({ k: 'msg', txt: `🤖 ${escapeHTML(b.k)} поступився місцем — ${escapeHTML(k === 'me' ? 'тобі' : k)}` }); } }   // повне лобі — людина замість бота
+    if (ST.ph === 'idle') { ST.ph = 'lobby'; ST.lob = 'fill'; ST.nb = ''; ST.cnt = 0; AU.fillT = FILL().first; AU.forced = 0; ST.id++; ST.res = []; }
+    if (SIMSIDE) emit({ k: 'msg', txt: `✅ ${escapeHTML(k)} готовий!` });
+    pushState();
   } else if (d.k === 'vote') {
     if (ST.ph !== 'idle' && ST.ph !== 'lobby') return;
     const v = clamp(d.v | 0, 0, VARS.length - 1); if (ST.votes[k] === v) return;
@@ -395,7 +410,8 @@ function onReq(d, from) {
     if (ST.traps.length > 10) ST.traps.shift();
     ST.traps.push({ id: ++AU.botId, x: r2(+d.x || 0), z: r2(+d.z || 0), t: 18 }); pushState();
   } else if (d.k === 'untrap') { ST.traps = ST.traps.filter(t => t.id !== d.id); pushState(); }
-  else if (d.k === 'hit') { const v = ST.racers.find(q => q.k === d.to); if (v && ['spin', 'trap'].includes(d.how)) hitRacer(v, 'spin', k); }
+  else if (d.k === 'hit') { const v = ST.racers.find(q => q.k === d.to); if (v && ['spin', 'trap'].includes(d.how)) hitRacer(v, 'spin', k); else if (v && d.how === 'plane' && ST.ph === 'race') hitRacer(v, 'plane', k); }
+  else if (d.k === 'plane' && r && ST.ph === 'race') emit({ k: 'plane', x: +d.x, z: +d.z, h: +d.h, from: k });   // ✈️ літачок летить — бачать усі
   else if (d.k === 'tea') { const lead = ranking().find(q => q.k !== k && !q.fin); if (lead) hitRacer(lead, 'tea', k); }
   else if (d.k === 'shot') emit({ k: 'shot', x: +d.x, z: +d.z, h: +d.h, from: k });
   else if (d.k === 'bomb' && r && ST.ph === 'race') {
@@ -427,13 +443,14 @@ function douse(f, by) { ST.fires = ST.fires.filter(q => q !== f); emit({ k: 'dou
 function rollItem(r) {
   const rank = r ? ranking().indexOf(r) : 0;
   if (AU.forceItem) return AU.forceItem;   // тести: передбачуваний вміст коробки
-  return rank >= 2 ? pick(['coffee', 'coffee', 'tea', 'stapler', 'bomb', 'bomb', 'ext', 'ext', 'molly']) : rank === 1 ? pick(['coffee', 'stapler', 'folder', 'tea', 'bomb', 'ext', 'molly']) : pick(['stapler', 'folder', 'folder', 'coffee', 'bomb', 'molly', 'molly']);
+  return rank >= 2 ? pick(['coffee', 'coffee', 'tea', 'stapler', 'bomb', 'bomb', 'ext', 'ext', 'molly', 'plane']) : rank === 1 ? pick(['coffee', 'stapler', 'folder', 'tea', 'bomb', 'ext', 'molly', 'plane']) : pick(['stapler', 'folder', 'folder', 'coffee', 'bomb', 'molly', 'molly', 'plane', 'plane']);
 }
 function hitRacer(v, how, by) {
   if (v.bot) {
     if (how === 'tea') v.drunk = 3;
     else if (how === 'boom') { v.spin = 1.3; v.v = 1; v.slow = 1.5; }
     else if (how === 'hook') { v.slow = 1.3; v.v = (v.v || 0) * .35; }
+    else if (how === 'plane') { v.slow = PLANE_SLOW; v.v = (v.v || 0) * .6; }
     else if (how === 'fire') { v.spin = .6; v.v = (v.v || 0) * .5; v.slow = 1.6; v.burn = BURN_T; v.burnCd = 1.2; }
     else { v.spin = 1; v.v = 2; }
   }
@@ -447,15 +464,16 @@ function finish(r) {
   if (!AU.firstFin) AU.firstFin = ST.t;
 }
 function resetRace(rotate) {
-  ST.ph = 'idle'; ST.racers = []; ST.traps = []; ST.fires = []; ST.cnt = 0; ST.t = 0; AU.firstFin = 0; AU.bombs = [];
+  ST.ph = 'idle'; ST.lob = ''; ST.nb = ''; AU.forced = 0; ST.racers = []; ST.traps = []; ST.fires = []; ST.cnt = 0; ST.t = 0; AU.firstFin = 0; AU.bombs = [];
   if (rotate) { ST.def = (ST.v + 1) % VARS.length; ST.votes = {}; }   // наступного разу — інший поверх, якщо ніхто не голосує
   ST.v = pickVar(); useVar(ST.v);
 }
 function startCount() {
   ST.v = pickVar(true); useVar(ST.v);   // переможець голосування (нічия — жереб)
-  let k = 0; while (ST.racers.length < MAXR) ST.racers.push({ k: BOT_NAMES.filter(n => !ST.racers.some(q => q.k === n))[k++ % 3] || 'Бот ' + ++AU.botId, bot: true, lap: -1, idx: 0, fin: 0, skill: rand(.84, .97) });
+  ST.racers = ST.racers.slice(0, MAXR); while (ST.racers.length < MAXR) ST.racers.push(mkBot(freeBot()));   // боти з лобі їдуть самі; бракує — ще
+  ST.lob = '';
   ST.racers.forEach((r, i) => { const g = GRID(i); r.slot = i; r.lap = -1; r.idx = nearIdx(g.x, g.z);   // стоять перед лінією: перетнули — почалось коло 1
-   r.fin = 0; if (r.bot) Object.assign(r, { x: g.x, z: g.z, h: g.h, v: 0, spin: 0, drunk: 0, slow: 0, item: '', itemT: rand(1, 3), lane: rand(-1.2, 1.2), bombs: START_BOMBS, bombCd: rand(3, 6), hookCd: rand(4, 8), pullT: 0, mollies: MOLLY_START, jetT: 0, burn: 0, burnCd: 0, jet: 0, sc: 0, scLap: -9, slip: 0, boost: 0, prevIdx: null }); });
+   r.fin = 0; if (r.bot) Object.assign(r, { x: g.x, z: g.z, h: g.h, v: 0, spin: 0, drunk: 0, slow: 0, item: '', itemT: rand(1, 3), lane: rand(-1.2, 1.2), bombs: START_BOMBS, bombCd: rand(3, 6), hookCd: rand(4, 8), pullT: 0, planes: 0, papCd: {}, mollies: MOLLY_START, jetT: 0, burn: 0, burnCd: 0, jet: 0, sc: 0, scLap: -9, slip: 0, boost: 0, prevIdx: null }); });
   ST.ph = 'count'; ST.cnt = 3.5; ST.t = 0; ST.traps = []; ST.fires = []; AU.firstFin = 0; AU.bombs = []; ST.boxes = ST.boxes.map(() => [1, 1, 1]);
   emit({ k: 'grid', id: ST.id, v: ST.v, slots: ST.racers.map(r => r.k) }); pushState();
 }
@@ -464,14 +482,43 @@ function endRace(why) {
   ST.res = ranking().map(r => r.k);
   emit({ k: 'end', res: ST.res, why: why || '' }); pushState();
 }
+const freeBot = () => BOT_NAMES.find(n => !ST.racers.some(q => q.k === n)) || 'Бот №' + ++AU.botId;
+// люди в лобі: хто на поверхах гонки + хто вже готовий (максимум 5)
+function lobbyHumans() { return [...new Set(lobbyKeys().concat(ST.racers.filter(r => !r.bot).map(r => r.k)))].slice(0, MAXR); }
+/* лобі заповнюється: боти приходять по одному, поки разом з людьми не буде 5; тоді — «старт за 3» */
+function lobbyTick(dt) {
+  const F = FILL(), hum = lobbyHumans(), ready = ST.racers.filter(r => !r.bot), want = Math.max(0, MAXR - hum.length);
+  let bots = ST.racers.filter(r => r.bot);
+  if (bots.length > want) {   // прийшла людина — зайвий бот іде
+    const b = bots[bots.length - 1]; ST.racers = ST.racers.filter(q => q !== b); bots = bots.slice(0, -1);
+    emit({ k: 'msg', txt: `🤖 ${escapeHTML(b.k)} звільнив місце для колеги` }); pushState();
+  }
+  if (ST.lob === 'go') {   // «Старт за 3…2…1»; хтось передумав / прийшов новенький — стоп
+    if (!AU.forced && !(allReady() && bots.length >= want)) { ST.lob = 'fill'; ST.cnt = 0; pushState(); return; }
+    ST.cnt -= dt; if (ST.cnt <= 0) startCount(); return;
+  }
+  if (bots.length < want) {   // ще є місця — приходить наступний бот
+    if (ST.lob !== 'fill') { ST.lob = 'fill'; AU.fillT = Math.max(AU.fillT, F.step); }
+    if ((AU.fillT -= dt) <= 0) {
+      const b = mkBot(freeBot()); ST.racers.push(b); ST.nb = b.k; AU.fillT = F.step;
+      emit({ k: 'msg', txt: `🤖 ${escapeHTML(b.k)} приєднався до лобі` }); pushState();
+    }
+    return;
+  }
+  // лобі повне: усі люди готові — відлік; онлайн неготових чекаємо LOBBY_WAIT с, потім стартуємо без них
+  if (allReady() && ready.length + bots.length >= 2) { ST.lob = 'go'; ST.cnt = F.go; AU.forced = 0; pushState(); return; }
+  if (ST.lob !== 'wait') { ST.lob = 'wait'; AU.waitT = ST.cnt = LOBBY_WAIT; pushState(); }
+  AU.waitT -= dt; ST.cnt = Math.max(0, AU.waitT);
+  if (AU.waitT <= 0 && ready.length) { ST.lob = 'go'; ST.cnt = F.go; AU.forced = 1; emit({ k: 'msg', txt: '⏱️ Хто не встиг натиснути «Я готовий» — дивиться збоку. Стартуємо!' }); pushState(); }
+}
 function authTick(dt) {
   if (SIMSIDE) { const lp = lobbyKeys().slice(0, 16); if (lp.join('\n') !== ST.lp.join('\n')) { ST.lp = lp; pushState(); } }
   if (ST.ph === 'idle') return;
-  if (ST.racers.length && SIMSIDE) {   // хто пішов зі світу — вибуває
-    const on = new Set(simPlayers().filter(p => inRace(p.x, p.z)).map(p => p.name));
+  if (ST.racers.length && (SIMSIDE || ST.ph === 'lobby')) {   // хто пішов з режиму (світу) — вибуває; офлайн — лише поки лобі
+    const on = onFloors();
     const left = ST.racers.filter(r => !r.bot && !on.has(r.k)); if (left.length) { ST.racers = ST.racers.filter(r => !left.includes(r)); if (!ST.racers.some(q => !q.bot)) { resetRace(false); pushState(); return; } }
   }
-  if (ST.ph === 'lobby') { ST.cnt -= dt; if (ST.cnt <= 0 || allReady()) startCount(); }
+  if (ST.ph === 'lobby') lobbyTick(dt);
   else if (ST.ph === 'count') { ST.cnt -= dt; if (ST.cnt <= 0) { ST.ph = 'race'; ST.t = 0; emit({ k: 'go' }); } }
   else if (ST.ph === 'race') {
     ST.t += dt;
@@ -544,9 +591,10 @@ function botTick(r, dt) {
   r.burnCd = Math.max(0, (r.burnCd || 0) - dt);
   for (const f of ST.fires) if (dist2(r.x, r.z, f.x, f.z) < FIRE_R) { if (r.jetT > 0) { douse(f, r.k); break; } if (!(r.burnCd > 0)) { hitRacer(r, 'fire', f.by); break; } }
   for (const b of VV.BOOSTS) if (dist2(r.x, r.z, TR[b].x, TR[b].z) < 1.6) r.boost = Math.max(r.boost || 0, .7);
+  VV.PAPER.forEach((q, i) => { if (!(r.papCd[i] > ST.t) && dist2(r.x, r.z, q.x, q.z) < 1.6) { r.papCd[i] = ST.t + PAPER_CD; r.planes = Math.min(PLANE_MAX, (r.planes || 0) + PLANE_PICK); } });   // ✈️ стос паперу
   for (const p of VV.PUD) if (dist2(r.x, r.z, p.x, p.z) < 1.3 && !(r.slip > 0)) { r.slip = .8; r.v *= .8; r.h += rand(-.4, .4); }
   // коробки з предметами
-  VV.ITEMS.forEach((si, i) => [-1, 0, 1].forEach((o, s) => { if (ST.boxes[i][s] && !r.item) { const p = TR[si]; if (dist2(r.x, r.z, p.x - p.dz * o * 1.6, p.z + p.dx * o * 1.6) < .9) { ST.boxes[i][s] = 0; AU['box' + i + '_' + s] = 4; const it = rollItem(r); if (it === 'bomb') r.bombs = Math.min(MAX_BOMBS, (r.bombs || 0) + 1); else if (it === 'molly') r.mollies = Math.min(MAX_MOLLY, (r.mollies || 0) + 1); else { r.item = it; r.itemT = rand(.5, 2.5); } } } }));
+  VV.ITEMS.forEach((si, i) => [-1, 0, 1].forEach((o, s) => { if (ST.boxes[i][s] && !r.item) { const p = TR[si]; if (dist2(r.x, r.z, p.x - p.dz * o * 1.6, p.z + p.dx * o * 1.6) < .9) { ST.boxes[i][s] = 0; AU['box' + i + '_' + s] = 4; const it = rollItem(r); if (it === 'plane') r.planes = Math.min(PLANE_MAX, (r.planes || 0) + PLANE_PICK); else if (it === 'bomb') r.bombs = Math.min(MAX_BOMBS, (r.bombs || 0) + 1); else if (it === 'molly') r.mollies = Math.min(MAX_MOLLY, (r.mollies || 0) + 1); else { r.item = it; r.itemT = rand(.5, 2.5); } } } }));
   if (r.item && (r.itemT -= dt) <= 0) {
     if (r.item === 'coffee') r.boost = 1.6;
     else if (r.item === 'ext') r.jetT = FOAM_BOX;
@@ -564,6 +612,7 @@ function botTick(r, dt) {
     const tg = targetAhead(r, 4, 14, .9);
     if (tg && r.hookCd <= 0 && Math.random() < dt * .9) { r.hookCd = rand(6, 9); r.pullK = tg.q.k; r.pullT = .5; emit({ k: 'pfx', x: r2(r.x), z: r2(r.z), h: r2(r.h), from: r.k }); hitRacer(tg.q, 'hook', r.k); }
     else if (tg && tg.d > 6 && r.bombs > 0 && r.bombCd <= 0 && Math.random() < dt * .7) { r.bombs--; r.bombCd = rand(5, 8); launchAuth(r.x, r.z, tg.x, tg.z, r.k); }
+    else if (tg && tg.d > 3 && tg.d < 11 && r.planes > 0 && r.bombCd <= 0 && Math.random() < dt * .8) { r.planes--; r.bombCd = rand(2.5, 4); emit({ k: 'plane', x: r2(r.x), z: r2(r.z), h: r2(Math.atan2(tg.z - r.z, tg.x - r.x)), from: r.k }); if (Math.random() < .7) hitRacer(tg.q, 'plane', r.k); }   // ✈️
     else if (tg && tg.d > 5 && r.mollies > 0 && r.bombCd <= 0 && Math.random() < dt * .5) { r.mollies--; r.bombCd = rand(5, 8); launchAuth(r.x, r.z, tg.x + Math.cos(r.h) * 2, tg.z + Math.sin(r.h) * 2, r.k, 'molly'); }
   }
   const lapIdx = r.idx;
@@ -585,8 +634,8 @@ A.on('tick', dt => {
 /* ======================= ДАЛІ — ЛИШЕ В ГРАВЦЯ ======================= */
 const RC = { on: false, x: 0, z: 0, h: 0, v: 0, idx: 0, lap: 0, prev: 0, fin: false, item: '', boost: 0, spin: 0, drunk: 0, ix: 0, iz: 0, progT: 0, bonkT: 0, place: 0,
   bombs: 0, plCd: 0, slow: 0, slip: 0, drift: 0, driftIdle: 0, draft: 0, pull: null, sc: 0, nDraft: 0, nDrift: 0,
-  foam: 0, jet: false, jetSnd: 0, molly: 0, burn: 0, burnCd: 0, nBurn: 0, nDouse: 0, doused: {} };
-const V = { chairs: new Map(), vis: [], traps: new Map(), fires: new Map(), shots: [], plungers: [], bombs: [], ropes: [], hud: null, goalEl: null, lbl: null, tags: new Map(), music: -1, lastPh: '', arrow: null, startLbl: null, barOn: false, lobHide: false, lobOn: false };
+  foam: 0, jet: false, jetSnd: 0, molly: 0, burn: 0, burnCd: 0, nBurn: 0, nDouse: 0, doused: {}, planes: 0, nPlaneHit: 0 };
+const V = { chairs: new Map(), vis: [], traps: new Map(), fires: new Map(), shots: [], plungers: [], bombs: [], ropes: [], hud: null, goalEl: null, lbl: null, tags: new Map(), music: -1, lastPh: '', arrow: null, startLbl: null, barOn: false, lobHide: false, lobOn: false, planes: [], papCd: {}, prePlanes: 0, sel: 'bomb', paperVis: [] };
 const amIn = () => ST.racers.some(r => r.k === myKey());
 
 /* ---------- Хмарочос у центрі міста (з city-kit; меші з текстурою — через A.dynamic, бо оптимізатор зливає їх в одноколірні) ---------- */
@@ -720,7 +769,22 @@ function buildFloorMesh(VR) {
   K.sofa(X(-2), lz - 2.6, 0, 2.6, '#8F7BD6'); K.sofa(X(5), lz - 2.6, 0, 2.6, '#8F7BD6'); K.plant(X(1.5), lz - 2.6, 1); K.cooler(X(9.5), lz - 2.5);
   put(g, mesh(new THREE.BoxGeometry(1.2, 1.1, .6), '#4E3A7C'), VR.START.x, .55, VR.START.z);
   put(g, mesh(new THREE.BoxGeometry(1.25, .08, .65), bulb('#7FE08A'), false), VR.START.x, 1.12, VR.START.z);
-  const vis = { boxes: [], zomb: [], doors: [], vi };
+  // ✈️ стоси паперу біля бортика (візок + пачки А4 + табличка) і лоток з папером біля принтера в холі
+  const paperStack = (x, z, rot) => {
+    const o = new THREE.Group();
+    put(o, mesh(new THREE.BoxGeometry(1.1, .5, .8), '#6BB8FF'), 0, .25, 0);
+    put(o, mesh(new THREE.BoxGeometry(1.3, .03, 1), '#FFFFFF', false), 0, .03, 0);
+    for (let k = 0; k < 6; k++) { const sh = put(o, mesh(new THREE.BoxGeometry(.62, .09, .44), k % 2 ? '#FFFFFF' : '#F2F0FA', false), (k % 3 - 1) * .04, .55 + k * .09, (k % 2) * .03); sh.rotation.y = (k % 3 - 1) * .12; }
+    put(o, mesh(new THREE.BoxGeometry(.06, 1.5, .06), '#4E4A6E', false), .48, 1, -.3);
+    put(o, mesh(new THREE.BoxGeometry(.7, .42, .05), '#6BB8FF', false), .48, 1.75, -.3);
+    put(o, mesh(new THREE.BoxGeometry(.5, .08, .06), '#FFFFFF', false), .48, 1.8, -.27);
+    o.position.set(x, 0, z); o.rotation.y = rot; o.scale.setScalar(1.3); g.add(o); return o;
+  };
+  for (const q of VR.PAPER) { const p = TRv[q.i]; paperStack(q.x, q.z, -Math.atan2(p.dz, p.dx)); }
+  K.copier(VR.TRAY.x - 1.2, VR.TRAY.z, 0); paperStack(VR.TRAY.x, VR.TRAY.z, 0);
+  const vis = { boxes: [], zomb: [], doors: [], vi, planes: [] };
+  // над кожним стосом кружляє білий літачок — видно здалеку
+  for (const q of VR.PAPER.concat([VR.TRAY])) { const m = new THREE.Group(), w = mesh(new THREE.ConeGeometry(.4, .85, 3), '#FFFFFF', false); w.rotation.z = -Math.PI / 2; w.scale.set(1, 1, .18); m.add(w); m.position.set(q.x, 2.3, q.z); scene.add(A.dynamic(m)); vis.planes.push({ m, q }); }
   // коробки з предметами (оживають), зомбі, прибиральниці, пожежні двері — динамічні
   VR.ITEMS.forEach((si, i) => { const p = TRv[si]; vis.boxes[i] = [-1, 0, 1].map(o => { const m = mesh(new THREE.BoxGeometry(.6, .6, .6), mat('#FFE066', { emissive: '#FFB347', emissiveIntensity: .5, transparent: true, opacity: .9 }), false); m.position.set(p.x - p.dz * o * 1.6, .6, p.z + p.dx * o * 1.6); scene.add(A.dynamic(m)); const q = mesh(new THREE.BoxGeometry(.12, .3, .62), '#2E2346', false); q.position.y = .05; m.add(q); return m; }); });
   for (const z of VR.ZOMB) {
@@ -768,6 +832,7 @@ function onEvent(e) {
     if (e.to === myKey() && RC.on) {
       if (e.item === 'bomb') { RC.bombs = Math.min(MAX_BOMBS, RC.bombs + 1); sfx('pick'); ftext(pl.x, 2.6, pl.z, `💣 +1 бомба (${RC.bombs})`, 'gold'); }
       else if (e.item === 'ext') { RC.foam = Math.min(FOAM_MAX, RC.foam + FOAM_BOX); sfx('pick'); ftext(pl.x, 2.6, pl.z, `🧯 +піна (${Math.ceil(RC.foam)} с тяги) — тисни 3!`, 'gold'); }
+      else if (e.item === 'plane') { RC.planes = Math.min(PLANE_MAX, RC.planes + PLANE_PICK); sfx('page'); ftext(pl.x, 2.6, pl.z, `✈️ +${PLANE_PICK} паперові літачки (${RC.planes}) — тисни 5!`, 'gold'); }
       else if (e.item === 'molly') { RC.molly = Math.min(MAX_MOLLY, RC.molly + 1); sfx('pick'); ftext(pl.x, 2.6, pl.z, `🍾 +1 коктейль Молотова (${RC.molly}) — тисни 4!`, 'gold'); }
       else if (!RC.item) { RC.item = e.item; sfx('pick'); ftext(pl.x, 2.6, pl.z, ICON[e.item] + ' ' + ITN[e.item], 'gold'); }
     }
@@ -779,11 +844,13 @@ function onEvent(e) {
       if (e.how === 'tea') { RC.drunk = 3.5; ftext(pl.x, 2.6, pl.z, `🍵 ${byN ? byN + ' напоїв тебе чаєм' : 'Чай!'} — світ пливе!`, 'bad'); }
       else if (e.how === 'boom') { RC.spin = 1.3; RC.v = 1; RC.slow = 1.5; RC.pull = null; shake = Math.max(shake, .7); sfx('hurt'); ftext(pl.x, 2.6, pl.z, `💥 ${byN ? 'Бомба від ' + byN : 'Бабах'}! Крутить…`, 'bad'); }
       else if (e.how === 'fire') { burnMe(byN); }
+      else if (e.how === 'plane') { RC.slow = PLANE_SLOW; RC.v *= .6; RC.boost = 0; sfx('page'); burst(RC.x, 1.2, RC.z, '#FFFFFF', 12, 3, .6, 2); ftext(pl.x, 2.6, pl.z, `✈️ ${byN ? byN + ' поцілив' : 'Літачок'} тобі в окуляри — нічого не видно!`, 'bad'); }
       else if (e.how === 'hook') { RC.slow = 1.3; RC.v *= .35; RC.boost = 0; sfx('hurt'); ftext(pl.x, 2.6, pl.z, `🪠 ${byN || 'Хтось'} зачепив тебе вантузом!`, 'bad'); }
       else { RC.spin = 1; RC.v = 2; shake = Math.max(shake, .4); sfx('hurt'); ftext(pl.x, 2.6, pl.z, 'Закрутило! 🌀', 'bad'); }
-    } else if (here) { const r = ST.racers.find(q => q.k === e.to); if (r) { const p = posOf(r); burst(p.x, 1, p.z, e.how === 'tea' ? '#7FE08A' : e.how === 'hook' ? '#E0607E' : e.how === 'fire' ? '#FF7A2E' : '#FFE066', 10, 3, .5, 2); } }
+    } else if (here) { const r = ST.racers.find(q => q.k === e.to); if (r) { const p = posOf(r); burst(p.x, 1, p.z, e.how === 'tea' ? '#7FE08A' : e.how === 'hook' ? '#E0607E' : e.how === 'fire' ? '#FF7A2E' : e.how === 'plane' ? '#FFFFFF' : '#FFE066', 10, 3, .5, 2); if (e.how === 'plane') ftext(p.x, 2.4, p.z, '✈️ Влучив!', e.by === myKey() ? 'gold' : ''); } }
   }
   else if (e.k === 'shot') { if (here && e.from !== myKey()) addShot(e.x, e.z, e.h, false); }
+  else if (e.k === 'plane') { if (here && e.from !== myKey()) addPlane(+e.x, +e.z, +e.h, false); }
   else if (e.k === 'pfx') { if (here && e.from !== myKey()) addPlunger(+e.x, +e.z, +e.h, false); }
   else if (e.k === 'bomb') { if (here) launchBombFx(e); }
   else if (e.k === 'fire') {   // 🍾 пляшка розбилась — калюжа спалахнула
@@ -807,7 +874,7 @@ function onEvent(e) {
   }
   else if (e.k === 'end') finishMe(e);
 }
-const ICON = { coffee: '☕', stapler: '📎', folder: '📁', tea: '🍵', bomb: '💣', ext: '🧯', molly: '🍾' }, ITN = { coffee: 'кава — прискорення', stapler: 'степлер — стріляє вперед', folder: 'папка — пастка позаду', tea: 'чай — лідер п\'яніє', bomb: 'бомба', ext: 'піна для вогнегасника', molly: 'коктейль Молотова' };
+const ICON = { coffee: '☕', stapler: '📎', folder: '📁', tea: '🍵', bomb: '💣', ext: '🧯', molly: '🍾', plane: '✈️' }, ITN = { plane: 'паперові літачки', coffee: 'кава — прискорення', stapler: 'степлер — стріляє вперед', folder: 'папка — пастка позаду', tea: 'чай — лідер п\'яніє', bomb: 'бомба', ext: 'піна для вогнегасника', molly: 'коктейль Молотова' };
 const fmtT = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 /* хотбар режиму: бомба, вантуз, вогнегасник і «молотов» (справжній інвентар не чіпаємо) */
 const BAR = { slots: [
@@ -815,15 +882,18 @@ const BAR = { slots: [
   { id: 'plunger', ic: '🪠', n: 'Вантуз', count: () => RC.plCd > 0 ? 0 : 1, use: () => shootPlunger() },
   { id: 'ext', ic: '🧯', n: 'Вогнегасник', count: () => Math.ceil(RC.foam), use: () => toggleJet() },
   { id: 'molly', ic: '🍾', n: 'Коктейль Молотова', count: () => RC.molly, use: () => throwMolly() },
+  { id: 'plane', ic: '✈️', get n() { return RC.planes ? 'Паперовий літачок' : 'Літачок · де взяти: стоси паперу біля бортика, коробки «?»'; }, count: () => RC.planes, use: () => throwPlane() },
 ] };
+BAR.slots.forEach(sl => { const u = sl.use; sl.use = () => { V.sel = sl.id; return u(); }; });   // ЛКМ кидає вибране (💣 / 🍾 / ✈️)
 function setBar(on) { if (V.barOn === on) return; V.barOn = on; if (typeof modeBar === 'function') modeBar(on ? BAR : null); }
 function seatMe(slot) {
   const g = GRID(slot);
-  Object.assign(RC, { on: true, x: g.x, z: g.z, h: g.h, v: 0, idx: nearIdx(g.x, g.z), lap: -1, prev: nearIdx(g.x, g.z), fin: false, item: '', boost: 0, spin: 0, drunk: 0, bombs: START_BOMBS, plCd: 0, slow: 0, slip: 0, drift: 0, driftIdle: 0, draft: 0, pull: null, sc: 0, foam: FOAM_START, jet: false, molly: MOLLY_START, burn: 0, burnCd: 0, doused: {} });
+  Object.assign(RC, { on: true, x: g.x, z: g.z, h: g.h, v: 0, idx: nearIdx(g.x, g.z), lap: -1, prev: nearIdx(g.x, g.z), fin: false, item: '', boost: 0, spin: 0, drunk: 0, bombs: START_BOMBS, plCd: 0, slow: 0, slip: 0, drift: 0, driftIdle: 0, draft: 0, pull: null, sc: 0, foam: FOAM_START, jet: false, molly: MOLLY_START, burn: 0, burnCd: 0, doused: {}, planes: PLANE_START + V.prePlanes });
+  V.prePlanes = 0; V.papCd = {}; V.sel = 'bomb';
   pl.x = g.x; pl.z = g.z; pl.y = 0; pl.jump = null; pl.falling = false;
   if (typeof camPos !== 'undefined') { camPos.set(g.x, 15, g.z + 11); camLook.set(g.x, .3, g.z); }
   closePanel(); setBar(true);
-  toast(`🪑 «${VV.n}»: WASD — керуй · <b>1</b>/ЛКМ 💣 бомба · <b>2</b>/ПКМ 🪠 вантуз · <b>3</b> 🧯 реактивна піна · <b>4</b> 🍾 «молотов» · ПРОБІЛ — предмет. 3 кола!`);
+  toast(`🪑 «${VV.n}»: WASD — керуй · <b>1</b>/ЛКМ 💣 бомба · <b>2</b>/ПКМ 🪠 вантуз · <b>3</b> 🧯 реактивна піна · <b>4</b> 🍾 «молотов» · <b>5</b> ✈️ літачок (білі стоси паперу біля бортика — +3) · ПРОБІЛ — предмет. 3 кола!`);
 }
 function finishMe(e) {
   const was = RC.on || amIn(); RC.on = false; RC.item = ''; RC.pull = null; RC.jet = false; setBar(false);
@@ -911,6 +981,13 @@ function drive(dt) {
       break;
     }
     for (const b of VV.BOOSTS) if (dist2(RC.x, RC.z, TR[b].x, TR[b].z) < 1.6 && RC.boost <= 0) { RC.boost = .8; sfx('dash'); ftext(RC.x, 2.4, RC.z, '☕ Буст!', 'gold'); }
+    VV.PAPER.forEach((q, i) => {   // ✈️ стос паперу біля бортика: проїхав крізь — складаєш 3 літачки на ходу
+      if (!(V.papCd[i] > 0) && dist2(RC.x, RC.z, q.x, q.z) < 1.7) {
+        if (RC.planes >= PLANE_MAX) { V.papCd[i] = 1.5; ftext(q.x, 2.2, q.z, `✈️ Більше ${PLANE_MAX} не влізе`, ''); return; }
+        V.papCd[i] = PAPER_CD; RC.planes = Math.min(PLANE_MAX, RC.planes + PLANE_PICK); sfx('page'); burst(q.x, .9, q.z, '#FFFFFF', 12, 2.5, .6, 2);
+        ftext(q.x, 2.4, q.z, `✈️ +${PLANE_PICK} літачки (${RC.planes}) — тисни 5 або ЛКМ`, 'gold');
+      }
+    });
     for (const q of VV.PUD) if (dist2(RC.x, RC.z, q.x, q.z) < 1.3 && !(RC.slip > 0)) { RC.slip = .9; RC.drift = 0; sfx('splash', RC.x, RC.z); ftext(RC.x, 2.4, RC.z, '💦 Мокра підлога! Не керується…', 'bad'); burst(q.x, .3, q.z, '#8FD3FF', 8, 2, .4, 1.5); }
     if (!RC.item) VV.ITEMS.forEach((si, i) => [-1, 0, 1].forEach((o, s) => { if (!RC.item && !RC.wantBox && ST.boxes[i][s]) { const q = TR[si]; if (dist2(RC.x, RC.z, q.x - q.dz * o * 1.6, q.z + q.dx * o * 1.6) < 1) { RC.wantBox = 1; setTimeout(() => { RC.wantBox = 0; }, 300); req('box', { i, s }); } } }));
     // слипстрім: тримаєшся позаду суперника — набираєш тягу
@@ -969,6 +1046,21 @@ function throwMolly(aim) {
   RC.molly--; req('molly', { sx: r2(RC.x), sz: r2(RC.z), tx: r2(tx), tz: r2(tz) }); sfx('throw');
   return true;
 }
+/* ✈️ паперовий літачок: летить уперед (або в курсор) пологою дугою; влучив — суперник «осліп» і пригальмував */
+function throwPlane(aim) {
+  if (!RC.on || ST.ph !== 'race' || RC.fin) { toast('✈️ Літачки — лише під час заїзду. Папір для них — у лотку в холі (F) і в стосах біля траси.'); return false; }
+  if (RC.spin > 0) return false;
+  if (RC.planes <= 0) { toast('✈️ Літачків нема — проїдь крізь білий стос паперу біля бортика (табличка «✈️ Папір для літачків») або візьми коробку «?».'); ftext(pl.x, 2.6, pl.z, '✈️ 0 — шукай стос паперу', 'bad'); return false; }
+  let h = RC.h; if (aim) { const dx = aim.x - RC.x, dz = aim.z - RC.z; if (Math.hypot(dx, dz) > 1.5) h = Math.atan2(dz, dx); }
+  RC.planes--; addPlane(RC.x, RC.z, h, true); req('plane', { x: r2(RC.x), z: r2(RC.z), h: r2(h) }); sfx('whoosh');
+  return true;
+}
+function addPlane(x, z, h, mine) {
+  const m = new THREE.Group(), w = mesh(new THREE.ConeGeometry(.42, .9, 3), '#FFFFFF', false); w.rotation.z = -Math.PI / 2; w.scale.set(1, 1, .18); m.add(w);
+  const k = mesh(new THREE.BoxGeometry(.8, .1, .04), '#DCD6EA', false); k.position.y = -.06; m.add(k);
+  m.position.set(x + Math.cos(h) * .9, 1.2, z + Math.sin(h) * .9); m.rotation.y = -h; scene.add(m);
+  V.planes.push({ m, h, t: 0, mine, v: 17 + (mine ? Math.max(0, RC.v) * .6 : 6) });
+}
 // мене обпалило калюжею
 function burnMe(byN) {
   RC.spin = .6; RC.v *= .5; RC.slow = 1.6; RC.burn = BURN_T; RC.burnCd = 1.2; RC.pull = null; RC.nBurn++;
@@ -1018,6 +1110,15 @@ function updShots(dt) {
     if (hit) { RC.pull = { k: hit.k, t: .55 }; req('hook', { to: hit.k }); sfx('hop'); ftext(RC.x, 2.6, RC.z, '🪠 Чпок! Тягне вперед!', 'gold'); }
     if (hit || s.t > .55) { scene.remove(s.m); V.plungers.splice(i, 1); }
   }
+  for (let i = V.planes.length - 1; i >= 0; i--) {   // ✈️ літачок планує, похитуючись; влучив — біла хмарка паперу
+    const s = V.planes[i]; s.t += dt; s.m.position.x += Math.cos(s.h) * s.v * dt; s.m.position.z += Math.sin(s.h) * s.v * dt;
+    s.m.position.y = 1.2 + Math.sin(s.t * Math.PI / 1.3) * .9 - s.t * .5; s.m.rotation.x = Math.sin(s.t * 9) * .35;
+    if (Math.random() < dt * 14) burst(s.m.position.x, s.m.position.y, s.m.position.z, '#FFFFFF', 1, .3, .3, 0, .4);
+    let hit = null;
+    if (s.mine && RC.on) for (const r of ST.racers) { if (r.k === myKey() || r.fin) continue; const q = posOf(r); if (dist2(q.x, q.z, s.m.position.x, s.m.position.z) < 1.3) { hit = r; break; } }
+    if (hit) { RC.nPlaneHit++; req('hit', { to: hit.k, how: 'plane' }); burst(s.m.position.x, 1, s.m.position.z, '#FFFFFF', 14, 3, .6, 2); sfx('page'); }
+    if (hit || s.t > 1.3) { if (!hit) burst(s.m.position.x, .4, s.m.position.z, '#FFFFFF', 5, 1.5, .4, 1); scene.remove(s.m); V.planes.splice(i, 1); }
+  }
   for (let i = V.bombs.length - 1; i >= 0; i--) {
     const b = V.bombs[i]; b.t += dt; const k = Math.min(1, b.t / b.T);
     b.m.position.set(lerp(b.sx, b.tx, k), lerp(1.4, .3, k) + Math.sin(k * Math.PI) * 3, lerp(b.sz, b.tz, k)); b.m.rotation.x += dt * 8; b.spark.visible = Math.sin(gameTime * 40) > 0;
@@ -1044,6 +1145,7 @@ function clientTick(dt) {
   if (RC.on) drive(dt);
   setBar(RC.on && running);
   updShots(dt); updRopes(dt);
+  for (const k in V.papCd) V.papCd[k] -= dt;
   lobby(here);
   // крісла всіх гонщиків
   const seen = new Set();
@@ -1068,6 +1170,7 @@ function clientTick(dt) {
     const act = vi === ST.v && race, zt = act ? ST.t : t * .3;
     vis.boxes.forEach((row, i) => row.forEach((m, s) => { m.visible = act ? !!ST.boxes[i][s] : true; m.rotation.y = t * 1.5 + s; m.position.y = .6 + Math.sin(t * 3 + s) * .1; }));
     for (const zz of vis.zomb) { const q = zombiePos(zz.z, zt); zz.h.root.position.set(q.x, 0, q.z); const sg = Math.cos(zt * zz.z.sp + zz.z.ph) > 0 ? 1 : -1; zz.h.root.rotation.y = Math.atan2(zz.z.ax * sg, zz.z.az * sg); zz.h.l1.rotation.x = Math.sin(t * (zz.z.mop ? 3 : 6)) * .5; zz.h.l2.rotation.x = -Math.sin(t * (zz.z.mop ? 3 : 6)) * .5; if (zz.z.mop && zz.h.aR) zz.h.aR.rotation.x = -.6 + Math.sin(t * 4) * .4; }
+    for (const pp of vis.planes) { const a = t * 1.6 + pp.q.x; pp.m.position.set(pp.q.x + Math.cos(a) * .6, 2.3 + Math.sin(t * 2.2) * .15, pp.q.z + Math.sin(a) * .6); pp.m.rotation.y = -a - Math.PI / 2; }
     const dt0 = act ? ST.t : t, open = doorOpen(dt0), soon = open && !doorOpen(dt0 + 1);
     for (const d of vis.doors) {
       if (d.m) { const tx = d.mx + d.s * (open ? 3.5 : 1.2); d.m.position.x = lerp(d.m.position.x, tx, Math.min(1, dt * 6)); }
@@ -1094,7 +1197,8 @@ function clientTick(dt) {
     if (here && f === ST.fires[0] && (V.fireSnd = (V.fireSnd || 0) - dt) <= 0) { V.fireSnd = .5; sfx('tick', f.x, f.z); }
   }
   for (const [id, o] of V.fires) if (!fids.has(id)) { scene.remove(o.g); V.fires.delete(id); }
-  if (ST.ph !== V.lastPh) { if (ST.ph === 'count' && here) banner(`3… 2… 1… «${VV.n}»`); V.lastPh = ST.ph; }
+  if (ST.ph !== V.lastPh) { if (ST.ph === 'count' && here) banner(`🪑 На старт! «${VV.n}»`); V.lastPh = ST.ph; }
+  { const c = ST.ph === 'lobby' && ST.lob === 'go' ? Math.max(0, Math.ceil(ST.cnt)) : -1; if (c !== V.goC) { if (c > 0 && here) { sfx('tick'); if (amIn()) banner(`Старт за ${c}…`); } V.goC = c; } }   // лобі: «Старт за 3…2…1»
   hud(fl); labels(here, fl, dt);
 }
 /* ---------- Лобі-попап: картки трас з картинками, голоси, «Я готовий» ---------- */
@@ -1103,10 +1207,14 @@ function lobbyDef() {
   const c = voteCounts(), me = myKey(), mv = ST.votes[me], online = myKey() !== 'me';
   const hum = ST.racers.filter(r => !r.bot), ready = hum.some(r => r.k === me);
   const names = online ? [...new Set([me].concat(ST.lp, hum.map(r => r.k)))] : ['me'];
-  const players = names.slice(0, 12).map(k => ({ n: k === me ? (online ? k + ' (ти)' : 'Ти') : k, ready: hum.some(r => r.k === k), vote: ST.votes[k] == null ? -1 : ST.votes[k] }));
-  const info = !online ? (ready ? '🏁 Стартуємо!' : 'Порожні місця займуть боти 🤖 · старт одразу, щойно ти готовий')
-    : ST.ph === 'lobby' ? `⏱️ Старт за <b>${Math.max(0, Math.ceil(ST.cnt))} с</b> — або щойно всі будуть готові (${hum.length}/${Math.max(hum.length, ST.lp.length)})`
-    : 'Чекаємо, поки всі будуть готові · порожні місця займуть боти 🤖';
+  const bots = ST.ph === 'lobby' ? ST.racers.filter(r => r.bot) : [];
+  const players = names.slice(0, 12).map(k => ({ n: k === me ? (online ? k + ' (ти)' : 'Ти') : k, ready: hum.some(r => r.k === k), vote: ST.votes[k] == null ? -1 : ST.votes[k] }))
+    .concat(bots.map(r => ({ n: '🤖 ' + r.k, ready: true, vote: -1 })));
+  const n = Math.min(MAXR, names.length + bots.length), sec = Math.max(0, Math.ceil(ST.cnt));
+  const info = ST.ph !== 'lobby' ? `Чекаємо гравців ${Math.min(MAXR, names.length)}/${MAXR} — тисни «✅ Я готовий», порожні місця доповнять боти 🤖`
+    : ST.lob === 'go' ? `🏁 Усі на місці — <b>старт за ${sec}</b>`
+    : ST.lob === 'wait' ? `Лобі повне ${n}/${MAXR} — чекаємо, поки всі натиснуть «Я готовий» · без них старт за <b>${sec} с</b>`
+    : ST.nb && bots.length ? `🤖 ${escapeHTML(ST.nb)} приєднався · <b>${n}/${MAXR}</b> — чекаємо ще…` : `Чекаємо гравців <b>${n}/${MAXR}</b> — боти доповнять лобі…`;
   return {
     title: '🪑 Гонки на кріслах — лобі', sub: `Клікни по картці — голос за трасу (зараз лідирує <b>«${escapeHTML(VARS[ST.v].n)}»</b>). Потім «✅ Я готовий». 3 кола, 💣 🪠 🧯 🍾.`,
     maps: VARS.map((VR, i) => ({ n: VR.n, img: `addons/chairrace/map${i + 1}.jpg`, about: escapeHTML(VR.sub) + (ST.v === i && c[i] ? ' · ★ лідер' : '') })),
@@ -1149,7 +1257,7 @@ function aimAt(e) {
 }
 if (!SIMSIDE) addEventListener('pointerdown', e => {
   if (!RC.on || typeof cv === 'undefined' || e.target !== cv || e.pointerType === 'touch') return;
-  if (e.button === 0) { if (!useItem()) throwBomb(aimAt(e)); e.stopPropagation(); }
+  if (e.button === 0) { if (!useItem()) { const a = aimAt(e); if (V.sel === 'plane') throwPlane(a); else if (V.sel === 'molly') throwMolly(a); else throwBomb(a); } e.stopPropagation(); }
   else if (e.button === 2) { shootPlunger(); e.stopPropagation(); }
 }, true);
 
@@ -1159,6 +1267,8 @@ getInteract = function () {
   const fl = !SIMSIDE && running && !pl.dead && !RC.on ? floorAt(pl.x, pl.z) : -1;
   if (fl >= 0) {
     const VR = VARS[fl], inHall = pl.z < VR.BB.z0;
+    if (dist2(pl.x, pl.z, VR.TRAY.x, VR.TRAY.z) < 2) return V.prePlanes >= PLANE_PRE ? { l: `✈️ Уже ${PLANE_PRE} літачки на старт — досить, бо бос помітить`, fn: () => { } }
+      : { l: '✈️ F — скласти літачок (+3)', fn: () => { V.prePlanes = PLANE_PRE; sfx('page'); burst(VR.TRAY.x, 1.2, VR.TRAY.z, '#FFFFFF', 10, 2, .5, 1.5); ftext(pl.x, 2.6, pl.z, `✈️ +${PLANE_PRE} літачки на старт! У заїзді — клавіша 5 / ЛКМ`, 'gold'); } };
     if (inHall && voting() && V.lobHide) return { l: '🗳️ Відкрити лобі — голос за трасу й «Я готовий»', fn: () => { openLobby(); sfx('ui'); } };
     if (dist2(pl.x, pl.z, VR.START.x, VR.START.z) < 2.2 && !voting()) return { l: '🏁 Заїзд іде — дочекайся наступного', fn: () => { } };
   }
@@ -1168,7 +1278,7 @@ getInteract = function () {
 /* ---------- HUD, підказки, підписи ---------- */
 function goal() {
   if (RC.on) {
-    if (ST.ph === 'count') return 'Приготуйся! <b>WASD</b> — куди їхати · <b>1</b> 💣 · <b>2</b> 🪠 · <b>3</b> 🧯 реактив · <b>4</b> 🍾 · <b>ПРОБІЛ</b> — предмет.';
+    if (ST.ph === 'count') return 'Приготуйся! <b>WASD</b> — куди їхати · <b>1</b> 💣 · <b>2</b> 🪠 · <b>3</b> 🧯 реактив · <b>4</b> 🍾 · <b>5</b> ✈️ · <b>ПРОБІЛ</b> — предмет.';
     if (RC.fin) return 'Ти на фініші — чекаємо інших.';
     if (RC.spin > 0) return '🌀 Закрутило! Зараз відпустить…';
     if (RC.slip > 0) return '💦 Мокра підлога — крісло ковзає, кермо не слухається!';
@@ -1183,14 +1293,22 @@ function goal() {
     const ah = ranking()[ranking().findIndex(r => r.k === myKey()) - 1];
     const fireAhead = ST.fires.find(f => { const dx = f.x - RC.x, dz = f.z - RC.z, d = Math.hypot(dx, dz); return d < 9 && (dx * Math.cos(RC.h) + dz * Math.sin(RC.h)) / (d || 1) > .6; });
     if (fireAhead) return RC.foam > .3 ? '🔥 Попереду горить калюжа — об\'їдь або тисни <b>3</b> 🧯 і загаси її піною!' : '🔥 Попереду горить калюжа — об\'їжджай!';
+    if (!RC.planes) {   // ✈️ 0 — підказуємо, де найближчий стос паперу попереду
+      const pa = VV.PAPER.map((q, i) => ({ q, i, d: (q.i - RC.idx + N) % N })).filter(o => !(V.papCd[o.i] > 0)).sort((a, b) => a.d - b.d)[0];
+      if (pa && pa.d < 50) return `✈️ 0 — стос паперу за ~${Math.max(1, Math.round(pa.d * .9))} м попереду біля бортика → проїдь крізь нього (+${PLANE_PICK})`;
+    }
+    if (ah && RC.planes > 0 && !RC.bombs && !RC.molly) return `Попереду ${escapeHTML(ah.k === 'me' ? 'суперник' : ah.k)} — <b>5</b> ✈️ запусти літачок йому в окуляри!`;
     if (ah && RC.molly > 0 && !RC.bombs) return `Попереду ${escapeHTML(ah.k === 'me' ? 'суперник' : ah.k)} — <b>4</b> 🍾 кинь «молотов» йому під колеса!`;
     if (ah && RC.bombs > 0) return `Попереду ${escapeHTML(ah.k === 'me' ? 'суперник' : ah.k)} — <b>1</b>/ЛКМ 💣 кинь бомбу, <b>2</b>/ПКМ 🪠 зачепи вантузом!`;
-    return 'Їдь за стрілкою · жовті коробки «?» — бомби й предмети · затяжний поворот — дрифт-буст.';
+    return 'Їдь за стрілкою · жовті коробки «?» — бомби й предмети · білі стоси паперу — ✈️ літачки · затяжний поворот — дрифт-буст.';
   }
   if (ST.ph === 'race' || ST.ph === 'count') return `Заїзд іде на «${VARS[ST.v].n}» — дивись і чекай наступного (потім відкриється лобі).`;
   if (ST.ph === 'end') return 'Заїзд скінчився — за мить відкриється лобі наступного.';
   if (V.lobHide) return `Лобі сховано${amIn() ? ' (ти готовий ✅)' : ''} — тисни <b>F</b> у ліфтовому холі або «🗳️ Лобі» у вкладці «🪑 Гонки», щоб проголосувати й натиснути «Я готовий».`;
-  if (amIn()) return `Ти готовий ✅ — чекаємо інших. Траса: «${VARS[ST.v].n}».`;
+  if (amIn()) return ST.lob === 'go' ? `🏁 Усі на місці — старт за ${Math.max(0, Math.ceil(ST.cnt))}! Траса: «${VARS[ST.v].n}».`
+    : ST.lob === 'wait' ? 'Ти готовий ✅ — лобі повне, чекаємо, поки решта натисне «Я готовий».'
+    : `Ти готовий ✅ — лобі заповнюється (${Math.min(MAXR, ST.racers.length)}/${MAXR}), боти 🤖 підтягуються. Траса: «${VARS[ST.v].n}».`;
+  if (!V.prePlanes) return 'Обери трасу в лобі (клік по картці) і тисни <b>✅ Я готовий</b>. Біля принтера в холі — ✈️ папір (F — літачки на старт).';
   return 'Обери трасу в лобі (клік по картці) і тисни <b>✅ Я готовий</b>.';
 }
 function hud(fl) {
@@ -1208,11 +1326,11 @@ function hud(fl) {
   if (ST.ph === 'race' || ST.ph === 'count' || ST.ph === 'end') {
     const rk = ranking(), me = rk.findIndex(r => r.k === myKey());
     const list = rk.map((r, i) => `<span style="color:${r.k === myKey() ? '#FFE066' : '#fff'}">${i + 1}. ${escapeHTML(r.k === 'me' ? 'Ти' : r.k)}${r.fin ? ' 🏁' : ''}</span>`).join(' · ');
-    const gear = RC.on ? ` · 💣${RC.bombs} · 🪠${RC.plCd > 0 ? RC.plCd.toFixed(1) + 'с' : '✓'} · 🧯${RC.jet ? '<span style="color:#8FD3FF">' + RC.foam.toFixed(1) + '</span>' : Math.ceil(RC.foam)} · 🍾${RC.molly}${RC.item ? ' · ' + ICON[RC.item] : ''}${RC.drift > .35 ? ` · <span style="color:${RC.drift > .75 ? '#FFB347' : '#6BB8FF'}">ДРИФТ</span>` : ''}${RC.draft > .3 ? ' · 🌬️' : ''}` : '';
+    const gear = RC.on ? ` · 💣${RC.bombs} · 🪠${RC.plCd > 0 ? RC.plCd.toFixed(1) + 'с' : '✓'} · 🧯${RC.jet ? '<span style="color:#8FD3FF">' + RC.foam.toFixed(1) + '</span>' : Math.ceil(RC.foam)} · 🍾${RC.molly} · ✈️${RC.planes}${RC.item ? ' · ' + ICON[RC.item] : ''}${RC.drift > .35 ? ` · <span style="color:${RC.drift > .75 ? '#FFB347' : '#6BB8FF'}">ДРИФТ</span>` : ''}${RC.draft > .3 ? ' · 🌬️' : ''}` : '';
     h = `🪑 ${VV.n} · ${ST.ph === 'count' ? 'старт через ' + Math.ceil(ST.cnt) : fmtT(ST.t)}${me >= 0 ? ` · <span style="color:#FFE066">місце ${me + 1}/${rk.length}</span> · коло ${Math.min(LAPS, Math.max(1, RC.lap + 1))}/${LAPS}` : ''}${gear}<br><span style="font-weight:600;font-size:12px">${list}</span>`;
   } else {
     const c = voteCounts();
-    h = `🪑 Гонки на кріслах · ${VARS[fl].n}<br><span style="font-weight:600;font-size:12px">${ST.ph === 'lobby' ? `готові ${ST.racers.filter(r => !r.bot).length}${myKey() !== 'me' ? ` · старт за ${Math.ceil(ST.cnt)} с` : ''} · ` : ''}наступна траса: <span style="color:#FFE066">«${VARS[ST.v].n}»</span> · голоси ${c.join(' / ')}</span>`;
+    h = `🪑 Гонки на кріслах · ${VARS[fl].n}<br><span style="font-weight:600;font-size:12px">${ST.ph === 'lobby' ? `у лобі ${Math.min(MAXR, ST.racers.length + (myKey() !== 'me' ? Math.max(0, ST.lp.length - ST.racers.filter(r => !r.bot).length) : 0))}/${MAXR}${ST.lob === 'go' ? ` · <span style="color:#7FE08A">старт за ${Math.max(0, Math.ceil(ST.cnt))}</span>` : ''} · ` : ''}наступна траса: <span style="color:#FFE066">«${VARS[ST.v].n}»</span> · голоси ${c.join(' / ')}</span>`;
   }
   if (V.hud.innerHTML !== h) V.hud.innerHTML = h;
   const gt = '👉 ' + goal(); if (V.goalEl.innerHTML !== gt) V.goalEl.innerHTML = gt;
@@ -1224,6 +1342,7 @@ function labels(here, fl, dt) {
   if (!V.lbl) {
     V.lbl = document.createElement('div'); V.lbl.style.cssText = 'position:fixed;inset:0;z-index:2;pointer-events:none'; document.body.appendChild(V.lbl);
     V.startLbl = tagEl('padding:4px 10px;border-radius:10px;background:#FFE066;color:#2E2346;font:800 14px system-ui,sans-serif', '🏁 СТАРТ');
+    V.paperLbl = VARS.map(VR => VR.PAPER.map(q => ({ q, e: tagEl('padding:3px 9px;border-radius:10px;background:#FFFFFF;color:#2E2346;border:2px solid #6BB8FF;font:800 12px system-ui,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.25)', '✈️ Папір для літачків') })).concat([{ q: VR.TRAY, tray: 1, e: tagEl('padding:3px 9px;border-radius:10px;background:#FFFFFF;color:#2E2346;border:2px solid #6BB8FF;font:800 12px system-ui,sans-serif', '✈️ Папір для літачків') }]));
     V.rooms = VARS.map(VR => VR.rooms.map(r => ({ r, VR, e: tagEl('padding:2px 8px;border-radius:9px;background:rgba(255,255,255,.75);color:#4E3A7C;font:700 11px system-ui,sans-serif', r.n) })));
   }
   V.lbl.style.display = here && !panel ? '' : 'none'; if (!here) return;
@@ -1233,6 +1352,13 @@ function labels(here, fl, dt) {
     const { r, VR, e } = o; if (vi !== fl) { e.style.display = 'none'; return; }
     const tgt = inRoom(VR, r, pl.x, pl.z) ? 0 : 1; o.op = o.op == null ? tgt : tgt > o.op ? Math.min(tgt, o.op + fdt * 5) : Math.max(tgt, o.op - fdt * 5);
     e.style.opacity = o.op.toFixed(2); place(e, VR.cx + r.x, 1.6, VR.cz + r.z); if (o.op <= 0) e.style.display = 'none';
+  }));
+  V.paperLbl.forEach((list, vi) => list.forEach((o, i) => {
+    if (vi !== fl || (o.tray && RC.on)) { o.e.style.display = 'none'; return; }   // у кріслі лоток з холу вже не потрібен
+    const cd = o.tray ? 0 : V.papCd[i] > 0 ? Math.ceil(V.papCd[i]) : 0;
+    const txt = o.tray ? (V.prePlanes ? `✈️ Папір · на старт ${V.prePlanes}/${PLANE_PRE}` : '✈️ Папір для літачків · F') : cd ? `✈️ папір · ${cd} с` : RC.on ? '✈️ Папір для літачків (+3)' : '✈️ Папір для літачків';
+    if (o.e.textContent !== txt) o.e.textContent = txt; o.e.style.opacity = cd ? '.55' : '1';
+    place(o.e, o.q.x, 2.9, o.q.z);
   }));
   const S = VARS[fl].START; place(V.startLbl, S.x, 2, S.z); if (RC.on) V.startLbl.style.display = 'none';
   { const st = V.lobHide && voting() ? '🗳️ F — лобі' : '🏁 СТАРТ'; if (V.startLbl.innerHTML !== st) V.startLbl.innerHTML = st; }
@@ -1250,22 +1376,23 @@ function labels(here, fl, dt) {
 
 /* ---------- Знайомство: картка «як грати» ---------- */
 function intro(force) {
-  const d = A.data(); if ((d.intro3 && !force) || SIMSIDE || document.getElementById('cr-intro')) return;
+  const d = A.data(); if ((d.intro4 && !force) || SIMSIDE || document.getElementById('cr-intro')) return;
   const el = document.createElement('div'); el.id = 'cr-intro';
   el.style.cssText = 'position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(20,12,40,.55);padding:16px';
   el.innerHTML = `<div style="max-width:460px;width:100%;max-height:90vh;overflow:auto;background:#2E2346;color:#fff;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)">
     <div style="font:800 20px system-ui;margin-bottom:8px">🪑 Гонки на кріслах — як грати</div>
     <div>1. <b>🗳️ Лобі</b>: у вікні з картинками клікни по трасі — «${VARS[0].n}», «${VARS[1].n}» чи «${VARS[2].n}». Більше голосів — та й буде.</div>
-    <div>2. <b>✅ Я готовий</b>: старт, щойно готові всі в лобі (онлайн — або через ${LOBBY_WAIT} с після першого). Порожні місця займуть боти. 3 кола. Сховав лобі — <b>F</b> у холі.</div>
+    <div>2. <b>✅ Я готовий</b>: у заїзді 5 учасників — порожні місця по одному займають боти 🤖 (видно в списку лобі). Лобі повне й усі готові — «Старт за 3…2…1». 3 кола. Сховав лобі — <b>F</b> у холі.</div>
     <div>3. <b>💣 Бомба</b> (1 або ЛКМ — у курсор): дугою вперед, вибух крутить і гальмує всіх поруч. На старті 2, ще — з коробок «?».</div>
     <div>4. <b>🪠 Вантуз</b> (2 або ПКМ): чіпляє суперника попереду — тебе рогаткою тягне до нього, його гальмує.</div>
     <div>5. <b>🧯 Вогнегасник</b> (3): соплом назад — реактивна піна, крісло летить як ракета, поки є заряд (білий шлейф). Ще раз 3 — вимкнути. Їдеш з піною крізь вогонь — гасиш його.</div>
     <div>6. <b>🍾 Коктейль Молотова</b> (4): кидок дугою — на трасі ${FIRE_T} с горить калюжа. Хто в'їде — закрутить, пригальмує й обпалить сідушку.</div>
-    <div>7. <b>Фішки</b>: 💨 затяжний поворот на швидкості — іскри, на прямій дрифт-буст · 🌬️ тримайся за кимось — слипстрім · 💦 калюжі прибиральниці ковзкі · 🚒 на «Колл-центрі» пожежні двері відчиняються — зріз!</div>
+    <div>7. <b>✈️ Паперовий літачок</b> (5 або ЛКМ, коли вибраний — у курсор): летить уперед, влучив — суперник «сліпне» й гальмує. Де взяти: <b>білі стоси паперу біля бортика</b> з табличкою «✈️ Папір для літачків» — проїдь крізь (+3), коробки «?», а ще до старту — лоток біля принтера в холі (<b>F</b>, +3).</div>
+    <div>8. <b>Фішки</b>: 💨 затяжний поворот на швидкості — іскри, на прямій дрифт-буст · 🌬️ тримайся за кимось — слипстрім · 💦 калюжі прибиральниці ковзкі · 🚒 на «Колл-центрі» пожежні двері відчиняються — зріз!</div>
     <div style="margin-top:8px;color:#FFE066">ПРОБІЛ — предмет з коробки (☕ 📎 📁 🍵). Піну 🧯 і пляшки 🍾 теж дають коробки «?». Жовта стрілка під кріслом показує трасу.</div>
     <button class="btn" style="margin-top:12px;width:100%">Зрозуміло, по кріслах!</button></div>`;
   document.body.appendChild(el);
-  el.querySelector('button').addEventListener('click', () => { el.remove(); d.intro3 = 1; save(); });
+  el.querySelector('button').addEventListener('click', () => { el.remove(); d.intro4 = 1; save(); });
 }
 
 /* ---------- Музика: швидкий фанк, на останньому колі — ще швидше ---------- */
@@ -1293,21 +1420,23 @@ function goRace(vi) {
   return true;
 }
 function leaveRace() { if (amIn()) req('leave'); RC.on = false; RC.pull = null; RC.jet = false; pl.emoteT = 0; setBar(false); closeLobby(); V.lobHide = false; return true; }
-if (A.mode) A.mode({ id: 'chairrace', group: 'pvp', ic: '🪑', n: 'Гонки на кріслах', sub: '3 траси-поверхи · бомби, вантузи, 🧯 і 🍾 · до 4 гравців + боти', go: () => goRace(), here: () => running && inRace(pl.x, pl.z), leave: leaveRace });
+if (A.mode) A.mode({ id: 'chairrace', group: 'pvp', ic: '🪑', n: 'Гонки на кріслах', sub: '3 траси-поверхи · бомби, вантузи, 🧯, 🍾 і ✈️ · 5 учасників (люди + боти)', go: () => goRace(), here: () => running && inRace(pl.x, pl.z), leave: leaveRace });
 A.tab('chairrace', '🪑 Гонки', () => {
   const d = A.data(), here = inRace(pl.x, pl.z);
   return `<h3>🪑 Гонки на офісних кріслах</h3>
-    <p style="font-size:13px;line-height:1.5;margin:4px 0 10px">PVP до 4 гравців (порожні місця займають боти). Три траси на поверхах хмарочосів, 3 кола — хто перший, той і отримує премію. Наступна траса: <b>«${VARS[ST.v].n}»</b>.</p>
+    <p style="font-size:13px;line-height:1.5;margin:4px 0 10px">PVP до 5 гравців (порожні місця займають боти). Три траси на поверхах хмарочосів, 3 кола — хто перший, той і отримує премію. Наступна траса: <b>«${VARS[ST.v].n}»</b>.</p>
     <div class="btns">${here ? (voting() && !RC.on ? '<button class="btn" data-cr="lobby">🗳️ Лобі</button>' : '') : '<button class="btn" data-cr="go">🪑 До лобі</button>'}<button class="btn" data-cr="help">❓ Як грати</button></div>
     <div class="list" style="margin-top:10px;font-size:13px;line-height:1.55">
       <div>🏢 <b>${VARS[0].n}</b> — ${VARS[0].sub}. <b>${VARS[1].n}</b> — ${VARS[1].sub}. <b>${VARS[2].n}</b> — ${VARS[2].sub}.</div>
-      <div>🎮 <b>WASD</b> / джойстик — у який бік їхати. У кріслі хотбар — <b>💣 Бомба</b> (1 / ЛКМ у курсор), <b>🪠 Вантуз</b> (2 / ПКМ), <b>🧯 Вогнегасник</b> (3) і <b>🍾 Коктейль Молотова</b> (4).</div>
+      <div>🎮 <b>WASD</b> / джойстик — у який бік їхати. У кріслі хотбар — <b>💣 Бомба</b> (1 / ЛКМ у курсор), <b>🪠 Вантуз</b> (2 / ПКМ), <b>🧯 Вогнегасник</b> (3), <b>🍾 Коктейль Молотова</b> (4) і <b>✈️ Літачок</b> (5).</div>
       <div>🧯 <b>Вогнегасник-реактив</b>: тримаєш соплом назад — піна штовхає крісло вперед до ${JET_V} м/с (на старті ${FOAM_START} с піни, ще — з коробок «?»; 3 — увімк./вимк.). Піною гасиш палаючі калюжі. 🍾 <b>Молотов</b>: де впаде — ${FIRE_T} с горить калюжа, в'їхав — крутить, гальмує й обпалює сідушку.</div>
       <div>💣 Бомба летить дугою й вибухає — усіх поруч крутить і гальмує (на старті 2, ще — з коробок «?»). 🪠 Вантуз чіпляє суперника попереду: тебе тягне вперед, його гальмує (перезарядка ${HOOK_CD} с).</div>
       <div>💨 <b>Дрифт-буст</b>: затяжний поворот на швидкості — сині, потім помаранчеві іскри, на прямій — прискорення. 🌬️ <b>Слипстрім</b>: тримайся позаду суперника — отримаєш тягу.</div>
       <div>💦 Калюжі від прибиральниць ковзкі. 🚒 На «Колл-центрі» пожежні двері періодично відчиняються — зріз крізь опенспейс (зелена лампа — можна, червона — зачинено).</div>
       <div>📦 Коробки «?»: 💣, 🧯 піна, 🍾 або предмет на ПРОБІЛ — ☕ прискорення · 📎 степлер · 📁 пастка позаду · 🍵 чай лідеру. 🧟 Зомбі-офісники переходять дорогу.</div>
-      <div>🏆 Місце: 1 — 120 🪙, 2 — 70, 3 — 40, 4 — 20.</div>
+      <div>✈️ <b>Паперовий літачок</b> (5 / ЛКМ, коли вибраний): летить уперед або в курсор, влучив — суперник пригальмує. Папір — білі стоси біля бортика (проїдь крізь, +3), коробки «?», лоток біля принтера в холі (F, +3 на старт).</div>
+      <div>👥 У заїзді завжди 5: люди + боти. Після першого «Я готовий» боти по одному заходять у лобі, потім «Старт за 3…2…1».</div>
+      <div>🏆 Місце: 1 — 120 🪙, 2 — 70, 3 — 40, 4 — 20, 5 — 10.</div>
     </div>
     <p class="muted" style="font-size:12px;margin-top:10px">Заїздів: ${d.races || 0} · перемог: ${d.wins || 0}</p>`;
 }, e => {
@@ -1317,5 +1446,5 @@ A.tab('chairrace', '🪑 Гонки', () => {
 });
 if (window.__ADDON_TEST) window.__race = {
   ST, AU, RC, V, VARS, get VV() { return VV; }, get TR() { return TR; }, get N() { return N; }, GRID: k => GRID(k), get START() { return VV.START; }, get ITEM_SPOTS() { return VV.ITEMS; }, get BOOSTS() { return VV.BOOSTS; }, get ZOMBIES() { return VV.ZOMB; }, FOAM_START, VBOOST, FIRE_T, JET_V,
-  inRoom, zombiePos, ranking, pickVar, voteCounts, lobbyDef, openLobby, useItem, throwBomb, shootPlunger, toggleJet, throwMolly, igniteAt, nearIdx, posOf, doorOpen, floorAt, useVar, req,
+  inRoom, zombiePos, ranking, throwPlane, lobbyHumans, PLANE_START, PLANE_PICK, PLANE_PRE, pickVar, voteCounts, lobbyDef, openLobby, useItem, throwBomb, shootPlunger, toggleJet, throwMolly, igniteAt, nearIdx, posOf, doorOpen, floorAt, useVar, req,
 };

@@ -34,6 +34,13 @@ async function client(name) {
   return T;
 }
 const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (const T of Ts) { T.now += 50; T.frame(T.now); } await sleep(50); } };
+/* ✈️ літачки скінчились — збігати до лотка з папером (F на сервері) */
+async function refill(Ts, T, X, who) {
+  const me = X.ST.ps.find(p => p.k === who); if (!me || me.pl > 0) return false;
+  const D = X.VAR[X.ST.v], N = X.navOf(D), tr = D.picks.map((p, i) => [p, i]).filter(([p]) => p.k === 'pl'), [s, i] = tr[(T.ri = (T.ri || 0) + 1) % tr.length];
+  for (let k = 0; k < 8; k++) { const x = s.x + Math.sin(k * .785) * 1.1, z = s.z + Math.cos(k * .785) * 1.1, ci = Math.floor((x - N.x0) / N.cell), cj = Math.floor((z - N.z0) / N.cell); if (!N.block[ci + cj * N.nx]) { T.pl.x = x; T.pl.z = z; break; } }
+  await tick(Ts, .3); X.req('take', { i }); await tick(Ts, .3); return true;
+}
 const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypot(m.x - x, m.z - z) < r);
 (async () => {
   let st = null;
@@ -53,16 +60,23 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
   assert(Q.ST.votes['Друкар'] === 2 && W.ST.votes['Конкурент'] === 2, 'голоси обох за поверх 63 бачать обидва');
   await tick([a, b], .3);
   assert(b.MLOBBY.votes.join() === '0,0,2' && b.MLOBBY.players.length === 2, `вікно лобі: лічильник голосів ${b.MLOBBY.votes} і список гравців`);
-  // Друкар «Я готовий» → автостарт-таймер 20 с; Конкурент ще думає
+  // Друкар «Я готовий» → лобі заповнюється ботами (по одному); Конкурент ще думає
   a.MLOBBY.onReady();
-  for (let i = 0; i < 15 && !(Q.ST.ready['Друкар'] && Q.ST.cnt > 0); i++) await tick([a, b], .3);
-  assert(W.ST.ph === 'lobby' && Q.ST.ready['Друкар'] && Q.ST.cnt > 15 && /Старт за/.test(b.MLOBBY.info), `Друкар готовий — у вікні Конкурента відлік «${b.MLOBBY.info}»`);
+  for (let i = 0; i < 15 && !(Q.ST.ready['Друкар'] && Q.ST.fill); i++) await tick([a, b], .3);
+  assert(W.ST.ph === 'lobby' && Q.ST.ready['Друкар'] && Q.ST.fill && Q.ST.ps.length === 2 && /боти доповнять/.test(b.MLOBBY.info), `Друкар готовий — не старт, а заповнення: «${b.MLOBBY.info}»`);
+  { let seen3 = false; for (let i = 0; i < 60 && Q.ST.ps.length < 5; i++) { await tick([a, b], .3); if (Q.ST.ps.length === 3 && /приєднався · 3\/5/.test(b.MLOBBY ? b.MLOBBY.info : '')) seen3 = true; }
+    await tick([a, b], .4);
+    assert(seen3 && W.ST.ps.length === 5 && Q.ST.ps.filter(p => p.bot).length === 3 && b.MLOBBY.players.filter(p => /🤖 Бот/.test(p.n) && p.ready).length === 3 && W.ST.ph === 'lobby', `🤖 боти по одному доповнили лобі до 5 — обоє бачать у списку (${b.MLOBBY.players.map(p => p.n).join(', ')})`);
+    assert(/готові 1\/2/.test(b.MLOBBY.info) && /стартуємо за 2\d с/.test(b.MLOBBY.info), `лобі повне, Конкурент не готовий — чекаємо (25 с): «${b.MLOBBY.info}»`); }
+  const lobbyBots = Q.ST.ps.filter(p => p.bot).map(p => p.k).join();
   // ховає й відкриває вікно знову
   b.MLOBBY.onHide(); await tick([a, b], .3); assert(!b.MLOBBY && !b.w.document.getElementById('mlobby'), '«Сховати» — вікно Конкурента закрилось');
   { const Bd = Q.VAR[0].board; b.pl.x = Bd.x; b.pl.z = Bd.z - 1.3; await tick([a, b], .3); const it = b.getInteract(); assert(it && /Лобі/.test(it.l), 'F біля стенда — «Лобі»'); it.fn(); await tick([a, b], .3); assert(b.MLOBBY, 'вікно знову відкрите'); }
   b.w.document.querySelector('#mlobby .rdy').click();
-  for (let i = 0; i < 20 && !(W.ST.ph === 'fight' && Q.ST.ph === 'fight'); i++) await tick([a, b], .3);
-  assert(W.ST.ph === 'fight' && Q.ST.ps.length === 4 && W.ST.v === 2 && Q.ST.v === 2, 'всі готові — одразу битва на поверсі 63: 2 гравці + 2 боти');
+  { let cd = false; for (let i = 0; i < 30 && !(W.ST.ph === 'fight' && Q.ST.ph === 'fight'); i++) { await tick([a, b], .3); if (a.MLOBBY && /старт за [123]/.test(a.MLOBBY.info)) cd = true; }
+    assert(cd, '«Усі на місці — старт за 3…2…1» у вікні Друкаря'); }
+  assert(W.ST.ph === 'fight' && Q.ST.ps.length === 5 && W.ST.v === 2 && Q.ST.v === 2, 'всі готові — битва на поверсі 63: 2 гравці + 3 боти');
+  assert(Q.ST.ps.filter(p => p.bot).map(p => p.k).join() === lobbyBots, `у раунді ті самі боти, що були в лобі (${lobbyBots})`);
   await tick([a, b], .3);
   assert(!a.MLOBBY && !b.MLOBBY && !a.w.document.getElementById('mlobby') && !b.w.document.getElementById('mlobby'), 'раунд почався — вікно лобі закрилось в обох');
   assert(W.varAt(a.pl.x, a.pl.z) === 2 && Q.varAt(b.pl.x, b.pl.z) === 2, 'ліфт: обох перенесло на поверх 63');
@@ -84,6 +98,16 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
       await tick([a, b], .3);
     }
     assert(pressed && W.ST.ev === 'boss' && Q.ST.ev === 'boss' && W.ST.ac > 20, '🚨 Конкурент натиснув тривогу через сервер — «Начальник іде!» в обох'); }
+  { // ✈️ 📘 🧻 снаряди беруться на сервері: лоток, шафа, смітник
+    const me = () => Q.ST.ps.find(p => p.k === 'Конкурент'), D = Q.VAR[2];
+    for (const k of ['bk', 'cr']) { const i = D.picks.findIndex(p => p.k === k), s = D.picks[i], N = Q.navOf(D);
+      for (let j = 0; j < 8; j++) { const x = s.x + Math.sin(j * .785) * 1.1, z = s.z + Math.cos(j * .785) * 1.1, ci = Math.floor((x - N.x0) / N.cell), cj = Math.floor((z - N.z0) / N.cell); if (!N.block[ci + cj * N.nx]) { b.pl.x = x; b.pl.z = z; break; } }
+      await tick([a, b], .4); const it = b.getInteract(); assert(it && /\(\+[25]\)/.test(it.l), `біля «${Q.ITEM[k].lbl}» F — «${it && it.l}»`); it.fn(); }
+    for (let i = 0; i < 15 && !(me().bk === 2 && me().cr === 5 && W.ST.ps.find(p => p.k === 'Конкурент').cr === 5); i++) await tick([a, b], .2);
+    assert(me().bk === 2 && me().cr === 5 && W.ST.ps.find(p => p.k === 'Конкурент').bk === 2, '📘 +2 книжки й 🧻 +5 папірців через сервер — бачать обоє');
+    const bot = W.ST.ps.find(p => p.bot); b.pl.x = bot.x - 3; b.pl.z = bot.z; await tick([a, b], .2); Q.req('book', { a: Math.atan2(bot.x - b.pl.x, bot.z - b.pl.z) });
+    let ok = false; for (let i = 0; i < 15 && !ok; i++) { await tick([a, b], .1); ok = me().bk === 1; }
+    assert(ok, '📘 Конкурент кинув книжку через сервер'); }
   // --- хаос через сервер: кулер-калюжа, колеги-зомбі + кава, Румба з бомбою, вогнегасник
   { const D = Q.VAR[2], c = D.coolers[0]; a.pl.x = c.x + 1.2; a.pl.z = c.z; await tick([a, b], .4); W.req('cooler', { i: 0 });
     for (let i = 0; i < 15 && !(W.ST.wp.length && Q.ST.wp.length); i++) await tick([a, b], .2);
@@ -106,7 +130,7 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
       const zA = W.ST.npc.find(n => n.zom), zB = zA && Q.ST.npc.find(n => n.id === zA.id && n.zom);
       if (zA && zB) { sawZ = true; b.pl.x = zB.x + .6; b.pl.z = zB.z; Q.req('coffee', { id: zB.id }); }
       else if (!zA && i % 3 === 0) {   // Друкар пуляє літачки в колегу, поки той не озвіріє
-        const n = W.ST.npc[0]; for (const [T, X, who, dx] of [[a, W, 'Друкар', -2.2], [b, Q, 'Конкурент', 2.2]]) { const me = X.ST.ps.find(p => p.k === who); if (n && me && me.pl > 0) { T.pl.x = n.x + dx; T.pl.z = n.z; await tick([a, b], .1); X.req('plane', { a: Math.atan2(n.x - T.pl.x, n.z - T.pl.z) }); } }
+        const n = W.ST.npc[0]; for (const [T, X, who, dx] of [[a, W, 'Друкар', -2.2], [b, Q, 'Конкурент', 2.2]]) { const me = X.ST.ps.find(p => p.k === who); if (me && me.pl <= 0) { await refill([a, b], T, X, who); continue; } if (n && me && me.pl > 0) { T.pl.x = n.x + dx; T.pl.z = n.z; await tick([a, b], .1); X.req('plane', { a: Math.atan2(n.x - T.pl.x, n.z - T.pl.z) }); } }
       }
       await tick([a, b], .25); served = cf() < cf0;
     }
@@ -127,6 +151,7 @@ const near = (T, x, z, r) => [...T.WORLD.proxies.values()].filter(m => Math.hypo
     for (let i = 0; i < 160 && !fire; i++) {
       for (const [T, X, who] of [[a, W, 'Друкар'], [b, Q, 'Конкурент']]) {
         const me = X.ST.ps.find(p => p.k === who); T.pl.x = pc.x + 2.6; T.pl.z = pc.z + (T === a ? .15 : -.15);
+        if (me && me.pl <= 0 && !X.ST.sf) { await refill([a, b], T, X, who); continue; }
         if (me && me.pl > 0 && i % 4 === 0 && !X.ST.sf) { X.req('plane', { a: -Math.PI / 2 }); n++; }
       }
       await tick([a, b], .25); fire = !!(W.ST.sf && Q.ST.sf);

@@ -688,7 +688,7 @@ A.onNet('rq', (d, from) => { if (SIMSIDE && d) onReq(d, from); });
 
 /* ---------- Логіка раунду (сервер світу або сам гравець) ---------- */
 function crew() {
-  return SIMSIDE ? simPlayers().filter(p => !p.dead && inOffice(p.x, p.z)).map(p => ({ name: p.name, x: p.x, z: p.z }))
+  return SIMSIDE ? simPlayers().filter(p => !p.dead && inOffice(p.x, p.z) && !(ST.on && ST.fd && ST.fd.includes(p.name))).map(p => ({ name: p.name, x: p.x, z: p.z }))
     : (running && !pl.dead && inOffice(pl.x, pl.z) ? [{ name: 'me', x: pl.x, z: pl.z }] : []);
 }
 function posOf(k) { const p = crew().find(c => c.name === k); return p || { x: START.p.x, z: START.p.z }; }
@@ -827,8 +827,25 @@ function onReq(d, from) {
   }
   else if (d.k === 'send') {
     if (cur() !== 'send' || h.it !== 'report') return;
-    setHeld(k, '', 0, h.cup); ST.si++; endRound(true, '', k);
+    setHeld(k, '', 0, h.cup); ST.si++; reportReady(k);   // v6: звіт здано — раунд НЕ кінчається, до 18:00 шукаємо саботажника
   }
+}
+/* v6: чекліст закрито → «Звіт готовий — тепер знайдіть саботажника!». Гра триває до 18:00: додаток до звіту (ще 2 колеги з даними,
+   друк, 2 підзадачі, відправка), а саботажник ще може зіпсувати готовий звіт. Перемога — звіт цілий о 18:00 або спійманий саботажник. */
+function reportReady(k) {
+  ST.rdn = (ST.rdn | 0) + 1;
+  if (!ST.rd && AU.rdLeft == null) { AU.rdLeft = Math.max(0, ST.dur - ST.t); AU.rdBy = k; }   // зірки рахуємо за першою здачею
+  ST.rd = 1;
+  const ds = shuffle(DESKS.map(d => d.i).filter(i => !pestOf(i))).slice(0, 2);
+  ST.desk = DESKS.map(d => ds.includes(d.i) ? 1 : 0); ST.need = ds.length; ST.fed = 0;
+  ST.steps.push('data', 'print', ...shuffle(SUBS.slice()).slice(0, 2), 'send');
+  emit({ k: 'rep', who: k, n: ST.rdn }); pushState();
+}
+// звіт «існує» (вже надрукований, ще не відправлений): останній «друк»/«відправка» до поточного кроку — це друк
+function repInHand() { for (let j = ST.si - 1; j >= 0; j--) { if (ST.steps[j] === 'print') return true; if (ST.steps[j] === 'send') return false; } return false; }
+function corruptReport(w) {
+  if (!ST.rd) return;
+  ST.rd = 0; emit({ k: 'rcor', w }); pushState();
 }
 function advance(k) {
   const done = cur(); ST.si++; stat(k, 't');
@@ -840,7 +857,8 @@ function startRound() {
   const need = Math.min(5, 3 + lv), subs = shuffle(SUBS.slice()).slice(0, lv >= 3 ? 4 : 3);
   const desks = shuffle(DESKS.map(d => d.i)).slice(0, need);
   Object.assign(ST, { on: true, t: 0, dur: DUR, lv, steps: ['data', 'print', ...subs, 'send'], si: 0, need, fed: 0, desk: DESKS.map(d => desks.includes(d.i) ? 1 : 0), held: {}, floor: [], zom: [],
-    coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, rhp: 100, fly: null, tb: [], xl: null, pf: 1, rid: ST.rid + 1, vo: [0, 0, 0] });
+    coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, rhp: 100, fly: null, tb: [], xl: null, pf: 1, rid: ST.rid + 1, vo: [0, 0, 0], rd: 0, rdn: 0, fd: [] });
+  AU.rdLeft = null; AU.rdBy = '';
   Object.assign(ST.boss, { x: BPATH[0].x, z: BPATH[0].z, i: 0, dir: 1, wait: 8, at: 'desk' });
   for (let i = 0; i < Math.min(5, 2 + lv); i++) spawnZombie();
   start3();
@@ -852,11 +870,12 @@ function startRound() {
 function endRound(win, why, by) {
   if (!ST.on) return;
   ST.on = false;
-  const res = Object.assign({ k: 'end', win: win ? 1 : 0, left: r2(Math.max(0, ST.dur - ST.t)), fx: ST.fixes, done: ST.si, tot: ST.steps.length, why: why || '', by: by || '', pf: win && ST.pf ? 1 : 0, v: ST.vi }, end3(win));
+  const res = Object.assign({ k: 'end', win: win ? 1 : 0, left: r2(win && ST.rd && AU.rdLeft != null ? AU.rdLeft : Math.max(0, ST.dur - ST.t)), rd: ST.rd ? 1 : 0, fd: (ST.fd || []).slice(0, 8), fx: ST.fixes, done: ST.si, tot: ST.steps.length, why: why || '', by: by || '', pf: win && ST.pf ? 1 : 0, v: ST.vi }, end3(win));
   if (win && SIMSIDE) AU.wins++;
   AU.won = win ? 1 : 0;
   for (const z of ST.zom) z.carry = null;
   Object.assign(ST, { held: {}, floor: [], jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fly: null, tb: [], xl: null, rhp: 100 });
+  ST.rd = 0; ST.fd = [];
   ST.zom.splice(2); AU.ready = {}; AU.fullT = 0; Object.assign(ST, { bt: [], cd: -1, fw: -1, fo: 0, lj: '' }); countVotes();   // боти пішли додому — нове лобі заповниться заново
   emit(res); pushState();
 }
@@ -910,7 +929,7 @@ function updZombies(dt, c) {
     if (chew && ST.on) {
       // жує звіт: цілість падає; на нулі звіт з'їдено — передруковуй (печатки й підписи теж наново)
       ST.rhp -= CHEW * dt; ST.pf = 0;
-      if (ST.rhp <= 0) { z.carry = null; ST.rhp = 100; const pi = ST.steps.indexOf('print'); if (pi >= 0 && ST.si > pi) ST.si = pi; emit({ k: 'eaten', id: z.id, x: r2(z.x), z: r2(z.z) }); pushState(); continue; }
+      if (ST.rhp <= 0) { z.carry = null; ST.rhp = 100; const pi = ST.si > 0 ? ST.steps.lastIndexOf('print', ST.si - 1) : -1; if (pi >= 0 && ST.si > pi) ST.si = pi; emit({ k: 'eaten', id: z.id, x: r2(z.x), z: r2(z.z) }); pushState(); continue; }
     }
     let tg = null, spd = 1.1;
     if (ST.on && !z.carry && ST.t > GRACE) {   // перші секунди зомбі ще досиджують нараду
@@ -1051,7 +1070,7 @@ function authTick(dt) {
     if (AU.excel && !ST.xl) pool.push('excel', 'excel');
     chaos(pick(pool));
   }
-  if (ST.t >= ST.dur) { endRound(false, 'Годинник пробив 18:00 — звіт не здано.'); return; }
+  if (ST.t >= ST.dur) { if (ST.rd) endRound(true, '', AU.rdBy); else endRound(false, ST.rdn ? 'Годинник пробив 18:00 — саботажник зіпсував звіт, а перездати не встигли.' : 'Годинник пробив 18:00 — звіт не здано.'); return; }
   AU.stT -= dt; if (AU.stT <= 0) { AU.stT = ST.fly ? .1 : .2; pushState(); }
 }
 A.on('tick', dt => {
@@ -1064,7 +1083,7 @@ A.on('tick', dt => {
     if (ST.boss.tx != null) { ST.boss.x = lerp(ST.boss.x, ST.boss.tx, k); ST.boss.z = lerp(ST.boss.z, ST.boss.tz, k); }
     for (const b of ST.bt) if (b.tx != null) { b.x = lerp(b.x, b.tx, k); b.z = lerp(b.z, b.tz, k); }
   }
-  if (!SIMSIDE) clientTick(dt);
+  if (!SIMSIDE) { clientTick(dt); losTick(dt); }
 });
 
 /* ======================= v3: саботажник, літачки й агресія колег, кулер-пастка, Румба, вогнегасник, молотов =======================
@@ -1129,7 +1148,7 @@ function snap3() {
     rb: R ? [r2(R.x), r2(R.z), r2(R.f), R.arm, R.dead > 0 ? 1 : 0] : 0, li: ST.lit.map(q => [q.id, q.x, q.z]),
     pp: ST.pp.map(q => [q.id, r2(q.x), r2(q.z), r2(q.a), r2(q.y)]), mo: ST.mo.map(q => [q.id, r2(q.x0), r2(q.z0), r2(q.x1), r2(q.z1), r2(q.T), r2(q.t)]), th: ST.th.map(q => [q.id, q.w, q.x0, q.z0, q.x1, q.z1, r2(q.T), r2(q.t)]),
     bu: ST.burn.map(q => [q.id, q.x, q.z, q.r, r2(q.t)]),
-    mt: M ? [Math.ceil(M.t), M.c, M.n, M.cnt, M.who, M.skip, M.ph === 'go' ? 1 : 0] : 0, sb: [ST.sbC, ST.sk, ST.clr], sh: ST.on && ST.sh ? ST.sh : 0, ...snap5() };
+    mt: M ? [Math.ceil(M.t), M.c, M.n, M.cnt, M.who, M.skip, M.ph === 'go' ? 1 : 0] : 0, sb: [ST.sbC, ST.sk, ST.clr], sh: ST.on && ST.sh ? ST.sh : 0, rd: [ST.rd ? 1 : 0, ST.rdn | 0, ST.fd || []], ...snap5() };
 }
 function applySnap3(d) {
   if (Array.isArray(d.ag)) ST.ag = DESKS.map((_, i) => clamp(+d.ag[i] || 0, 0, 100));
@@ -1148,6 +1167,7 @@ function applySnap3(d) {
   ST.mt = Array.isArray(d.mt) ? { t: +d.mt[0], c: (d.mt[1] || []).map(String), n: (d.mt[2] || []).map(String), cnt: (d.mt[3] || []).map(v => v | 0), who: (d.mt[4] || []).map(String), skip: d.mt[5] | 0, ph: d.mt[6] ? 'go' : 'vote', v: {} } : null;
   if (Array.isArray(d.sb)) { ST.sbC = d.sb[0] ? 1 : 0; ST.sk = String(d.sb[1] || ''); ST.clr = Array.isArray(d.sb[2]) ? d.sb[2].map(v => v | 0) : []; }
   ST.sh = Array.isArray(d.sh) ? [String(d.sh[0]), String(d.sh[1])] : null;
+  if (Array.isArray(d.rd)) { ST.rd = d.rd[0] ? 1 : 0; ST.rdn = d.rd[1] | 0; ST.fd = Array.isArray(d.rd[2]) ? d.rd[2].slice(0, 8).map(String) : []; }
   applySnap5(d);
 }
 
@@ -1426,6 +1446,7 @@ function sabDo(w, o) {
   else if (w === 'hack') { ST.heat = 1; if (cur() === 'data' && ST.fed > 0) ST.fed--; else ST.rhp = Math.max(10, ST.rhp - 25); }   // 💻 злам: сервер гріється, частина даних «зникла»
   else if (w === 'burn' || w === 'shred') ST.t = Math.min(ST.dur - 5, ST.t + (w === 'burn' ? 15 : 12));                // 🗂️ документи доведеться відновлювати
   else return false;
+  if (ST.rd && ['hack', 'burn', 'shred', 'steal', 'fire'].includes(w)) corruptReport(w);   // v6: готовий звіт можна зіпсувати — перездавайте до 18:00
   return true;
 }
 // колега-саботажник (офлайн і коли серед гравців шкідника немає)
@@ -1456,10 +1477,11 @@ function endMeeting() {
   if (out < 0) { emit({ k: 'mres', out: '', nm: '' }); pushState(); return; }
   const key = M.c[out], nm = M.n[out], ok = key === AU.sab ? 1 : 0;
   if (key === AU.int && !AU.intOk) { AU.intOk = 1; emit({ k: 'mres', out: key, nm, ok: 0, imm: 1 }); pushState(); return; }   // 🧑‍🎓 стажеру пробачають перше звинувачення
-  if (ok) { ST.sbC = 1; ST.dur += 20; }                                            // спіймали: +20 с до дедлайну, саботаж вимкнено
-  else if (key.startsWith('npc:')) { const i = +key.slice(4); ST.ag[i] = 100; turnPest(i, 'fired'); }   // образили невинного колегу
-  else ST.t = Math.min(ST.dur - 5, ST.t + 20);                                       // невинного гравця — нарада з'їла 20 с
-  emit({ k: 'mres', out: key, nm, ok }); pushState();
+  if (ok) { ST.sbC = 1; emit({ k: 'mres', out: key, nm, ok }); endRound(true, `🕵️ Саботажника спіймано на нараді: ${nm}!`, ''); return; }   // v6: спіймали — раунд виграно
+  if (key.startsWith('npc:')) { const i = +key.slice(4); ST.ag[i] = 100; turnPest(i, 'fired'); }   // образили невинного колегу
+  else { ST.fd = (ST.fd || []).concat(key); setHeld(key, '', 0, 0); }                 // v6: невинного гравця звільнили — для нього раунд скінчився
+  emit({ k: 'mres', out: key, nm, ok, fired: key.startsWith('npc:') ? 0 : 1 }); pushState();
+  if (!key.startsWith('npc:') && !crew().length) endRound(false, 'Звільнили всіх — звіт нікому здавати.');
 }
 
 /* ---------- Кадр автора раунду (v3). true — триває нарада, решта світу завмерла ---------- */
@@ -1880,6 +1902,7 @@ function onEvent(e) {
 }
 function finish(e) {
   const was = V.joined || inOffice(pl.x, pl.z); V.joined = false; V.act = null;
+  if (V.firedRid === ST.rid) { V.firedRid = -1; return; }   // звільненому підсумок уже показали
   if (!was || !running) return;
   const win = !!e.win, left = Math.max(0, +e.left || 0), fx = Math.max(0, e.fx | 0), pf = win && e.pf;
   const stars = win ? (left >= 126 ? 3 : left >= 56 ? 2 : 1) : 0;
@@ -1892,7 +1915,7 @@ function finish(e) {
   if (sab && e.sw) d.sabWins = (d.sabWins || 0) + 1; if (!sab && e.sc) d.caught = (d.caught || 0) + 1;
   d.floors = d.floors || {}; if (win) d.floors[e.v | 0] = 1;
   const mm = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-  banner(win ? `📤 Звіт здано о ${clockStr(ST.dur - left)}! ${'⭐'.repeat(stars)}${pf ? ' 💯' : ''} Запас: ${mm(left)}` : `🕕 ${e.why || '18:00 — дедлайн зірвано.'}`);
+  banner(win && e.why ? `🎉 ${e.why} ${'⭐'.repeat(stars)}` : win ? `📤 Звіт здано о ${clockStr(ST.dur - left)}! ${'⭐'.repeat(stars)}${pf ? ' 💯' : ''} Запас: ${mm(left)}` : `🕕 ${e.why || '18:00 — дедлайн зірвано.'}`);
   toast(`${win ? '🎉 Квартальний звіт прийнято!' : '😩 Начальник незадоволений.'}${pf ? ' 💯 <b>Бездоганний звіт</b> — ні укусу, ні плями: +30 🪙!' : ''} Нагорода: <b>+${coins} 🪙</b> · +${xp} досвіду. Наступний раунд — у вікні лобі: обери поверх і тисни «✅ Я готовий».`);
   if (e.sab) setTimeout(() => toast(sab ? (e.sw ? `🕵️ <b>Саботаж удався!</b> Ніхто тебе не викрив — +${coins} 🪙.` : e.sc ? '🕵️ Тебе викрили на нараді… +15 🪙 утішних.' : '🕵️ Команда все одно встигла. Наступного разу — хитріше!')
     : `🕵️ Саботажником ${e.sk === 'n' ? 'був(ла) колега' : 'був(ла)'} <b>${escapeHTML(e.sab)}</b>${e.sc ? ' — і ви його викрили! +40 🪙' : e.sw ? ' — і саботаж удався 😈' : ''}.`), 1800);
@@ -2053,6 +2076,58 @@ function lobby() {
 }
 
 /* ---------- Кожен кадр ---------- */
+/* стіни — ланцюжки кружечків-статиків; на спринті/ривку/кріслі з реактивним за кадр пролітаєш крізь кружечок, і ядро виштовхує
+   тебе вже з того боку. Тож щокадру: якщо відрізок «де був → де тепер» перетнув стіну поверху — повертаємо на свій бік. */
+function segCross(ax, az, bx, bz, cx, cz, dx, dz) {
+  const d = (bx - ax) * (dz - cz) - (bz - az) * (dx - cx); if (Math.abs(d) < 1e-9) return false;
+  const t = ((cx - ax) * (dz - cz) - (cz - az) * (dx - cx)) / d, u = ((cx - ax) * (bz - az) - (cz - az) * (bx - ax)) / d;
+  return t > 0 && t <= 1 && u >= 0 && u <= 1;
+}
+function crossesWall(x0, z0, x1, z1) {
+  const f = floorOf(x1, z1); if (f < 0 || f !== floorOf(x0, z0)) return false;
+  const Lx = LAY[f];
+  for (const w of Lx.walls) if (segCross(x0, z0, x1, z1, Lx.x + w[0], Lx.z + w[1], Lx.x + w[2], Lx.z + w[3])) return true;
+  return false;
+}
+/* 👁️ Видимість як в Among Us: інших гравців, ботів, зомбі й начальника (моделі й підписи) не видно, коли між вами стіна.
+   Плавно (~0,15 с) гасне підпис, модель зникає на половині. Лише на поверсі «Дедлайну», де стоїш ти. */
+const LOS_T = .15;
+function seeThrough(x, z) {
+  const f = floorOf(pl.x, pl.z); if (f < 0 || floorOf(x, z) !== f) return true;
+  const Lx = LAY[f];
+  for (const w of Lx.walls) if (segCross(pl.x, pl.z, x, z, Lx.x + w[0], Lx.z + w[1], Lx.x + w[2], Lx.z + w[3])) return false;
+  return true;
+}
+function losFade(o, x, z, dt) {   // o — будь-що, де тримаємо альфу; повертає альфу 0…1
+  const want = !running || pl.dead || seeThrough(x, z) ? 1 : 0;
+  o.losA = o.losA == null ? want : clamp(o.losA + (want ? 1 : -1) * dt / LOS_T, 0, 1);
+  return o.losA;
+}
+function losModel(root, a, sticky) {   // sticky — модель, яку більше ніхто щокадру не вмикає (зомбі, начальник)
+  if (a < .5) { if (root.visible) { root.visible = false; if (sticky) root.userData.losHid = 1; } }
+  else if (sticky && root.userData.losHid) { root.visible = true; root.userData.losHid = 0; }
+}
+function losTick(dt) {
+  if (floorOf(pl.x, pl.z) < 0) {   // не в «Дедлайні» — повертаємо все, що сховали
+    if (V.losOn) { V.losOn = false; for (const id in NET.players) { const r = NET.players[id]; r.losA = null; r.tag.style.opacity = ''; } if (V.bm) for (const [, m] of V.bm) { m.losA = null; m.el.style.opacity = ''; } if (V.zm) for (const [, v] of V.zm) { v.losA = null; losModel(v.h.root, 1, true); } if (V.boss) { V.losB = null; losModel(V.boss.root, 1, true); } }
+    return;
+  }
+  V.losOn = true;
+  for (const id in NET.players) { const r = NET.players[id]; if (floorOf(r.x, r.z) < 0) { r.tag.style.opacity = ''; continue; } const a = losFade(r, r.x, r.z, dt); losModel(r.h.root, a); r.tag.style.opacity = a < 1 ? a.toFixed(2) : ''; }
+  if (V.bm) for (const [, m] of V.bm) { const a = losFade(m, m.ent.x, m.ent.z, dt); losModel(m.h.root, a); m.el.style.opacity = a < 1 ? a.toFixed(2) : ''; }
+  if (V.zm) for (const [, v] of V.zm) losModel(v.h.root, losFade(v, v.ent.x, v.ent.z, dt), true);
+  if (V.boss) { const o = V.losB || (V.losB = {}); losModel(V.boss.root, losFade(o, V.boss.root.position.x, V.boss.root.position.z, dt), true); }
+}
+function wallGuard(dt) {
+  const g = V.wg || (V.wg = { x: pl.x, z: pl.z });
+  const d = dist2(g.x, g.z, pl.x, pl.z);
+  // більше, ніж можна пробігти за кадр (40 м/с), — це телепорт (ліфт, сходи, «в лобі»), а не біг: його не чіпаємо
+  if (running && !pl.dead && d > 1e-4 && d < Math.min(4, Math.max(.6, 40 * dt)) && crossesWall(g.x, g.z, pl.x, pl.z)) {
+    pl.x = g.x; pl.z = g.z; pl.dashT = 0;
+    if (pl.ride) { pl.ride.x = g.x; pl.ride.z = g.z; pl.ride.vx = pl.ride.vz = 0; }
+  }
+  g.x = pl.x; g.z = pl.z;
+}
 function clientTick(dt) {
   const t = gameTime;
   syncHeld();
@@ -2060,6 +2135,14 @@ function clientTick(dt) {
   if (ST.rid !== V.rid) { V.rid = ST.rid; V.cof = 3; V.dashT = 0; }
   if (V.dashT > 0) { V.dashT -= dt; if (Math.random() < dt * 20) burst(pl.x, .3, pl.z, '#C4956A', 1, 1, .4, .5); }
   if (V.plCd > 0) V.plCd -= dt;
+  //wallGuard(dt);
+  // пішов з «Дедлайну» (міст, телепорт, меню режимів) — підсумки, міні-гра й «як грати» не лишаються висіти над світом
+  if (floorOf(pl.x, pl.z) < 0 || !running) {
+    if (V.finEl && V.finEl.style.display !== 'none') V.finEl.style.display = 'none';
+    if (V.mg) miniDone(false, true);
+    { const r = document.getElementById('dl-role'); if (r && r.style.display !== 'none') { r.style.display = 'none'; V.roleT = 0; } }
+    const it = document.getElementById('dl-intro'); if (it && !it.dataset.f) it.remove();
+  }
   client3(dt); setBar(); updPlg(dt); roomLabels(dt);
   // колеги з даними махають, над головою 📄; колега з Excel кличе на допомогу
   for (const [i, c] of V.cols.entries()) {
@@ -2075,7 +2158,7 @@ function clientTick(dt) {
     h.root.position.set(B.x, 0, B.z); h.root.rotation.y = lerpAng(h.root.rotation.y, B.f, Math.min(1, dt * 8));
     const sw = mv ? Math.sin(t * 8) * .5 : 0; h.l1.rotation.x = sw; h.l2.rotation.x = -sw;
     V.boss.ent.x = B.x; V.boss.ent.z = B.z;
-    if (ST.on && ST.steps.includes('sign') && ST.steps.indexOf('sign') >= ST.si && !ST.coffee && Math.random() < dt * .12 && inOffice(pl.x, pl.z)) bubble(V.boss.ent, pick(['Хто бачив мою каву?!', 'Без кави нічого не підписую!', 'Звіт до шостої! І кави!']), true, 2.2);
+    if (ST.on && ST.steps.indexOf('sign', ST.si) >= 0 && !ST.coffee && Math.random() < dt * .12 && inOffice(pl.x, pl.z)) bubble(V.boss.ent, pick(['Хто бачив мою каву?!', 'Без кави нічого не підписую!', 'Звіт до шостої! І кави!']), true, 2.2);
     if (B.at === 'meeting' && Math.random() < dt * .08 && inOffice(pl.x, pl.z)) bubble(V.boss.ent, pick(['Я на нараді!', 'Синергія, колеги!', 'Хто записує?']), false, 2);
   }
   // зомбі-офісники (той, що жує звіт, — гризе теку й сиплеться папірцями)
@@ -2200,7 +2283,7 @@ function goal() {
       : { id: 'start', txt: `🗳️ У вікні лобі обери поверх і натисни <b>«✅ Я готовий»</b>. Поверх раунду: <b>${nx.n}</b>.` };
   }
   if (V.act) return { txt: `${V.act.ic} ${V.act.l}… ${Math.min(100, Math.round(V.act.t / V.act.need * 100))}% — стій поруч!` };
-  const signLater = ST.steps.indexOf('sign') >= ST.si && ST.steps.includes('sign') && !ST.coffee;
+  const signLater = ST.steps.indexOf('sign', ST.si) >= 0 && !ST.coffee;
   // звіт у повітрі — лови
   if (ST.fly && !h.it) return { id: 'catch', tg: { x: ST.fly.x1, z: ST.fly.z1 }, txt: '📑 Звіт летить! Стань під нього — зловиш автоматично.' };
   // зомбі жує звіт — вантузом його!
@@ -2284,7 +2367,7 @@ function guide() {
 /* коротка інструкція при першому вході */
 function intro(force) {
   const d = A.data(); if ((d.intro5 && !force) || SIMSIDE || document.getElementById('dl-intro')) return;
-  const el = document.createElement('div'); el.id = 'dl-intro';
+  const el = document.createElement('div'); el.id = 'dl-intro'; if (force) el.dataset.f = 1;   // з меню («як грати») — показуємо будь-де; авто-показ зникає, коли пішов з режиму
   el.style.cssText = 'position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(20,12,40,.55);padding:16px;overflow:auto';
   el.innerHTML = `<div style="max-width:500px;width:100%;background:#2E2346;color:#fff;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)">
     <div style="font:800 20px system-ui;margin-bottom:4px">⏰ Дедлайн о 18:00 — як грати</div>
@@ -2389,7 +2472,7 @@ function hud() {
   if (ST.on) {
     const left = Math.max(0, ST.dur - ST.t), col = left < 30 ? '#FF5C7A' : left < 90 ? '#FFD27A' : '#7FE08A', mh = myHeld();
     const chaos = [ST.jam ? '🖨️ принтер зажований' : '', !ST.cm ? '💥 кавоварка' : '', !ST.pw ? '⚡ нема світла' : '', ST.heat ? '🔥 сервер' : '', ST.rain ? '💦 спринклери' : '', ST.xl ? '📊 колега з Excel' : '', ST.zom.length > 4 ? '🧟 нарада' : '', ...hud3()].filter(Boolean).join(' · ');
-    const rep = ST.si > ST.steps.indexOf('print') && ST.si < ST.steps.length, rc = ST.rhp > 60 ? '#7FE08A' : ST.rhp > 30 ? '#FFD27A' : '#FF5C7A';
+    const rep = repInHand(), rc = ST.rhp > 60 ? '#7FE08A' : ST.rhp > 30 ? '#FFD27A' : '#FF5C7A';
     const chew = ST.zom.some(z => z.carry && z.carry.it === 'report');
     const bar = rep ? `<br><span style="font-size:12px">📑 цілість звіту <span style="display:inline-block;width:90px;height:8px;border-radius:4px;background:#4E4A6E;vertical-align:middle"><span style="display:block;width:${Math.round(ST.rhp)}%;height:100%;border-radius:4px;background:${rc}"></span></span> ${Math.round(ST.rhp)}%${chew ? ' · <span style="color:#FF5C7A">🧟 ЖУЮТЬ!</span>' : ST.fly ? ' · 🪂 летить' : ''}${ST.pf ? ' 💯' : ''}</span>` : '';
     h = `${fl} · <span style="font-size:17px;color:${col}">⏰ ${clockStr(ST.t)}</span> · до 18:00: <span style="color:${col}">${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}</span>${mh.it || mh.cup ? ` · у руках ${mh.it ? ITEM[mh.it].ic + (mh.n > 1 ? '×' + mh.n : '') : ''}${mh.cup ? '☕' : ''}` : ''}${V.dashT > 0 ? ' · ☕💨' : ''}${V.act ? ` · ${V.act.ic} ${Math.round(V.act.t / V.act.need * 100)}%` : ''}${bar}${chaos ? `<br><span style="font-size:12px;color:#FF8A7A">${chaos}</span>` : ''}`;
@@ -2578,11 +2661,19 @@ function goal3(h, s) {
   if (h.cup) { const q = ST.pst.filter(o => o.want === h.cup).sort((a, b) => dist2(pl.x, pl.z, a.x, a.z) - dist2(pl.x, pl.z, b.x, b.z))[0]; if (q) return { id: 'pest', tg: q, txt: `${CUPS[h.cup].ic} Пригости <b>${NAMES[q.i]}</b> — він(вона) хоче саме ${CUPS[q.want].n} (F поруч).` }; }
   return null;
 }
-function hud3() { return [ST.fire > 0 ? `🔥 серверна ${Math.round(ST.fire)}%` : '', ST.pst.length ? `😤 зайобуючих: ${ST.pst.length}` : '', ST.pud ? (ST.pud.el ? '⚡ електропастка' : '💦 калюжа') : '', ST.rb && ST.rb.arm ? '🤖💣 Румба заряджена' : '', ST.mt ? '🚨 збори' : '', ST.sbC ? '🕵️ саботажника спіймано' : '', ST.av ? '🔥 АВРАЛ' : '', ST.cs.length ? `🗂️ у справі: ${ST.cs.length}` : '', ST.cl.length ? `🔎 доказів на підлозі: ${ST.cl.length}` : '', ST.bx && ST.bx.done < ST.bx.need ? `📦 ${ST.bx.done}/${ST.bx.need}` : '', ST.mp5.length ? `🧽 калюж: ${ST.mp5.length}` : '']; }
+function hud3() { return [ST.fire > 0 ? `🔥 серверна ${Math.round(ST.fire)}%` : '', ST.pst.length ? `😤 зайобуючих: ${ST.pst.length}` : '', ST.pud ? (ST.pud.el ? '⚡ електропастка' : '💦 калюжа') : '', ST.rb && ST.rb.arm ? '🤖💣 Румба заряджена' : '', ST.mt ? '🚨 збори' : '', ST.on && ST.rd ? '📤 звіт готовий — шукаємо саботажника' : '', ST.sbC ? '🕵️ саботажника спіймано' : '', ST.av ? '🔥 АВРАЛ' : '', ST.cs.length ? `🗂️ у справі: ${ST.cs.length}` : '', ST.cl.length ? `🔎 доказів на підлозі: ${ST.cl.length}` : '', ST.bx && ST.bx.done < ST.bx.need ? `📦 ${ST.bx.done}/${ST.bx.need}` : '', ST.mp5.length ? `🧽 калюж: ${ST.mp5.length}` : '']; }
 
 /* ---------- Події v3 ---------- */
 const PEST_TALK = { talk: ['А ти бачив мій мем у загальному чаті?', 'Слухай, а в мене відпустка в серпні…', 'Давай швиденько обговоримо KPI?', 'Хто знову забрав мою чашку?!'], block: ['Маєш хвилинку? Одну!', 'Стоп! А ти підписав мою службову?'], trip: ['Ой, вибач, нога сама!', 'Обережно, тут слизько 😈'], steal: ['Це я позичу!', 'О, папірці! Мої тепер.'] };
 function pestEnt(id, i) { const m = V.m3.ps.get(id); return m ? m.ent : V.cols[i] ? V.cols[i].ent : null; }
+/* v6: тебе звільнили на нараді — для тебе раунд скінчився: підсумок і назад у лобі (ліфтовий хол), решта грає далі */
+function fired(e) {
+  V.firedRid = ST.rid; V.act = null; V.joined = false; if (V.mg) miniDone(false, true);
+  banner('📦 Тебе звільнили на нараді… Для тебе раунд скінчився.'); sfx('hurt');
+  if (running && floorOf(pl.x, pl.z) >= 0) { if (pl.ride && typeof dismount === 'function') dismount(false); toLobby('🛗 Ти в ліфтовому холі — дочекайся наступного раунду.'); }
+  P.coins += 10; addXP(30); const d = A.data(); d.rounds = (d.rounds || 0) + 1; d.fired = (d.fired || 0) + 1; save();
+  finalScreen({ win: 0, why: 'Тебе звільнили на нараді', fx: ST.fixes | 0, done: ST.si | 0, tot: ST.steps.length, sab: '', fired: 1, ps: [[myKey(), 0, 0, 0, 0, 0, 0, 0]] });
+}
 function onEvent3(e, here, nm) {
   const k = e.k, me = isMe(e.who);
   if (k === 'toss') { if (here && !me) sfx('throw'); return true; }
@@ -2626,9 +2717,14 @@ function onEvent3(e, here, nm) {
   }
   else if (k === 'clean') { if (here) burst(+e.x, .2, +e.z, '#FFFFFF', 3, 1, .3, 1); }
   else if (k === 'meet') { V.act = null; if (me) V.mc = 0; if (V.mg) miniDone(false, 1); if (here) { banner(`🚨 Негайно в переговорну! Збори скликав(ла) ${nm} — 20 с, щоб дійти.`); sfx('warn'); } }
+  else if (k === 'rep') {   // v6: звіт готовий — раунд триває до 18:00
+    if (here) { banner(`📤 Звіт готовий — тепер знайдіть саботажника!${e.n > 1 ? ' (додаток здано)' : ''}`); toast('📋 Начальник докинув <b>додаток до звіту</b> — роботу не кидаємо. Раунд іде до <b>18:00</b> або доки не спіймаєте 🕵️ саботажника на нараді (8). Саботажник ще може зіпсувати звіт!'); sfx('level'); }
+  }
+  else if (k === 'rcor') { if (here) { banner('🗑️ Саботажник зіпсував готовий звіт! Перездайте до 18:00.'); sfx('hurt'); } }
   else if (k === 'mres') {
+    if (e.fired && isMe(e.out)) { fired(e); return true; }
     if (here) verdict(e);
-    if (here && !e.imm) banner(!e.out ? '🤷 Нарада нічого не вирішила — працюємо далі.' : e.ok ? `🕵️ Спіймали! ${escapeHTML(e.nm)} — САБОТАЖНИК! +20 с до дедлайну` : `😬 ${escapeHTML(e.nm)} — не саботажник! ${String(e.out).startsWith('npc:') ? 'Колега образився(лась) і став(ла) 😤' : 'Нарада з’їла 20 с'}`);
+    if (here && !e.imm) banner(!e.out ? '🤷 Нарада нічого не вирішила — працюємо далі.' : e.ok ? `🕵️ Спіймали! ${escapeHTML(e.nm)} — САБОТАЖНИК! Раунд виграно` : `😬 ${escapeHTML(e.nm)} — не саботажник! ${String(e.out).startsWith('npc:') ? 'Колега образився(лась) і став(ла) 😤' : 'Нарада з’їла 20 с'}`);
     if (here) sfx(e.ok ? 'level' : 'hurt');
   }
   else if (k === 'sabo') {
@@ -3368,7 +3464,7 @@ function finalScreen(e) {
   let el = document.getElementById('dl-final');
   if (!el) { el = document.createElement('div'); el.id = 'dl-final'; el.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:37;width:min(560px,94vw);max-height:86vh;overflow:auto;background:#2E2346;color:#fff;border-radius:18px;padding:14px 16px;font:13px/1.45 system-ui,sans-serif;box-shadow:0 14px 44px rgba(0,0,0,.55);text-align:center;border:3px solid #FFE066;cursor:pointer'; el.addEventListener('click', () => { el.style.display = 'none'; }); document.body.appendChild(el); }
   const td = 'padding:3px 6px;border-bottom:1px solid #4E4A6E';
-  el.innerHTML = `<div style="font:900 21px system-ui">${e.win ? '📤 Звіт здано!' : '🕕 Дедлайн зірвано'} · підсумки зміни</div>
+  el.innerHTML = `<div style="font:900 21px system-ui">${e.fired ? '📦 Тебе звільнили' : e.win ? (e.rd === 0 ? '🕵️ Саботажника спіймано!' : '📤 Звіт здано!') : '🕕 Дедлайн зірвано'} · підсумки зміни</div>
     <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px"><tr style="color:#FFE066"><th style="${td};text-align:left">Хто</th><th style="${td}">✅ завдань</th><th style="${td}">🧯 пожеж</th><th style="${td}">🔎 доказів</th><th style="${td}">🕵️ саботажу</th><th style="${td}">🗳️ голосів</th></tr>
     ${rows.map(r => `<tr><td style="${td};text-align:left">${escapeHTML(nm(r.k))}</td><td style="${td}">${r.t}</td><td style="${td}">${r.f}</td><td style="${td}">${r.c}</td><td style="${td}">${r.s}</td><td style="${td}">${r.v}</td></tr>`).join('') || `<tr><td colspan="6" style="${td}">—</td></tr>`}</table>
     ${e.sab ? `<div>🕵️ Саботажник: <b>${escapeHTML(e.sab)}</b> · очки саботажу: <b>${e.sp | 0}</b>${e.sc ? ' · викрили ✅' : ''}</div>` : ''}

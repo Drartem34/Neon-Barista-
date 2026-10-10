@@ -173,10 +173,39 @@ assert(F.myHeld().it === 'report' && T.funSpeedMul() < .9, 'важкий зві�
 { at(F.STAIRS.a); step(.05); it = T.getInteract(); assert(it && /Пожежні сходи/.test(it.l), 'біля дверей F — «🚪 Пожежні сходи»'); it.fn(); step(.1); assert(Math.hypot(T.pl.x - F.STAIRS.b.x, T.pl.z - F.STAIRS.b.z) < .5 && F.myHeld().it === 'report', 'сходами — в інший кінець поверху разом зі звітом'); }
 // 📊 колега з Excel
 { F.chaos('excel'); assert(F.ST.xl && F.goal().id !== 'excel', 'колега кличе з Excel (поки звіт у руках — пріоритет звіт)'); const c0 = F.V.cof, d = F.DESKS[F.ST.xl.i]; at(d.p); step(.05); it = T.getInteract(); assert(it && /ВПР/.test(it.l), 'біля колеги F — «Допомогти з ВПР»'); it.fn(); { const inp = w.document.getElementById('dl-mg-in'); assert(F.V.mg && F.V.mg.kind === 'type' && inp && /ВПР/.test(w.document.getElementById('dl-mini').textContent), '🎮 міні-гра ПК: «⌨️ Набери слово ВПР»'); inp.value = 'впр'; inp.dispatchEvent(new w.Event('input')); } step(.2); assert(!F.V.mg && !F.ST.xl && F.V.cof === c0 + 1, '📊 набрав «ВПР» — допомогли з Excel, +1 ☕ ривок'); excelT = 1; }
-drive(90);
+drive(90, () => F.ST.rd);
 assert(boomT && F.ST.cm, 'кавоварку полагодили');
 assert(seen.includes('desk@data') && seen.includes('printer@data') && seen.includes('printer@print') && seen.includes('staple@staple') && seen.includes('stamp@stamp'), 'підказки вели: колеги → принтер → степлер → печатка');
 assert(seen.includes('number@number') && seen.includes('scan@scan') && seen.includes('coffee@sign') && seen.includes('boss@sign') && seen.includes('send@send'), 'підказки вели: архів → сканер → кава → начальник → відправка');
+// v6: чекліст закрито — раунд НЕ кінчається: «Звіт готовий — тепер знайдіть саботажника!», додаток до звіту, до 18:00
+assert(F.ST.on && F.ST.rd === 1 && F.ST.rdn === 1 && /додаток до звіту/.test(toasts()), 'звіт відправлено — раунд триває: «Звіт готовий — тепер знайдіть саботажника!»');
+assert(F.ST.steps.length > 8 && F.ST.steps[F.ST.steps.length - 1] === 'send' && F.cur() === 'data' && F.ST.need === 2, `додаток до звіту: ще ${F.ST.steps.length - F.ST.si} кроків (${F.ST.steps.slice(F.ST.si).join(' → ')})`);
+step(1); assert(F.ST.on, 'гра йде далі після здачі звіту');
+// 🧱 спринт у стіну 2 с (ривки щочверть секунди, бафф швидкості) — лишаєшся по свій бік (раніше пролітав крізь ланцюжок кружечків-статиків)
+{
+  const cx = F.L.x, cz = F.L.z; at({ x: F.START.p.x, z: F.START.p.z }); step(.1);
+  const x0 = T.pl.x, z0 = T.pl.z; T.keydown('KeyW'); step(.15); w.dispatchEvent(new w.KeyboardEvent("keyup", { code: 'KeyW' })); step(.3);
+  let mx = T.pl.x - x0, mz = T.pl.z - z0; const ml = Math.hypot(mx, mz); mx /= ml; mz /= ml;
+  const segs = F.L.walls.map(s => ({ ax: cx + s[0], az: cz + s[1], bx: cx + s[2], bz: cz + s[3] })).filter(s => { const l = Math.hypot(s.bx - s.ax, s.bz - s.az); return l >= 3 && Math.abs(((s.bx - s.ax) * mx + (s.bz - s.az) * mz) / l) < .15; })
+    .filter(s => { const px = (s.ax + s.bx) / 2 - mx * .75, pz = (s.az + s.bz) / 2 - mz * .75; return F.floorOf(px, pz) >= 0 && Math.abs(px - cx) < F.L.hx - 1 && Math.abs(pz - cz) < F.L.hz - 1; });
+  assert(segs.length >= 2, `є стіни поперек руху (${segs.length})`);
+  let thru = 0;
+  for (const sg of segs.slice(0, 4)) {
+    const mx0 = (sg.ax + sg.bx) / 2, mz0 = (sg.az + sg.bz) / 2;
+    at({ x: mx0 - mx * .75, z: mz0 - mz * .75 }); step(.05); 
+    T.keydown('KeyW'); let px = T.pl.x, pz = T.pl.z, crossed = false;
+    const X = (ax, az, bx, bz, cx2, cz2, dx2, dz2) => { const d = (bx - ax) * (dz2 - cz2) - (bz - az) * (dx2 - cx2); if (Math.abs(d) < 1e-9) return false; const t = ((cx2 - ax) * (dz2 - cz2) - (cz2 - az) * (dx2 - cx2)) / d, u = ((cx2 - ax) * (bz - az) - (cz2 - az) * (bx - ax)) / d; return t > 0 && t <= 1 && u >= 0 && u <= 1; };
+    if (process.env.RIDE) { const ch = T.BODIES.filter(b => b.kind === 'chair' && !b.fall).sort((p, q) => Math.hypot(p.x - T.pl.x, p.z - T.pl.z) - Math.hypot(q.x - T.pl.x, q.z - T.pl.z))[0]; ch.x = T.pl.x; ch.z = T.pl.z; T.mount(ch); }
+    for (let f = 0; f < 120; f++) {   // 2 с: біг + ривок щочверть секунди; перевіряємо кожен кадр, чи не перетнули саме цю стіну
+      if (f % 15 === 0) { T.pl.st = 999; T.pl.charges = 9; T.pl.buffs.speed = 9; F.V.dashT = 4; T.keydown('ShiftLeft'); w.dispatchEvent(new w.KeyboardEvent('keyup', { code: 'ShiftLeft' })); }
+      const FD = +(process.env.FD || 16.7); now += FD; calm(); T.frame(now); IV.forEach(f => f()); if (X(px, pz, T.pl.x, T.pl.z, sg.ax, sg.az, sg.bx, sg.bz)) crossed = true; px = T.pl.x; pz = T.pl.z;
+    }
+    w.dispatchEvent(new w.KeyboardEvent('keyup', { code: 'KeyW' })); if (T.pl.ride) T.dismount(T.pl); step(.05);
+    if (crossed) thru++;
+  }
+  assert(!thru, `спринт і ривки в стіну 2 с — гравець по свій бік (${Math.min(4, segs.length)} стін, пролетів: ${thru})`);
+}
+F.ST.t = F.ST.dur; step(.3);   // ⏩ 18:00
 const d = T.P.addons.deadline;
 assert(!F.ST.on && d.wins === 1 && d.rounds === 1 && d.stars >= 1 && d.floors[0] === 1, `звіт здано до 18:00 на 42-му — перемога ${'⭐'.repeat(d.stars)}`);
 step(.1); assert(!barOn() && !T.MODEBAR, 'раунд скінчився — звичайний хотбар повернувся (modeBar(null))');
@@ -192,7 +221,7 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
   readyGo();
   assert(F.ST.on && F.ST.vi === 2 && F.L.n === 'Поверх 63 · Стартап' && Math.hypot(T.pl.x - F.START.p.x, T.pl.z - F.START.p.z) < 1.5, '🛗 ліфт переніс на 63-й поверх — раунд почався там');
   assert(F.ST.need === 4 && F.ST.vo.join() === '0,0,0', 'складність зросла (даних 4), голоси скинуто');
-  seen.length = 0; drive(140);
+  seen.length = 0; drive(140, () => F.ST.rd); assert(F.ST.on && F.ST.rd, 'стартап: звіт готовий, раунд триває до 18:00'); F.ST.t = F.ST.dur; step(.3);
   assert(!F.ST.on && d.wins === 2 && d.floors[2] === 1, 'стартап: звіт здано — підказки працюють і на іншому плані');
   assert(seen.includes('desk@data') && seen.includes('send@send'), 'на 63-му підказки вели від хотдеску до мейл-руму');
 }
@@ -446,11 +475,9 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
     assert(/НЕ був/.test(w.document.getElementById('dl-verdict').textContent), '🗂️ драматичний вердикт: «Звільнено: … — НЕ був саботажником»');
     F.AU.mc = {}; F.AU.mtCd = 0; F.V.mc = 1; at({ x: MP.x + 9, z: MP.z }); w.document.querySelector('#modebar [data-ms="7"]').click(); step(.1);
     F.ST.mt.t = .05; step(.3); assert(F.ST.mt.ph === 'vote' && Math.hypot(T.pl.x - MP.x, T.pl.z - MP.z) < 3.3, '⏱️ не дійшов за 20 с — телепортувало в переговорну');
-    const dur0 = F.ST.dur; w.document.querySelector(`#dl-meet [data-mv="${si}"]`).click(); step(.2);
+    const c0 = T.P.coins; w.document.querySelector(`#dl-meet [data-mv="${si}"]`).click(); step(.2);
     assert(/БУВ/.test(w.document.getElementById('dl-verdict').textContent), '🗂️ вердикт: «— він(вона) БУВ(ЛА) саботажником!»');
-    assert(F.ST.sbC === 1 && F.ST.dur === dur0 + 20 && /спіймано/.test(w.document.getElementById('deadline-hud').textContent), `🕵️ спіймали саботажника ${F.NAMES[si]}: +20 с до дедлайну`);
-    const c0 = T.P.coins; F.ST.t = F.ST.dur - .3; step(1);
-    assert(!F.ST.on && T.P.addons.deadline.caught === 1 && T.P.coins - c0 >= 40 + 10, `раунд скінчився: +40 🪙 за спійманого саботажника (+${T.P.coins - c0})`);
+    assert(F.ST.sbC === 1 && !F.ST.on && T.P.addons.deadline.caught === 1 && T.P.coins - c0 >= 40 + 10, `🕵️ спіймали саботажника ${F.NAMES[si]} на нараді — раунд одразу виграно (+${T.P.coins - c0} 🪙, з них +40 за спійманого)`);
     assert(!F.ST.pst.length && !F.ST.ag.some(Boolean) && !F.ST.burn.length, 'після раунду «зайобуючі» повернулись за столи, вогонь згас');
     { const fe = w.document.getElementById('dl-final'); assert(fe && fe.style.display !== 'none' && /завдань/.test(fe.textContent) && /Досягнення/.test(fe.textContent) && /Саботажник/.test(fe.textContent) && /Шерлок|Пожежник|Трудоголік/.test(fe.textContent), '🏆 фінальний екран: статистика, саботажник з очками, досягнення'); fe.click(); }
     step(.1); assert(!F.V.sab && !T.MODEBAR, 'після раунду — звичайний хотбар');
@@ -458,4 +485,7 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
 }
 // вихід ліфтом у хаб
 { const E = F.L.exit; at(E); step(.05); it = T.getInteract(); assert(it && /хаб/.test(it.l), 'біля ліфта F — «⬇️ Ліфт у хаб»'); it.fn(); step(.5); assert(F.floorOf(T.pl.x, T.pl.z) < 0 && !lob(), 'ліфт відвіз у хаб — вікно лобі закрилось'); }
+// пішов з офісу — підсумки раунду, картка ролі й міні-гра не висять над відкритим світом (і над інвентарем)
+{ step(.2); const vis = id => { const e = w.document.getElementById(id); return !!e && e.style.display !== 'none'; };
+  assert(!vis('dl-final') && !vis('dl-role') && !vis('dl-mini') && !w.document.getElementById('dl-intro') && !F.V.mg, 'у хабі: картки «Дедлайну» (підсумки, роль, міні-гра) сховані'); }
 console.log('ALL OK'); process.exit(0);

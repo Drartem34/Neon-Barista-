@@ -1547,6 +1547,7 @@ function updBots(dt) {
 
 /* ---------- Кожен кадр ---------- */
 function clientTick(dt) {
+  { const it = document.getElementById('ns-intro'); if (it && !it.dataset.f && (!running || !(inIsl(pl.x, pl.z)))) it.remove(); }   // пішов з режиму, не закривши «як грати», — вікно не висить над світом (і над інвентарем)
   const t = gameTime, here = running && inIsl(pl.x, pl.z);
   // на якому поверсі дивимось стан: під час зміни — на її поверсі, інакше — там, де стоїш
   if (ST.on) useVar(ST.v); else if (here) useVar(floorAt(pl.x, pl.z));
@@ -2016,7 +2017,7 @@ function guide() {
 /* коротка інструкція при першому вході */
 function intro(force) {
   const d = A.data(); if ((d.intro2 && !force) || SIMSIDE || document.getElementById('ns-intro')) return;
-  const el = document.createElement('div'); el.id = 'ns-intro';
+  const el = document.createElement('div'); el.id = 'ns-intro'; if (force) el.dataset.f = 1;   // з меню («як грати») — показуємо будь-де; авто-показ зникає, коли пішов з режиму
   el.style.cssText = 'position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(5,3,14,.7);padding:16px;overflow:auto';
   el.innerHTML = `<div style="max-width:500px;width:100%;background:#1A1030;color:#E9E2FA;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.6);border:1px solid #4E4A6E">
     <div style="font:800 20px system-ui;margin-bottom:8px">🔦 Нічна зміна — як вижити</div>

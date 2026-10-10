@@ -1205,6 +1205,7 @@ function setBar(on) {
 
 /* ---------- Кожен кадр ---------- */
 function clientTick(dt) {
+  { const it = document.getElementById('pw-intro'); if (it && !it.dataset.f && (!running || !(inArena(pl.x, pl.z)))) it.remove(); }   // пішов з режиму, не закривши «як грати», — вікно не висить над світом (і над інвентарем)
   const t = gameTime, vh = running ? varAt(pl.x, pl.z) : -1, here = vh >= 0, D = VAR[ST.v], m = meP();
   V.shoveCd -= dt; V.lmbCd = (V.lmbCd || 0) - dt; if (V.want && (V.want.t -= dt) <= 0) V.want = null;
   setBar(!!(here && m && ST.ph === 'fight' && !pl.dead));
@@ -1643,7 +1644,7 @@ function labels(vh) {
 function intro(force) {
   if (!force && (!running || !inArena(pl.x, pl.z) || panel)) return;
   const d = A.data(); if ((d.intro3 && !force) || SIMSIDE || document.getElementById('pw-intro')) return;
-  const el = document.createElement('div'); el.id = 'pw-intro';
+  const el = document.createElement('div'); el.id = 'pw-intro'; if (force) el.dataset.f = 1;   // з меню («як грати») — показуємо будь-де; авто-показ зникає, коли пішов з режиму
   el.style.cssText = 'position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(20,12,40,.55);padding:16px';
   el.innerHTML = `<div style="max-width:470px;width:100%;max-height:90vh;overflow:auto;background:#2E2346;color:#fff;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)">
     <div style="font:800 20px system-ui;margin-bottom:8px">🖨️ Битва за принтер — як грати</div>

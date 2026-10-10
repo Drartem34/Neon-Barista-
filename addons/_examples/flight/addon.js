@@ -398,6 +398,7 @@ function rescue(msg) { pl.x = FX - 4; pl.z = FZ; pl.y = 0; pl.vy = 0; pl.falling
 
 /* ---------- Кожен кадр ---------- */
 function clientTick(dt) {
+  { const it = document.getElementById('fl-intro'); if (it && !it.dataset.f && (!running || !(dist2(pl.x, pl.z, FX, FZ) < ISL_R + 4))) it.remove(); }   // пішов з режиму, не закривши «як грати», — вікно не висить над світом (і над інвентарем)
   const t = gameTime;
   for (const c of V.clouds) { c.position.x -= (ST.on ? 26 : 6) * dt; if (c.position.x < FX - 36) { c.position.x = FX + 36; c.position.z = FZ + pick([-1, 1]) * rand(9, 26); } }
   // двері, двигуни, пробоїни
@@ -552,7 +553,7 @@ function guide() {
 /* коротка інструкція при першому вході */
 function intro(force) {
   const d = A.data(); if ((d.intro && !force) || SIMSIDE || document.getElementById('fl-intro')) return;
-  const el = document.createElement('div'); el.id = 'fl-intro';
+  const el = document.createElement('div'); el.id = 'fl-intro'; if (force) el.dataset.f = 1;   // з меню («як грати») — показуємо будь-де; авто-показ зникає, коли пішов з режиму
   el.style.cssText = 'position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(20,12,40,.55);padding:16px';
   el.innerHTML = `<div style="max-width:440px;width:100%;background:#2E2346;color:#fff;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)">
     <div style="font:800 20px system-ui;margin-bottom:8px">✈️ Кавовий рейс — як грати</div>

@@ -1716,15 +1716,16 @@ function lobbyDef() {
   return {
     title: '🙈 Сховайся від боса · лобі', sub: `Обери поверх — клікни по картці. Більшість голосів — туди й поїдемо (нічия — жереб). Наступний: <b>${FL[ST.nv].ic} ${FL[ST.nv].n}</b>.`,
     maps: FL.map((F, i) => ({ n: `${F.ic} ${F.n}`, img: `addons/hideboss/map${i + 1}.jpg`, about: F.about + (F.night ? ' · 🌙 ніч' : '') })),
-    votes: ST.vt, mine: mine ? mine[2] : -1, ready: rdy,
+    votes: ST.vt, mine: mine && mine[2] >= 0 ? mine[2] : V.myVote >= 0 ? V.myVote : -1, ready: rdy,   // свій голос підсвічуємо одразу, не чекаючи відповіді сервера
     players: ST.lb.map(r => ({ n: r[3] ? '🤖 ' + r[0] : r[0] === 'me' ? 'Ти' : r[0], ready: !!r[1], vote: r[2] })), info,
-    onVote: i => req('vote', { v: i }),
+    onVote: i => { if (ST.on || !FL[i]) return; V.myVote = i; req('vote', { v: i }); },
     onReady: () => { const m = ST.lb.find(r => r[0] === myKey() && !r[3]); req('ready', { on: !(m && m[1]), role: V.pref }); },
     onHide: () => { V.lobbyHide = true; lobbyUI(); toast('🗳️ Лобі сховано. Відкрити знову — <b>F</b> біля стійки «🗳️ ЛОБІ» або вкладка 🙈 Хованки → 🗳️ Лобі.'); },
   };
 }
 function lobbyUI() {
   if (typeof modeLobby !== 'function') return;
+  if (ST.on) V.myVote = -1;   // раунд пішов — голоси обнулились
   const want = inLobby() && !V.lobbyHide && !panel && !document.getElementById('hb-intro');
   if (want) { modeLobby(lobbyDef()); V.lobbyOpen = true; }
   else if (V.lobbyOpen) { V.lobbyOpen = false; modeLobby(null); }   // закриваємо лише своє вікно
@@ -1733,6 +1734,8 @@ function openLobby() { V.lobbyHide = false; closePanel(); lobbyUI(); }
 
 /* ---------- Кожен кадр ---------- */
 function clientTick(dt) {
+  { const it = document.getElementById('hb-intro'); if (it && !it.dataset.f && (!running || !(inIsl(pl.x, pl.z)))) it.remove(); }
+  if (V.roleT > 0 && !(running && inIsl(pl.x, pl.z))) { V.roleT = 0; const r = document.getElementById('hb-role'); if (r) r.style.display = 'none'; }   // картка ролі не їде з тобою у світ   // пішов з режиму, не закривши «як грати», — вікно не висить над світом (і над інвентарем)
   render(dt);
   if (!running) { syncBar(); lobbyUI(); return; }
   const fv = floorAt(pl.x, pl.z);
@@ -2063,7 +2066,7 @@ function guide() {
 /* коротка інструкція при першому вході */
 function intro(force) {
   const d = A.data(); if ((d.intro2 && !force) || SIMSIDE || document.getElementById('hb-intro')) return;
-  const el = document.createElement('div'); el.id = 'hb-intro';
+  const el = document.createElement('div'); el.id = 'hb-intro'; if (force) el.dataset.f = 1;   // з меню («як грати») — показуємо будь-де; авто-показ зникає, коли пішов з режиму
   el.style.cssText = 'position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(20,12,40,.55);padding:16px';
   el.innerHTML = `<div style="max-width:480px;width:100%;max-height:90vh;overflow:auto;background:#2E2346;color:#fff;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)">
     <div style="font:800 20px system-ui;margin-bottom:8px">🙈 Сховайся від боса — як грати</div>

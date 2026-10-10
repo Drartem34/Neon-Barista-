@@ -14,6 +14,7 @@ w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => 
 w.__ADDON_CODE = ['progression', 'black_market', 'hover_highlight', 'speakers', 'voice_chat', 'dynamic_bg', 'super_graphics'].map(id => ({ id, src: id + '.js', code: fs.readFileSync(path.join(root, 'addons/_examples', id + '.js'), 'utf8') }));
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
 src += ';window.__T={get P(){return P},pl,MON,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),inHub:()=>inHub(),get WORKBENCH(){return WORKBENCH},spawnMonster,screenPos,input,questEvent,addItem,makeItem,renderPanel};';
+src += ';window.__K={withAddon,Addon,addonKey};';
 w.eval(src);
 (async () => {
 const T = w.__T; let now = 1000;
@@ -94,6 +95,22 @@ T.renderPanel(); assert(body().textContent.includes('Прогрес'), 'нови
   body().querySelector('[data-vc="open"]').click(); assert(T.P.addons.voice_chat.mode === 'open', 'режим «мікрофон завжди» зберігається');
   body().querySelector('[data-vc="on"]').click(); await new Promise(r => setImmediate(r));
   assert(/лише онлайн/.test(body().textContent), 'без мережі — пояснення, що голос лише онлайн');
+}
+// меню (інвентар) — над будь-якими оверлеями режимів: картка «як грати» (z 40), підсумки (z 37), підписи (z 2) його не перекривають
+{
+  const ov = w.document.createElement('div'); ov.id = 'xx-intro'; ov.style.cssText = 'position:fixed;inset:0;z-index:40'; w.document.body.appendChild(ov);
+  T.closePanel(); w.dispatchEvent(new w.KeyboardEvent('keydown', { code: 'KeyI' }));
+  const zi = e => +w.getComputedStyle(e).zIndex || 0;
+  assert(T.panel === 'inv' && !w.document.getElementById('panel').hidden && zi(w.document.getElementById('panel')) > 40, `I відкриває інвентар поверх оверлеїв режимів (z меню ${zi(w.document.getElementById('panel'))} > 40)`);
+  assert(zi(w.document.getElementById('caseov')) > zi(w.document.getElementById('panel')), 'відкриття кейса — над меню');
+  T.closePanel(); ov.remove();
+}
+// одна клавіша в кількох аддонів: хто повернув false — передає далі (раніше останній затирав попередніх: G рафтингу ламав швабру «Дедлайну»)
+{
+  const hits = []; const rec = n => ({ id: n, name: n, ok: true, err: '' });
+  w.__K.withAddon(rec('a1'), () => w.__K.Addon.key('KeyY', () => { hits.push('a1'); }));
+  w.__K.withAddon(rec('a2'), () => w.__K.Addon.key('KeyY', () => { hits.push('a2'); return false; }));
+  assert(w.__K.addonKey('KeyY') === true && hits.join() === 'a2,a1', 'дві обробки KeyY: новіша відмовилась (false) — спрацювала попередня');
 }
 console.log('ALL OK'); process.exit(0);
 })();

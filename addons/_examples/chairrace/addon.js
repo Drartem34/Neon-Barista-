@@ -1140,6 +1140,7 @@ function updRopes(dt) {
 
 /* ---------- Кожен кадр ---------- */
 function clientTick(dt) {
+  { const it = document.getElementById('cr-intro'); if (it && !it.dataset.f && (!running || !(inRace(pl.x, pl.z)))) it.remove(); }   // пішов з режиму, не закривши «як грати», — вікно не висить над світом (і над інвентарем)
   const t = gameTime, here = running && inRace(pl.x, pl.z), fl = floorAt(pl.x, pl.z);
   if (RC.on && ((!amIn() && ST.ph !== 'end') || !running || pl.dead)) { RC.on = false; RC.pull = null; pl.emoteT = 0; }
   if (RC.on) drive(dt);
@@ -1377,7 +1378,7 @@ function labels(here, fl, dt) {
 /* ---------- Знайомство: картка «як грати» ---------- */
 function intro(force) {
   const d = A.data(); if ((d.intro4 && !force) || SIMSIDE || document.getElementById('cr-intro')) return;
-  const el = document.createElement('div'); el.id = 'cr-intro';
+  const el = document.createElement('div'); el.id = 'cr-intro'; if (force) el.dataset.f = 1;   // з меню («як грати») — показуємо будь-де; авто-показ зникає, коли пішов з режиму
   el.style.cssText = 'position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(20,12,40,.55);padding:16px';
   el.innerHTML = `<div style="max-width:460px;width:100%;max-height:90vh;overflow:auto;background:#2E2346;color:#fff;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)">
     <div style="font:800 20px system-ui;margin-bottom:8px">🪑 Гонки на кріслах — як грати</div>

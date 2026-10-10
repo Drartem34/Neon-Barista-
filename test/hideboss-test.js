@@ -55,6 +55,9 @@ T.keydown('Escape'); step(.05); body().querySelector('[data-mode="hideboss"]').c
 assert(Math.hypot(T.pl.x - H.SPAWN.x, T.pl.z - H.SPAWN.z) < 1, 'Esc → «Сховайся від боса» переносить в офіс');
 const lob = () => w.document.getElementById('mlobby');
 assert(w.document.getElementById('hb-intro') && !lob(), 'до старту: спершу інструкція (лобі під нею не відкриваємо)');
+{ const x0 = T.pl.x, z0 = T.pl.z; T.pl.x = 0; T.pl.z = 3; step(.2);   // пішов, не закривши «як грати», — картка не висить над світом (і над інвентарем)
+  assert(!w.document.getElementById('hb-intro') && !T.P.addons.hideboss.intro2, 'пішов з офісу — «як грати» зникла (і покажеться знову при вході)');
+  H.goHide(); step(.3); assert(w.document.getElementById('hb-intro') && Math.hypot(T.pl.x - x0, T.pl.z - z0) < 1.5, 'знову в офісі — інструкція знову на екрані'); }
 w.document.querySelector('#hb-intro button').click(); assert(!w.document.getElementById('hb-intro') && T.P.addons.hideboss.intro === 1, 'інструкцію закрив — більше не показується');
 step(.1);
 assert(lob() && lob().querySelectorAll('.map').length === 3 && /Сховайся від боса/.test(lob().textContent), 'вхід у режим — відкрилось вікно лобі з трьома картками поверхів');

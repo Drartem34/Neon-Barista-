@@ -2135,7 +2135,7 @@ function clientTick(dt) {
   if (ST.rid !== V.rid) { V.rid = ST.rid; V.cof = 3; V.dashT = 0; }
   if (V.dashT > 0) { V.dashT -= dt; if (Math.random() < dt * 20) burst(pl.x, .3, pl.z, '#C4956A', 1, 1, .4, .5); }
   if (V.plCd > 0) V.plCd -= dt;
-  //wallGuard(dt);
+  wallGuard(dt);
   // пішов з «Дедлайну» (міст, телепорт, меню режимів) — підсумки, міні-гра й «як грати» не лишаються висіти над світом
   if (floorOf(pl.x, pl.z) < 0 || !running) {
     if (V.finEl && V.finEl.style.display !== 'none') V.finEl.style.display = 'none';

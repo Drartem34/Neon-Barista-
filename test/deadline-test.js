@@ -190,20 +190,32 @@ step(1); assert(F.ST.on, 'гра йде далі після здачі звіт�
     .filter(s => { const px = (s.ax + s.bx) / 2 - mx * .75, pz = (s.az + s.bz) / 2 - mz * .75; return F.floorOf(px, pz) >= 0 && Math.abs(px - cx) < F.L.hx - 1 && Math.abs(pz - cz) < F.L.hz - 1; });
   assert(segs.length >= 2, `є стіни поперек руху (${segs.length})`);
   let thru = 0;
-  for (const sg of segs.slice(0, 4)) {
+  for (const [FD, RIDE] of [[16.7, 0], [50, 0], [100, 0], [50, 1]]) for (const sg of segs.slice(0, 4)) {   // 60, 20 і 10 к/с (на слабкому ПК кадр довгий — саме тоді й пролітали), пішки й у кріслі
     const mx0 = (sg.ax + sg.bx) / 2, mz0 = (sg.az + sg.bz) / 2;
     at({ x: mx0 - mx * .75, z: mz0 - mz * .75 }); step(.05); 
     T.keydown('KeyW'); let px = T.pl.x, pz = T.pl.z, crossed = false;
     const X = (ax, az, bx, bz, cx2, cz2, dx2, dz2) => { const d = (bx - ax) * (dz2 - cz2) - (bz - az) * (dx2 - cx2); if (Math.abs(d) < 1e-9) return false; const t = ((cx2 - ax) * (dz2 - cz2) - (cz2 - az) * (dx2 - cx2)) / d, u = ((cx2 - ax) * (bz - az) - (cz2 - az) * (bx - ax)) / d; return t > 0 && t <= 1 && u >= 0 && u <= 1; };
-    if (process.env.RIDE) { const ch = T.BODIES.filter(b => b.kind === 'chair' && !b.fall).sort((p, q) => Math.hypot(p.x - T.pl.x, p.z - T.pl.z) - Math.hypot(q.x - T.pl.x, q.z - T.pl.z))[0]; ch.x = T.pl.x; ch.z = T.pl.z; T.mount(ch); }
+    if (RIDE) { const ch = T.BODIES.filter(b => b.kind === 'chair' && !b.fall).sort((p, q) => Math.hypot(p.x - T.pl.x, p.z - T.pl.z) - Math.hypot(q.x - T.pl.x, q.z - T.pl.z))[0]; ch.x = T.pl.x; ch.z = T.pl.z; T.mount(ch); }
     for (let f = 0; f < 120; f++) {   // 2 с: біг + ривок щочверть секунди; перевіряємо кожен кадр, чи не перетнули саме цю стіну
       if (f % 15 === 0) { T.pl.st = 999; T.pl.charges = 9; T.pl.buffs.speed = 9; F.V.dashT = 4; T.keydown('ShiftLeft'); w.dispatchEvent(new w.KeyboardEvent('keyup', { code: 'ShiftLeft' })); }
-      const FD = +(process.env.FD || 16.7); now += FD; calm(); T.frame(now); IV.forEach(f => f()); if (X(px, pz, T.pl.x, T.pl.z, sg.ax, sg.az, sg.bx, sg.bz)) crossed = true; px = T.pl.x; pz = T.pl.z;
+      now += FD; calm(); T.frame(now); IV.forEach(f => f()); if (X(px, pz, T.pl.x, T.pl.z, sg.ax, sg.az, sg.bx, sg.bz)) crossed = true; px = T.pl.x; pz = T.pl.z;
     }
     w.dispatchEvent(new w.KeyboardEvent('keyup', { code: 'KeyW' })); if (T.pl.ride) T.dismount(T.pl); step(.05);
     if (crossed) thru++;
   }
-  assert(!thru, `спринт і ривки в стіну 2 с — гравець по свій бік (${Math.min(4, segs.length)} стін, пролетів: ${thru})`);
+  assert(!thru, `спринт і ривки в стіну 2 с — гравець по свій бік (${Math.min(4, segs.length)} стін × 4 режими, пролетів: ${thru})`);
+  // 👁️ видимість як в Among Us: бот за стіною — ні моделі, ні підпису; вийшов з-за стіни — знову видно (плавно, ~0,15 с)
+  const sg = segs[0], mx0 = (sg.ax + sg.bx) / 2, mz0 = (sg.az + sg.bz) / 2, b = F.ST.bt[0], m = () => F.V.bm.get(b.n);
+  assert(b && m(), 'у раунді є бот з моделлю й підписом');
+  const put = (x, z) => { b.x = b.tx = x; b.z = b.tz = z; b.path = null; b.job = ''; };
+  at({ x: mx0 - mx * .9, z: mz0 - mz * .9 }); put(mx0 - mx * 1.6, mz0 - mz * 1.6); step(.3);
+  assert(m().h.root.visible && m().el.style.opacity === '', 'бот по твій бік стіни — видно');
+  put(mx0 + mx * 1.2, mz0 + mz * 1.2); step(2 / 60); const a1 = m().losA; step(.3);
+  assert(!m().h.root.visible && m().el.style.opacity !== '' && +m().el.style.opacity === 0 && a1 > 0 && a1 < 1, `бот зайшов за стіну: модель схована, підпис згас (плавно: за 2 кадри прозорість ${a1.toFixed(2)})`);
+  put(mx0 - mx * 1.6, mz0 - mz * 1.6); step(.3);
+  assert(m().h.root.visible && m().el.style.opacity === '' && m().el.style.display !== 'none', 'бот по твій бік стіни — знову видно');
+  const zm0 = F.V.zm && [...F.V.zm.values()][0], zz = F.ST.zom[0];
+  if (zm0 && zz) { zz.x = zz.tx = mx0 + mx * 1.2; zz.z = zz.tz = mz0 + mz * 1.2; zz.stun = 9; step(.3); assert(!zm0.h.root.visible, '🧟 зомбі за стіною теж не видно'); zz.x = zz.tx = mx0 - mx * 1.6; zz.z = zz.tz = mz0 - mz * 1.6; step(.3); assert(zm0.h.root.visible, '🧟 і знову видно, коли стіни між вами нема'); }
 }
 F.ST.t = F.ST.dur; step(.3);   // ⏩ 18:00
 const d = T.P.addons.deadline;

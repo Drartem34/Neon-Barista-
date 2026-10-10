@@ -754,6 +754,7 @@ function onReq(d, from) {
   if (d.k === 'vote') { const v = d.v | 0; if (!ST.on && v >= 0 && v < LAY.length && AU.votes[k] !== v) { AU.votes[k] = v; countVotes(); emit({ k: 'voted', who: k, v }); pushState(); } return; }
   if (d.k === 'drop') { if (h.it) { const p = posOf(k); toFloor(h.it, h.n, p.x, p.z); } setHeld(k, '', 0, 0); pushState(); return; }
   if (!ST.on) return;
+  if (ST.fd && ST.fd.includes(k)) return;   // v6: звільненого на нараді — для нього раунд скінчився
   if (onReq3(d, k, h, who)) return;
   if (d.k === 'take') {
     const i = d.i | 0; if (!ST.desk[i] || (h.it && h.it !== 'sheets') || pestOf(i)) return;
@@ -831,14 +832,14 @@ function onReq(d, from) {
   }
 }
 /* v6: чекліст закрито → «Звіт готовий — тепер знайдіть саботажника!». Гра триває до 18:00: додаток до звіту (ще 2 колеги з даними,
-   друк, 2 підзадачі, відправка), а саботажник ще може зіпсувати готовий звіт. Перемога — звіт цілий о 18:00 або спійманий саботажник. */
+   друк, 2 підзадачі, відправка — новий чекліст), а саботажник ще може зіпсувати готовий звіт. Перемога — звіт цілий о 18:00 або спійманий саботажник. */
 function reportReady(k) {
   ST.rdn = (ST.rdn | 0) + 1;
   if (!ST.rd && AU.rdLeft == null) { AU.rdLeft = Math.max(0, ST.dur - ST.t); AU.rdBy = k; }   // зірки рахуємо за першою здачею
   ST.rd = 1;
   const ds = shuffle(DESKS.map(d => d.i).filter(i => !pestOf(i))).slice(0, 2);
   ST.desk = DESKS.map(d => ds.includes(d.i) ? 1 : 0); ST.need = ds.length; ST.fed = 0;
-  ST.steps.push('data', 'print', ...shuffle(SUBS.slice()).slice(0, 2), 'send');
+  ST.steps = ['data', 'print', ...shuffle(SUBS.slice()).slice(0, 2), 'send']; ST.si = 0;   // чекліст додатка — з нуля (знімок тримає ≤10 кроків)
   emit({ k: 'rep', who: k, n: ST.rdn }); pushState();
 }
 // звіт «існує» (вже надрукований, ще не відправлений): останній «друк»/«відправка» до поточного кроку — це друк
@@ -2077,7 +2078,7 @@ function lobby() {
 
 /* ---------- Кожен кадр ---------- */
 /* стіни — ланцюжки кружечків-статиків; на спринті/ривку/кріслі з реактивним за кадр пролітаєш крізь кружечок, і ядро виштовхує
-   тебе вже з того боку. Тож щокадру: якщо відрізок «де був → де тепер» перетнув стіну поверху — повертаємо на свій бік. */
+   тебе вже з того боку. Тож після кроку гравця (updPlayer): якщо відрізок «де був → де тепер» перетнув стіну поверху — повертаємо на свій бік. */
 function segCross(ax, az, bx, bz, cx, cz, dx, dz) {
   const d = (bx - ax) * (dz - cz) - (bz - az) * (dx - cx); if (Math.abs(d) < 1e-9) return false;
   const t = ((cx - ax) * (dz - cz) - (cz - az) * (dx - cx)) / d, u = ((cx - ax) * (bz - az) - (cz - az) * (bx - ax)) / d;
@@ -2118,16 +2119,15 @@ function losTick(dt) {
   if (V.zm) for (const [, v] of V.zm) losModel(v.h.root, losFade(v, v.ent.x, v.ent.z, dt), true);
   if (V.boss) { const o = V.losB || (V.losB = {}); losModel(V.boss.root, losFade(o, V.boss.root.position.x, V.boss.root.position.z, dt), true); }
 }
-function wallGuard(dt) {
-  const g = V.wg || (V.wg = { x: pl.x, z: pl.z });
-  const d = dist2(g.x, g.z, pl.x, pl.z);
-  // більше, ніж можна пробігти за кадр (40 м/с), — це телепорт (ліфт, сходи, «в лобі»), а не біг: його не чіпаємо
-  if (running && !pl.dead && d > 1e-4 && d < Math.min(4, Math.max(.6, 40 * dt)) && crossesWall(g.x, g.z, pl.x, pl.z)) {
-    pl.x = g.x; pl.z = g.z; pl.dashT = 0;
-    if (pl.ride) { pl.ride.x = g.x; pl.ride.z = g.z; pl.ride.vx = pl.ride.vz = 0; }
+function wallGuard(x0, z0) {
+  const d = dist2(x0, z0, pl.x, pl.z);
+  // перевіряємо лише власний рух гравця за кадр (updPlayer: біг, ривок, крісло); > 3 м — це не біг (повернення на «безпечне місце»)
+  if (running && !pl.dead && d > 1e-4 && d < 3 && crossesWall(x0, z0, pl.x, pl.z)) {
+    pl.x = x0; pl.z = z0; pl.dashT = 0;
+    if (pl.ride) { pl.ride.x = x0; pl.ride.z = z0; pl.ride.vx = pl.ride.vz = 0; }
   }
-  g.x = pl.x; g.z = pl.z;
 }
+if (!SIMSIDE && typeof updPlayer === 'function') { const _updPlayer = updPlayer; updPlayer = function (dt) { const x0 = pl.x, z0 = pl.z, r = _updPlayer.apply(this, arguments); wallGuard(x0, z0); return r; }; }
 function clientTick(dt) {
   const t = gameTime;
   syncHeld();
@@ -2135,7 +2135,6 @@ function clientTick(dt) {
   if (ST.rid !== V.rid) { V.rid = ST.rid; V.cof = 3; V.dashT = 0; }
   if (V.dashT > 0) { V.dashT -= dt; if (Math.random() < dt * 20) burst(pl.x, .3, pl.z, '#C4956A', 1, 1, .4, .5); }
   if (V.plCd > 0) V.plCd -= dt;
-  wallGuard(dt);
   // пішов з «Дедлайну» (міст, телепорт, меню режимів) — підсумки, міні-гра й «як грати» не лишаються висіти над світом
   if (floorOf(pl.x, pl.z) < 0 || !running) {
     if (V.finEl && V.finEl.style.display !== 'none') V.finEl.style.display = 'none';
@@ -3504,7 +3503,7 @@ function onEvent5(e, here, nm) {
   return true;
 }
 
-if (window.__ADDON_TEST) window.__deadline = { ST, AU, V, LAY, get L() { return L; }, get DESKS() { return DESKS; }, get START() { return START; }, get SEND() { return SEND; }, get PRINTER() { return PRINTER; }, get COFFEE() { return COFFEE; }, get TUBE() { return TUBE; }, get STAIRS() { return STAIRS; }, get LIFTS() { return LIFTS; }, get OBS() { return OBS; }, get WALLS() { return WALLS; },
+if (window.__ADDON_TEST) window.__deadline = { sabDo, wallGuard, seeThrough, ST, AU, V, LAY, get L() { return L; }, get DESKS() { return DESKS; }, get START() { return START; }, get SEND() { return SEND; }, get PRINTER() { return PRINTER; }, get COFFEE() { return COFFEE; }, get TUBE() { return TUBE; }, get STAIRS() { return STAIRS; }, get LIFTS() { return LIFTS; }, get OBS() { return OBS; }, get WALLS() { return WALLS; },
   STEPS, goal, intro, chaos, req, myHeld, myKey, blocked, navPath, clockStr, cur, useVar, floorOf, inOffice, firePlunger, throwReport, coffeeDash, reachable, roomAt, roomLabels, lobbyDef, openLobby,
   get COOLER() { return COOLER; }, get RACK() { return RACK; }, get VALVE() { return VALVE; }, get NAMES() { return NAMES; }, CUPS, hashS, pestOf, colPos, fireC, fireR, dock, throwPlane, spray, throwMolotov, callMeeting, sabotage, sabTarget, turnPest, startFire, botSabotage, startMeeting, endMeeting, onReq };
 if (window.__ADDON_TEST) Object.assign(window.__deadline, { mini, miniKey, miniWin: arg => { if (V.mg) miniDone(true, 0, arg); }, mpos, cands, setRoles, clue5, stat, finalScreen, interact5, chairPose, pkOn, CLUEI, SHIRT });

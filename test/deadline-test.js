@@ -179,7 +179,7 @@ assert(seen.includes('desk@data') && seen.includes('printer@data') && seen.inclu
 assert(seen.includes('number@number') && seen.includes('scan@scan') && seen.includes('coffee@sign') && seen.includes('boss@sign') && seen.includes('send@send'), 'підказки вели: архів → сканер → кава → начальник → відправка');
 // v6: чекліст закрито — раунд НЕ кінчається: «Звіт готовий — тепер знайдіть саботажника!», додаток до звіту, до 18:00
 assert(F.ST.on && F.ST.rd === 1 && F.ST.rdn === 1 && /додаток до звіту/.test(toasts()), 'звіт відправлено — раунд триває: «Звіт готовий — тепер знайдіть саботажника!»');
-assert(F.ST.steps.length > 8 && F.ST.steps[F.ST.steps.length - 1] === 'send' && F.cur() === 'data' && F.ST.need === 2, `додаток до звіту: ще ${F.ST.steps.length - F.ST.si} кроків (${F.ST.steps.slice(F.ST.si).join(' → ')})`);
+assert(F.ST.steps.length === 5 && F.ST.si === 0 && F.ST.steps[4] === 'send' && F.cur() === 'data' && F.ST.need === 2, `додаток до звіту — новий чекліст: ${F.ST.steps.join(' → ')}`);
 step(1); assert(F.ST.on, 'гра йде далі після здачі звіту');
 // 🧱 спринт у стіну 2 с (ривки щочверть секунди, бафф швидкості) — лишаєшся по свій бік (раніше пролітав крізь ланцюжок кружечків-статиків)
 {
@@ -233,7 +233,11 @@ assert(F.ST.nx === 1 && /57/.test(w.document.getElementById('deadline-hud').text
   readyGo();
   assert(F.ST.on && F.ST.vi === 2 && F.L.n === 'Поверх 63 · Стартап' && Math.hypot(T.pl.x - F.START.p.x, T.pl.z - F.START.p.z) < 1.5, '🛗 ліфт переніс на 63-й поверх — раунд почався там');
   assert(F.ST.need === 4 && F.ST.vo.join() === '0,0,0', 'складність зросла (даних 4), голоси скинуто');
-  seen.length = 0; drive(140, () => F.ST.rd); assert(F.ST.on && F.ST.rd, 'стартап: звіт готовий, раунд триває до 18:00'); F.ST.t = F.ST.dur; step(.3);
+  seen.length = 0; drive(140, () => F.ST.rd); assert(F.ST.on && F.ST.rd, 'стартап: звіт готовий, раунд триває до 18:00');
+  // саботажник ще може зіпсувати готовий звіт — тоді перездаємо додаток
+  TL.length = 0; assert(F.sabDo('hack') && F.ST.on && !F.ST.rd, '🕵️ злам після здачі — готовий звіт зіпсовано, раунд триває');
+  drive(160, () => F.ST.rd); assert(F.ST.on && F.ST.rd && F.ST.rdn === 2, 'додаток до звіту перездали — звіт знову готовий');
+  F.ST.t = F.ST.dur; step(.3);
   assert(!F.ST.on && d.wins === 2 && d.floors[2] === 1, 'стартап: звіт здано — підказки працюють і на іншому плані');
   assert(seen.includes('desk@data') && seen.includes('send@send'), 'на 63-му підказки вели від хотдеску до мейл-руму');
 }

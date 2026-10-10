@@ -6604,6 +6604,10 @@ function updRide(dt) {
 function moveBody(b, dt) {
   if (b.fall) return;
   const sp = Math.hypot(b.vx, b.vz);
+  // спокій: тіло стоїть там само, де після минулої повної перевірки, — перешкоди й земля ті самі, рахувати нічого.
+  // (з усіма аддонами-режимами крісел/візків і STATICS сотні — без цього сервер світу захлинався, лобі й кнопки відповідали за 2–3 с)
+  if (sp < .02 && b.x === b.restX && b.z === b.restZ) { b.vx = b.vz = 0; return; }
+  b.restX = b.restZ = NaN;
   b.x += b.vx * dt; b.z += b.vz * dt;
   if (b !== (pl.ride || null)) { const fr = Math.exp(-(onSyrup(b.x, b.z) ? .3 : b.ride ? 1.6 : 1.1) * dt); b.vx *= fr; b.vz *= fr; }
   // перешкоди: відскок
@@ -6643,6 +6647,7 @@ function moveBody(b, dt) {
     }
   }
   if (!onGround(b.x, b.z, .05) || isWet(terrainAt(b.x, b.z))) { b.fall = true; b.vy = 2; b.respT = 4; sfx('fall', b.x, b.z); }
+  else if (Math.hypot(b.vx, b.vz) < .02) { b.restX = b.x; b.restZ = b.z; }
 }
 /* Поштовх візка/бака: у спільному світі — запит серверу. */
 function bodyKick(b, vx, vz) {

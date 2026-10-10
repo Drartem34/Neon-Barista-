@@ -846,7 +846,7 @@ function updBombs(dt) {
     if (b.mine) req('bomb', { x, z });
   }
 }
-A.key('KeyG', () => { if (!running) return false; throwBomb(); });
+A.key('KeyG', () => { if (!running || !inRiver(pl.x, pl.z)) return false; throwBomb(); });   // поза річкою G — іншим аддонам (швабра «Дедлайну», танець на диско)
 
 /* ---------- Взаємодія (F) ---------- */
 const _getInteract = getInteract;

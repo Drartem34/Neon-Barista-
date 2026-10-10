@@ -47,7 +47,7 @@ const Addon = {
     return key;
   },
   /** Клавіша: Addon.key('KeyG', () => …). Поверни false — і гра обробить клавішу як звичайно. */
-  key(code, fn) { ADDONS.keys[code] = [addonRec(), fn]; },
+  key(code, fn) { ADDONS.keys[code] = [addonRec(), fn, ADDONS.keys[code] || null]; },   // кілька аддонів на одну клавішу — ланцюжок, новіший перший
   /** Мережа між гравцями: Addon.send('ping', {…}); Addon.onNet('ping', (data, from) => …). */
   send(type, data) { netSend({ t: 'ax', a: addonRec().id + ':' + type, d: data }); },
   onNet(type, fn) { ADDONS.net[addonRec().id + ':' + type] = [addonRec(), fn]; },
@@ -75,7 +75,10 @@ function addonTabRender(id) {
   return () => { const html = withAddon(t.rec, () => addonRun(t.rec, t.render)); return t.rec.ok ? (html || '') : `<p class="note">Аддон «${escapeHTML(t.rec.name)}» зламався: ${escapeHTML(t.rec.err)}</p>`; };
 }
 /* true — клавішу забрав аддон; якщо обробник повернув false, гра обробляє клавішу як звичайно. */
-function addonKey(code) { const k = ADDONS.keys[code]; if (!k) return false; const r = withAddon(k[0], () => addonRun(k[0], k[1])); return r !== false && k[0].ok; }
+function addonKey(code) {
+  for (let k = ADDONS.keys[code]; k; k = k[2]) { if (!k[0].ok) continue; const r = withAddon(k[0], () => addonRun(k[0], k[1])); if (r !== false && k[0].ok) return true; }
+  return false;
+}
 function addonTick(dt) { if (ADDONS.hooks.tick.length) for (const [rec, fn] of ADDONS.hooks.tick) withAddon(rec, () => addonRun(rec, fn, dt)); }
 function addonNet(m) { const h = ADDONS.net[m.a]; if (h) withAddon(h[0], () => addonRun(h[0], h[1], m.d, { id: m.from, name: m.name })); }
 function addonsPanelHTML() {

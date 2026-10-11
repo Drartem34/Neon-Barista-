@@ -223,7 +223,8 @@ async function follow(T, D, Ts) {
       for (let i = 0; i < 10 && !Dx.every(X => X.ST.cs.length); i++) await tick(T3, .2);
       assert(Dx.every(X => X.ST.cs.length >= 1 && /👣|🪪/.test(X.ST.cs[0].txt)), `🗂️ доказ у справі — бачать усі (рахує сервер): ${YX.ST.cs[0] && YX.ST.cs[0].txt}`); }
     { const SEC = crewT.find(T => T.w.__deadline.V.role === 'sec'), OT = T3.find(T => T !== SEC), SC = SEC.w.__deadline, mp = SC.mpos(), p0 = { x: mp.x - .6, z: mp.z }, p1 = { x: mp.x + .6, z: mp.z };
-      at(SEC, p0); at(OT, p1); await tick(T3, .4); at(SEC, p0); at(OT, p1); const it = SEC.getInteract();
+      let it = null;   // 🧟 зомбі поруч перехоплює F («прогнати зомбі») — тоді відходимо в інше місце
+      for (let n = 0; n < 4 && !(it && /Перевірити/.test(it.l)); n++) { const o = { x: n * 1.5, z: n * -1.2 }; p0.x = mp.x - .6 + o.x; p0.z = mp.z + o.z; p1.x = mp.x + .6 + o.x; p1.z = mp.z + o.z; at(SEC, p0); at(OT, p1); await tick(T3, .4); at(SEC, p0); at(OT, p1); it = SEC.getInteract(); }
       assert(it && /Перевірити/.test(it.l), `🛡️ безпековик біля колеги: «${it && it.l}» [d=${Math.hypot(SEC.pl.x - OT.pl.x, SEC.pl.z - OT.pl.z).toFixed(2)} rem=${JSON.stringify(Object.values(SEC.NET.players).map(r => [r.name, +r.x.toFixed(1), +r.z.toFixed(1)]))} me=${SEC.pl.x.toFixed(1)},${SEC.pl.z.toFixed(1)} chk=${SC.V.chk} role=${SC.V.role} mt=${!!SC.ST.mt} act=${!!SC.V.act} mg=${!!SC.V.mg} stun=${SC.V.stunT}]`); it.fn(); await tick(T3, .6);
       const toastsOf = T => [...T.w.document.querySelectorAll('#toasts > *')].map(e => e.textContent).join('\n');
       assert(/Результат бачиш лише ти/.test(toastsOf(SEC)) && T3.filter(T => T !== SEC).every(T => !/Результат бачиш лише ти/.test(toastsOf(T))), '🛡️ результат перевірки бачить лише безпековик'); }

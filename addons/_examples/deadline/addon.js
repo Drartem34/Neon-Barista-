@@ -3693,7 +3693,7 @@ const amAdmin = () => !ST.on && (!SIMSIDE && AUTH() ? true : !!(ST.rp[0] && isMe
 function rolePickHTML() {
   if (!amAdmin()) return ST.rp[0] ? `<div style="margin-top:6px;font-size:12px;opacity:.75">👑 Адмін лобі: ${escapeHTML(nmLb(ST.rp[0]))}</div>` : '';
   const cur = ST.rp[1] || '';
-  return `<div style="margin-top:8px;font-size:13px">👑 <b>Ти адмін</b> — твоя роль у наступному раунді: ${ROLEP.map(([id, l]) => `<button data-dlrp="${id}" style="margin:2px;padding:3px 8px;border-radius:9px;border:2px solid ${id === cur ? '#FFB020' : 'rgba(0,0,0,.15)'};background:${id === cur ? '#FFE7A8' : '#fff'};font:700 12px system-ui;cursor:pointer">${l}</button>`).join('')}</div>`;
+  return `<div style="margin-top:8px;font-size:13px">👑 <b>Ти адмін</b> — твоя роль у наступному раунді: ${ROLEP.map(([id, l]) => `<button data-dlrp="${id}" style="display:inline-block;width:auto;min-width:0;height:auto;margin:2px;padding:3px 8px;color:#2B2140;border-radius:9px;border:2px solid ${id === cur ? '#FFB020' : 'rgba(0,0,0,.15)'};background:${id === cur ? '#FFE7A8' : '#fff'};font:700 12px system-ui;cursor:pointer">${l}</button>`).join('')}</div>`;
 }
 if (!SIMSIDE && typeof document !== 'undefined') document.addEventListener('click', e => {
   const b = e.target && e.target.closest && e.target.closest('[data-dlrp]'); if (!b || ST.on) return;

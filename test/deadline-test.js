@@ -598,7 +598,7 @@ const actDone = tg => { for (let j = 0; j < 40 && F.V.act; j++) { at(tg); step(.
   assert(F.roomAt(F.itSpot().x, F.itSpot().z).n === 'ЩИТОВА ТА ТЕХ КІМНАТА', '🧑‍💻 ІТ-куток — у щитовій');
   const Q = () => F.ST.v4, S4 = F.L.s4;
   // 1) 🌬️ балкон: порив вітру штовхає, 🚁 дрон з кавою, 🪂 звіт за поручні → 🪢 мотузка
-  { const p0 = { x: S4.DRONE.x - 1, z: S4.DRONE.z + 2.5 }; at(p0); F.AU.v4.gT = 0; step(1.2); assert(Q().gust && Math.hypot(T.pl.x - p0.x, T.pl.z - p0.z) > .3, `🌬️ порив вітру зсунув на ${Math.hypot(T.pl.x - p0.x, T.pl.z - p0.z).toFixed(1)} м`); }
+  { const p0 = { x: S4.DRONE.x - 1, z: S4.DRONE.z + 2.5 }; at(p0); F.AU.v4.gT = 0; step(2 / 60); Q().ga = Math.atan2(S4.DRONE.x - p0.x, S4.DRONE.z - p0.z); at(p0); step(1.2); assert(Q().gust && Math.hypot(T.pl.x - p0.x, T.pl.z - p0.z) > .3, `🌬️ порив вітру зсунув на ${Math.hypot(T.pl.x - p0.x, T.pl.z - p0.z).toFixed(1)} м`); }
   { F.AU.v4.drT = 0; step(.1); assert(Q().dr, '🚁 дрон прилетів на балкон'); at(Q().dr); step(.05); it = T.getInteract(); assert(it && /дрона/.test(it.l), `біля дрона F — «${it && it.l}»`); F.V.dashT = 0; it.fn(); step(.1); assert(!Q().dr && F.V.dashT > 0, '🚁☕ кава з дрона — прискорення'); }
   { F.ST.held.me = { it: 'report', n: 1, cup: 0 }; assert(F.sabDo('balc') && Q().rope && !F.myHeld().it, '🪂 саботаж: звіт полетів за поручні'); step(.1); at(Q().rope); step(.05); it = T.getInteract(); assert(it && /мотузкою/.test(it.l), `біля поручнів F — «${it && it.l}»`); it.fn(); assert(F.V.mg && F.V.mg.kind === 'rope', '🪢 міні-гра «мотузка»'); F.miniWin(); step(.1); assert(!Q().rope && F.myHeld().it === 'report', '🪢 звіт витягнули'); F.ST.held = {}; }
   // 2) 🤖 прототип R&D: калібрування (+8 с); перепрошили — женеться й обіймає; перекалібрувати

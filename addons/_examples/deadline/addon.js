@@ -4362,7 +4362,7 @@ function aiLog(e) {
 function aiEvent(e, here) {
   if (e.k !== 'aisay' && e.k !== 'aihear') return false;
   const m = V.bm && V.bm.get(e.n), en = e.k === 'aisay' ? m && m.ent : entOf(String(e.who));
-  if (here && en) bubble(en, aiTxt(e.txt), false, 3.5);
+  if (here && en && window.__deadlineAI.subs !== false) bubble(en, aiTxt(e.txt), false, 3.5);   // субтитри (аддон може вимкнути)
   if (ST.mt) { AIH.ml.push((e.k === 'aisay' ? '🤖 ' + e.n : nmOf(e.who) + ' → ' + e.n) + ': ' + aiTxt(e.txt)); if (AIH.ml.length > 6) AIH.ml.shift(); } else AIH.ml = [];
   AIH.fns.forEach(f => { try { f(e, here); } catch (er) { } });
   return true;

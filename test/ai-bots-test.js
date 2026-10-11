@@ -19,6 +19,10 @@ w.__ADDON_CODE = [
 ];
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
 src += ';window.__T={get P(){return P},pl,ADDONS,startGame,frame,openPanel,closePanel,get panel(){return panel},TABS,ev:s=>eval(s),keydown:c=>dispatchEvent(new KeyboardEvent("keydown",{code:c}))};';
+// 🔊 озвучка: фіксуємо кожне speechSynthesis.speak; голосів лише англійський — має бути підказка й запасний голос
+const SPOKEN = []; let cancels = 0;
+w.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+w.speechSynthesis = { speak: u => SPOKEN.push(u), cancel: () => { cancels++; }, getVoices: () => [{ lang: 'en-US', name: 'Alex', localService: true }, { lang: 'en-GB', name: 'Google UK English', localService: false }] };
 w.eval(src);
 const T = w.__T; let now = 1000;
 w.__deadlineFastLobby = 1;
@@ -31,6 +35,7 @@ const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exit(1);
 const at = p => { T.pl.x = p.x; T.pl.z = p.z; T.pl.y = 0; };
 const lob = () => w.document.getElementById('mlobby');
 const body = () => w.document.querySelector('#pbody');
+const TL = []; { const box = w.document.getElementById('toasts'), _a = box.appendChild.bind(box); box.appendChild = el => { TL.push(el.textContent); return _a(el); }; }
 const bot = n => F.ST.bt.find(b => b.n === n);
 
 (async () => {
@@ -79,7 +84,7 @@ const bot = n => F.ST.bt.find(b => b.n === n);
 
   // ---------- say ----------
   w.__aibotsMock = s => ({ intent: { k: 'idle', s: 3 }, say: `Я ${s.me}, і цей звіт мене переживе.` });
-  await run(7);
+  for (let i = 0; i < 60 && !D.events().some(e => e.startsWith(`🤖 ${b0}: Я ${b0}`)); i++) await run(1);
   assert(D.events().some(e => e === `🤖 ${b0}: Я ${b0}, і цей звіт мене переживе.`) && G.S.chat.some(c => c.n === b0), 'say: репліка бота в чаті й стрічці подій');
 
   // ---------- розмова T ----------
@@ -99,18 +104,45 @@ const bot = n => F.ST.bt.find(b => b.n === n);
   // V без підтримки розпізнавання — тост і текст
   w.document.getElementById('aib-chat').querySelector('[data-aib="close"]').click();
   at({ x: bot(b0).x + .8, z: bot(b0).z }); step(.05); T.keydown('KeyV'); step(.05);
-  console.log('DBG', !!G.nearBot(), !!w.document.getElementById('aib-chat'), w.document.getElementById('toasts').textContent.slice(-200), T.panel);
-  assert(/не вміє розпізнавати/.test(w.document.getElementById('toasts').textContent) && w.document.getElementById('aib-chat'), 'V без SpeechRecognition — підказка й текстовий чат');
-  w.document.getElementById('aib-chat').querySelector('[data-aib="close"]').click(); at(F.START.p); step(.1);
+  assert(/не вміє розпізнавати/.test(TL.join('\n')) && w.document.getElementById('aib-chat'), 'V без SpeechRecognition — підказка й текстовий чат');
+  w.document.getElementById('aib-chat').querySelector('[data-aib="close"]').click(); step(.05);
+  // 🎙️ утримуй V: розпізнали фразу — вона йде боту, бот відповідає вголос
+  const RECS = []; w.SpeechRecognition = class { constructor() { RECS.push(this); } start() { this.on = 1; } stop() { this.on = 0; if (this.onend) this.onend(); } };
+  const c0 = cancels; at({ x: bot(b0).x + .8, z: bot(b0).z }); step(.05);
+  assert(/Утримуй V/.test(w.document.getElementById('aib-talk').textContent), 'кнопка біля бота — «🎙️ Утримуй V — говори»');
+  T.keydown('KeyV'); step(.02);
+  const R = RECS[RECS.length - 1]; if (R) R.bot = G.S.ptt;   // найближчий 🧠-бот (поруч може стояти й інший)
+  assert(R && R.on && R.lang === 'uk-UA' && !R.continuous && cancels > c0, 'V — мікрофон слухає uk-UA, боти замовкають (гравець перебиває)');
+  R.onresult({ results: [[{ transcript: 'Ти бачив мою каву?' }]] }); w.dispatchEvent(new w.KeyboardEvent('keyup', { code: 'KeyV' }));
+  assert(!R.on && G.S.chat.some(c => c.n === R.bot && c.txt === 'Ти бачив мою каву?'), 'відпустив V — фразу розпізнано й передано боту');
+  const sp0 = SPOKEN.length; await run(7);
+  const said = SPOKEN.slice(sp0).find(u => /Ти бачив мою каву/.test(u.text));
+  assert(said && !/\[мок\]/.test(said.text) && said.voice && said.voice.name === 'Google UK English', 'бот відповів УГОЛОС (speechSynthesis.speak), без «[мок]» у мовленні; без укр. голосу — найкращий запасний');
+  assert(TL.filter(t => /нема українського голосу/.test(t)).length === 1 && /Час і мова/.test(TL.join()), 'один раз — підказка, як встановити український голос');
+  at(F.START.p); step(.1);
 
   // ---------- нарада: голосування ----------
   F.ST.sk = 'p'; F.AU.sab = '🤖 ' + sb.n; F.ST.mt = null; F.AU.mtCd = 0; F.startMeeting('me'); F.ST.mt.ph = 'vote'; F.ST.mt.t = 60;
-  await run(7);
+  const spM = SPOKEN.length; for (let i = 0; i < 40 && names.filter(n => ('🤖 ' + n) in F.ST.mt.v).length < 4; i++) await run(1);
   const M = F.ST.mt, voted = names.filter(n => ('🤖 ' + n) in M.v);
   assert(M && voted.length >= 3 && voted.every(n => M.v['🤖 ' + n] !== M.c.indexOf('🤖 ' + n)), `нарада: ШІ-боти проголосували (${voted.length}/4) і не за себе`);
   const mt = w.document.getElementById('dl-meet');
   assert(mt && /Чат наради/.test(mt.textContent) && /Я голосую проти/.test(mt.textContent), 'у вікні наради — чат, де боти звинувачують');
+  const said2 = SPOKEN.slice(spM), lines = D.events().filter(e => names.some(n => e.startsWith('🤖 ' + n + ':')));
+  assert(said2.length >= voted.length && new Set(said2.map(u => u.pitch + '/' + u.rate)).size >= 2, `нарада: кожна репліка ботів озвучена (${said2.length}), у ботів різні тембри`);
+  for (let i = 0; i < 30 && !D.events().some(e => /Не перекладай на мене/.test(e)); i++) await run(1);
+  assert(D.events().some(e => /Не перекладай на мене/.test(e)), 'боти коротко сперечаються між собою');
+  // «🎙️ Говорити на нараді» — мікрофон слухає весь час; фраза з іменем іде названому боту
+  const mb = w.document.getElementById('aib-meet'); assert(mb && mb.style.display !== 'none' && /Говорити на нараді/.test(mb.textContent), 'на нараді кнопка «🎙️ Говорити на нараді»');
+  mb.click(); const LR = RECS[RECS.length - 1];
+  assert(G.S.live && LR.on && LR.continuous, 'режим наради: безперервне слухання');
+  LR.onresult({ results: [[{ transcript: `${sb.n}, це ти підпалив серверну!` }]] }); step(.02);
+  assert(G.S.chat.some(c => c.n === sb.n && /підпалив серверну/.test(c.txt)), 'фразу з іменем отримав названий бот');
+  LR.onend(); assert(RECS[RECS.length - 1] !== LR && RECS[RECS.length - 1].on, 'мікрофон наради перезапускається сам');
   F.ST.mt = null; F.AU.sab = ''; F.AU.mtCd = 0; step(.1);
+  assert(!G.S.live && w.document.getElementById('aib-meet').style.display === 'none', 'нарада скінчилась — мікрофон вимкнено');
+  // субтитри можна вимкнути
+  G.CFG.subs = 0; step(.05); assert(D.subs === false, 'субтитри вимикаються'); G.CFG.subs = 1; step(.05);
 
   // ---------- ліміти ----------
   Object.assign(G.S, { win: [], last: {}, reqs: 0 }); w.__aibotsMock = () => ({ intent: { k: 'idle', s: 2 }, say: '' });

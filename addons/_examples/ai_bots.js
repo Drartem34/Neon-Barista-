@@ -23,7 +23,7 @@ const INTENTS = ['goTo', 'doTask', 'sabotage', 'callMeeting', 'vote', 'say', 'fo
 const TEMPER = ['буркотливий бухгалтер, усе міряє в гривнях і нервах', 'бадьорий стажер-оптиміст, вірить у KPI', 'параноїдальний айтішник, у всьому бачить вірус', 'саркастична менеджерка, говорить пасивною агресією', 'сонний кавоман, без кави не думає', 'пафосний «коуч з продуктивності»', 'тиха HR-ка, усе записує в блокнотик'];
 
 /* ---------- Налаштування: лише localStorage (ключ ніколи не йде в A.data() — той зберігається на сервері) ---------- */
-function load() { try { return Object.assign({ on: 0, prov: 'mock', model: '', key: '', url: '', voice: 1, pick: 'all' }, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e) { return { on: 0, prov: 'mock', model: '', key: '', url: '', voice: 1, pick: 'all' }; } }
+function load() { try { return Object.assign({ on: 0, prov: 'mock', model: '', key: '', url: '', voice: 1, subs: 1, pick: 'all' }, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e) { return { on: 0, prov: 'mock', model: '', key: '', url: '', voice: 1, subs: 1, pick: 'all' }; } }
 const CFG = load();
 function save() { try { localStorage.setItem(LS, JSON.stringify(CFG)); } catch (e) { } }
 const S = { t: 0, last: {}, win: [], back: 0, fails: 0, busy: {}, want: {}, ctl: {}, ctlT: 0, reqs: 0, tok: 0, errs: 0, log: [], chat: [], open: '', keys: 0, rec: null, ptt: '', seq: 0 };
@@ -49,7 +49,8 @@ function mockReply(snap, fresh) {
   if (window.__aibotsMock) return window.__aibotsMock(snap, fresh);
   const M = snap.meeting, ch = snap.chat[snap.chat.length - 1], n = snap.me;
   if (M && M.phase === 'голосування' && !M.voted) { const c = M.candidates.find(x => x !== '🤖 ' + n && x !== n); return { intent: { k: 'vote', name: c || 'skip' }, say: c ? `[мок] Я голосую проти ${c}. Підозріло тихий.` : '[мок] Пропускаю, всі хороші.' }; }
-  if (ch && fresh) return { intent: { k: 'idle', s: 3 }, say: `[мок] ${ch.who}, чую тебе: «${String(ch.txt).slice(0, 40)}». Кава є?` };
+  if (ch && fresh && !(M && S.argue)) return { intent: { k: 'idle', s: 3 }, say: `[мок] ${ch.who}, чую тебе: «${String(ch.txt).slice(0, 40)}». Кава є?` };
+  if (fresh && M) return { intent: { k: 'idle', s: 3 }, say: '[мок] Не перекладай на мене, я весь день був біля принтера!' };
   if (snap.tasks.length) return { intent: { k: 'doTask', id: snap.tasks[0].id }, say: '' };
   return { intent: { k: 'goTo', room: snap.rooms[hash(n + S.reqs) % Math.max(1, snap.rooms.length)] || '' }, say: '' };
 }
@@ -84,8 +85,8 @@ function parseReply(txt) {
 }
 
 /* ---------- Ліміти: ≤1 запит на бота за 6 с, ≤12 за хвилину, пауза після 429 ---------- */
-// 3 запити з 12 тримаємо про запас для відповідей гравцям, щоб розмова не чекала хвилину
-function canAsk(n) { S.win = S.win.filter(t => S.t - t < 60); return S.t >= S.back && !S.busy[n] && S.t - (S.last[n] == null ? -1e9 : S.last[n]) >= PER_BOT && S.win.length < (S.want[n] ? PER_MIN : PER_MIN - 3); }
+// 4 запити з 12 тримаємо про запас для розмови з гравцем і наради, щоб голос не чекав хвилину
+function canAsk(n) { S.win = S.win.filter(t => S.t - t < 60); const pr = S.want[n] || (D() && D().meeting()); return S.t >= S.back && !S.busy[n] && S.t - (S.last[n] == null ? -1e9 : S.last[n]) >= PER_BOT && S.win.length < (pr ? PER_MIN : PER_MIN - 4); }
 function decide(n) {
   const d = D(), snap = d && d.snapshot(n); if (!snap) return false;
   const sys = sysPrompt(n, snap), user = 'Стан гри (JSON): ' + JSON.stringify(snap) + '\nЩо робиш далі? Лише JSON.';
@@ -151,36 +152,79 @@ function chatUI() {
   const h = L.length ? L.map(c => `<div><b>${escapeHTML(c.who)}:</b> ${escapeHTML(c.txt)}</div>`).join('') : '<span style="opacity:.7">Спитай про звіт, каву чи хто тут саботажник…</span>';
   if (lg.innerHTML !== h) { lg.innerHTML = h; lg.scrollTop = 1e6; }
 }
+/* ---------- 🎙️ Голос — основний спосіб розмови: утримуй V (або кнопку) — говориш; боти відповідають уголос ---------- */
+const btnCss = 'position:fixed;right:14px;z-index:30;border:0;border-radius:14px;padding:9px 14px;font:800 14px system-ui;background:#FFE066;color:#2E2346;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3);touch-action:none';
 function talkBtn() {
-  let el = document.getElementById('aib-talk'); const b = !S.open && !panel && nearBot();
+  let el = document.getElementById('aib-talk'); const b = !S.open && !panel && !(D() && D().meeting()) && nearBot();
   if (!b) { if (el) el.style.display = 'none'; return; }
-  if (!el) { el = document.createElement('button'); el.id = 'aib-talk'; el.style.cssText = 'position:fixed;right:14px;bottom:170px;z-index:30;border:0;border-radius:12px;padding:7px 12px;font:700 13px system-ui;background:#FFE066;color:#2E2346;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3)'; el.addEventListener('click', () => { const q = nearBot(); if (q) { S.open = q.n; chatUI(); } }); document.body.appendChild(el); }
-  el.textContent = `💬 Поговорити з ${b.n} (T · V — голосом)`; el.style.display = '';
+  if (!el) {
+    el = document.createElement('button'); el.id = 'aib-talk'; el.style.cssText = btnCss + ';bottom:170px';
+    el.addEventListener('pointerdown', () => { const q = nearBot(); if (q) { S.ptt = q.n; listen(q.n); } });
+    const up = () => { if (S.ptt) { S.ptt = ''; stopRec(); } }; el.addEventListener('pointerup', up); el.addEventListener('pointerleave', up);
+    document.body.appendChild(el);
+  }
+  const t = `🎙️ Утримуй V — говори з ${b.n} · T — текстом`; if (el.textContent !== t) el.textContent = t; el.style.display = '';
 }
-// 🎙️ розпізнавання мови: uk-UA → ru-RU → en-US; нема підтримки — підказка й текстовий чат
-function listen(n) {
+// 🚨 на нараді: «🎙️ Говорити» — мікрофон слухає весь час, поки ввімкнено; сперечайся з ботами вголос
+function meetBtn() {
+  const d = D(), on = !!(d && d.meeting() && d.active() && d.bots().some(b => b.ai));
+  let el = document.getElementById('aib-meet');
+  if (!on) { if (S.live) { S.live = 0; stopRec(); } if (el) el.style.display = 'none'; return; }
+  if (!el) { el = document.createElement('button'); el.id = 'aib-meet'; el.style.cssText = btnCss + ';bottom:24px;z-index:36'; el.addEventListener('click', () => { S.live = S.live ? 0 : 1; if (S.live) listen('*', true); else stopRec(); }); document.body.appendChild(el); }
+  const t = S.live ? '🔴 Слухаю нараду… (натисни — вимкнути)' : '🎙️ Говорити на нараді'; if (el.textContent !== t) el.textContent = t; el.style.display = '';
+}
+// кому адресована фраза: названий на ім'я 🧠-бот → на нараді по черзі → найближчий
+function target(n, txt) {
+  const L = (D() ? D().bots() : []).filter(b => b.ai); if (!L.length) return '';
+  const low = String(txt).toLowerCase(), named = L.find(b => low.includes(b.n.toLowerCase().slice(0, Math.max(3, b.n.length - 1))));
+  if (named) return named.n; if (n !== '*') return n;
+  S.rr = ((S.rr | 0) + 1) % L.length; return L[S.rr].n;
+}
+function stopRec() { const r = S.rec; S.rec = null; if (r) try { r.stop(); } catch (e) { } }
+// 🎙️ розпізнавання мови: uk-UA → ru-RU → en-US; нема підтримки — підказка й текстовий чат (запасний варіант)
+function listen(n, live) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { toast('🎙️ Браузер не вміє розпізнавати мову — напиши текстом (T).'); S.open = n; chatUI(); return false; }
+  if (!SR) { toast('🎙️ Браузер не вміє розпізнавати мову (спробуй Chrome чи Edge) — поки напиши текстом.'); S.live = 0; if (n !== '*') { S.open = n; chatUI(); } return false; }
   if (S.rec) return true;
+  try { if (typeof speechSynthesis !== 'undefined' && speechSynthesis.cancel) speechSynthesis.cancel(); } catch (e) { }   // гравець перебиває ботів
   const go = langs => {
-    const r = new SR(); S.rec = r; r.lang = langs[0]; r.interimResults = false; r.maxAlternatives = 1;
-    r.onresult = e => { const t = e.results && e.results[0] && e.results[0][0] && e.results[0][0].transcript; if (t) say(n, t); };
-    r.onerror = e => { S.rec = null; if (e && e.error === 'language-not-supported' && langs.length > 1) go(langs.slice(1)); else if (e && e.error !== 'aborted' && e.error !== 'no-speech') toast('🎙️ Мікрофон: ' + (e.error || 'помилка')); };
-    r.onend = () => { if (S.rec === r) S.rec = null; };
-    try { r.start(); toast(`🎙️ Слухаю (${langs[0]})… відпусти V — і ${n} відповість`); } catch (e) { S.rec = null; }
+    const r = new SR(); S.rec = r; r.lang = langs[0]; r.interimResults = false; r.maxAlternatives = 1; r.continuous = !!live;
+    r.onresult = e => { const R = e.results, t = R && R[R.length - 1] && R[R.length - 1][0] && R[R.length - 1][0].transcript; if (t) say(target(n, t), t); };
+    r.onerror = e => { if (S.rec === r) S.rec = null; if (e && e.error === 'language-not-supported' && langs.length > 1) go(langs.slice(1)); else if (e && e.error !== 'aborted' && e.error !== 'no-speech') { S.live = 0; toast('🎙️ Мікрофон: ' + (e.error || 'помилка')); } };
+    r.onend = () => { if (S.rec === r) { S.rec = null; if (live && S.live) go(langs); } };
+    try { r.start(); if (!live) toast(`🎙️ Слухаю (${langs[0]})… відпусти V — і ${n} відповість`); } catch (e) { S.rec = null; }
   };
   go(['uk-UA', 'ru-RU', 'en-US']); return true;
 }
+// найкращий український голос (Google / Natural / Online — живіші); нема — ru/en, але текст лишається українським + підказка один раз
+function bestVoice() {
+  const vs = typeof speechSynthesis !== 'undefined' && speechSynthesis.getVoices ? speechSynthesis.getVoices() || [] : [];
+  const rank = v => (/google|natural|online|neural/i.test(v.name || '') ? 2 : 0) + (v.localService ? 0 : 1);
+  const of = re => vs.filter(v => re.test(v.lang || '')).sort((a, b) => rank(b) - rank(a))[0];
+  const uk = of(/^uk/i); if (uk) return uk;
+  if (vs.length && !S.hint) {
+    S.hint = 1; let seen = 0; try { seen = localStorage.getItem(LS + '_hint'); localStorage.setItem(LS + '_hint', '1'); } catch (e) { }
+    if (!seen) toast('🔊 У браузері нема українського голосу — боти говорять іншим. Додай: Windows → Параметри → Час і мова → Мовлення → Додати голоси → Українська; macOS → Системні параметри → Універсальний доступ → Мовлення; або Chrome (голоси Google).');
+  }
+  return of(/^ru/i) || of(/^en/i) || null;
+}
 function speak(n, txt, x, z) {
-  if (!CFG.voice || typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return;
-  if (typeof pl === 'undefined' || Math.hypot(pl.x - x, pl.z - z) > 12) return;            // чути лише тим, хто поруч
-  const u = new SpeechSynthesisUtterance(String(txt).replace(/\[мок\]\s*/, '')), P = persona(n), vs = speechSynthesis.getVoices ? speechSynthesis.getVoices() : [];
-  const v = vs.find(q => /^uk/i.test(q.lang)) || vs.find(q => /^ru/i.test(q.lang)); if (v) u.voice = v; u.lang = v ? v.lang : 'uk-UA'; u.pitch = P.pitch; u.rate = P.rate;
-  try { speechSynthesis.speak(u); } catch (e) { }
+  if (!CFG.voice || typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined' || typeof pl === 'undefined') return;
+  if (!(D() && D().meeting()) && Math.hypot(pl.x - x, pl.z - z) > 12) return;               // поза нарадою чути лише тим, хто поруч
+  const u = new SpeechSynthesisUtterance(String(txt).replace(/\[мок\]\s*/, '')), P = persona(n), v = bestVoice();
+  if (v) u.voice = v; u.lang = v ? v.lang : 'uk-UA'; u.pitch = P.pitch; u.rate = P.rate;   // кожен бот — свій тембр і темп
+  try { speechSynthesis.speak(u); } catch (e) { }                                            // черга speechSynthesis: боти говорять по черзі
 }
 function onLine(e) {
-  if (e.k === 'aihear') { S.chat.push({ n: e.n, who: e.who === 'me' ? 'Ти' : String(e.who), txt: String(e.txt) }); if (CFG.on && isAdmin()) S.want[e.n] = 1; }
-  else { S.chat.push({ n: e.n, who: '🤖 ' + e.n, txt: String(e.txt) }); const b = D() && D().bots().find(q => q.n === e.n); if (b) speak(e.n, e.txt, b.x, b.z); }
+  const adm = CFG.on && isAdmin(), d = D(), mt = d && d.meeting(), others = n => (d ? d.bots() : []).filter(b => b.ai && b.n !== n && pickOn(b.n));
+  if (!mt) S.argue = 0;
+  if (e.k === 'aihear') {
+    S.chat.push({ n: e.n, who: e.who === 'me' ? 'Ти' : String(e.who), txt: String(e.txt) });
+    if (adm) { S.want[e.n] = 1; if (mt) { const o = others(e.n); if (o.length) S.want[o[(S.rr | 0) % o.length].n] = 1; } }   // на нараді відповідає ще й сусід
+  } else {
+    S.chat.push({ n: e.n, who: '🤖 ' + e.n, txt: String(e.txt) }); const b = d && d.bots().find(q => q.n === e.n); if (b) speak(e.n, e.txt, b.x, b.z);
+    if (adm && mt && (S.argue | 0) < 4) { const o = others(e.n); if (o.length) { S.argue = (S.argue | 0) + 1; S.want[o[S.argue % o.length].n] = 1; } }   // боти коротко сперечаються між собою
+  }
   if (S.chat.length > 40) S.chat.shift(); if (S.open) chatUI();
 }
 
@@ -188,8 +232,11 @@ function onLine(e) {
 function bindKeys() {
   if (S.keys) return; S.keys = 1;
   A.key('KeyT', () => { if (panel) return false; const b = nearBot(); if (!b) return false; S.open = b.n; chatUI(); return true; });
-  A.key('KeyV', () => { if (panel) return false; const b = nearBot(); if (!b) return false; S.ptt = b.n; listen(b.n); return true; });
-  addEventListener('keyup', e => { if (e.code === 'KeyV' && S.ptt) { S.ptt = ''; if (S.rec) try { S.rec.stop(); } catch (er) { } } });
+  A.key('KeyV', () => {
+    if (panel) return false; const d = D(), mt = d && d.meeting() && d.active() && d.bots().some(b => b.ai), b = nearBot();
+    if (!b && !mt) return false; S.ptt = b ? b.n : '*'; listen(S.ptt); return true;          // на нараді V — сказати всім
+  });
+  addEventListener('keyup', e => { if (e.code === 'KeyV' && S.ptt) { S.ptt = ''; if (!S.live) stopRec(); } });
 }
 
 /* ---------- Вкладка адміна ---------- */
@@ -200,7 +247,8 @@ const TAB = A.tab('aibots', '🧠 Розумні боти', () => {
   return `<h3>🧠 Розумні боти (ШІ) · тест</h3>
   <p class="muted" style="font-size:13px">Ботів «Дедлайну о 18:00» веде мовна модель: вона обирає дії й говорить. Ключ зберігається лише в цьому браузері й іде тільки до обраного провайдера.</p>
   <div class="row"><span class="ic">🧠</span><div class="tx"><b>Розумні боти</b><div class="need">${CFG.on ? 'увімкнено — LLM керує ботами' : 'вимкнено — звичайні скриптові боти'}</div></div><button class="btn${CFG.on ? '' : ' alt'}" data-aib="on">${CFG.on ? 'Вимкнути' : 'Увімкнути'}</button></div>
-  <div class="row"><span class="ic">🔊</span><div class="tx"><b>Голос ботів</b><div class="need">озвучка відповідей (speechSynthesis), чути поруч із ботом</div></div><button class="btn${CFG.voice ? '' : ' alt'}" data-aib="voice">${CFG.voice ? 'Увімк.' : 'Вимк.'}</button></div>
+  <div class="row"><span class="ic">🔊</span><div class="tx"><b>Голос ботів</b><div class="need">кожну відповідь бот каже вголос (speechSynthesis); ти відповідаєш голосом — утримуй V</div></div><button class="btn${CFG.voice ? '' : ' alt'}" data-aib="voice">${CFG.voice ? 'Увімк.' : 'Вимк.'}</button></div>
+  <div class="row"><span class="ic">💬</span><div class="tx"><b>Субтитри</b><div class="need">маленькі бульбашки з текстом над ботами</div></div><button class="btn${CFG.subs ? '' : ' alt'}" data-aib="subs">${CFG.subs ? 'Увімк.' : 'Вимк.'}</button></div>
   <p style="margin:8px 0 3px"><b>Провайдер</b></p><select data-aibf="prov" ${inp}>${Object.keys(PROV).map(k => `<option value="${k}"${k === p ? ' selected' : ''}>${PROV[k].n}</option>`).join('')}</select>
   ${p === 'mock' ? '<p class="muted" style="font-size:12px">🧪 Мок: відповіді фейкові (позначені «[мок]») — для тестів і перевірки без ключа.</p>' : `
   ${p === 'openai' ? `<p style="margin:6px 0 3px"><b>URL</b> <span class="muted" style="font-size:12px">${PRESETS.map(q => `<a href="#" data-aibp="${escapeHTML(q[0])}">${q[0]}</a>`).join(' · ')}</span></p><input data-aibf="url" value="${escapeHTML(CFG.url || PROV.openai.url)}" ${inp}>` : ''}
@@ -219,6 +267,7 @@ const TAB = A.tab('aibots', '🧠 Розумні боти', () => {
   const b = e.target.closest('[data-aib]'); if (!b) return; const a = b.dataset.aib;
   if (a === 'on') { CFG.on = CFG.on ? 0 : 1; save(); log(CFG.on ? '🧠 Увімкнено' : '⏹️ Вимкнено — боти знову скриптові'); }
   else if (a === 'voice') CFG.voice = CFG.voice ? 0 : 1;
+  else if (a === 'subs') CFG.subs = CFG.subs ? 0 : 1;
   else if (a === 'all') CFG.pick = 'all';
   else if (a === 'test') { S.tr = '⏳ перевіряю…'; llm('Відповідай одним словом.', 'Скажи «так» у JSON {"say":"так"}', { me: 'тест', meeting: null, chat: [], events: [], tasks: [], rooms: [] }).then(r => { S.tr = '✅ працює: ' + String(r.text).slice(0, 40); renderPanel(); }).catch(er => { S.tr = '❌ ' + String(er.message || er).slice(0, 80); renderPanel(); }); }
   save(); renderPanel();
@@ -242,8 +291,8 @@ function syncTab() {
 if (!SIMSIDE) {
   A.on('tick', dt => {
     bindKeys(); syncTab();
-    const d = D(); if (d && !S.lis) { S.lis = 1; d.listen(onLine); }
-    adminTick(dt); talkBtn(); if (S.open) { const b = d && d.bots().find(q => q.n === S.open); if (!b || !d.active()) { S.open = ''; chatUI(); } }
+    const d = D(); if (d && !S.lis) { S.lis = 1; d.listen(onLine); } if (d) d.subs = !!CFG.subs;
+    adminTick(dt); talkBtn(); meetBtn(); if (S.open) { const b = d && d.bots().find(q => q.n === S.open); if (!b || !d.active()) { S.open = ''; chatUI(); } }
   });
 }
-if (window.__ADDON_TEST) window.__aibots = { CFG, S, PROV, TAB, isAdmin, syncTab, decide, canAsk, adminTick, llm, parseReply, mockReply, sysPrompt, persona, nearBot, listen, say, chatUI, save };
+if (window.__ADDON_TEST) window.__aibots = { CFG, S, PROV, TAB, isAdmin, syncTab, decide, canAsk, adminTick, llm, parseReply, mockReply, sysPrompt, persona, nearBot, listen, say, chatUI, save, speak, bestVoice, target, meetBtn, onLine };

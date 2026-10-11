@@ -177,7 +177,7 @@ const bot = n => F.ST.bt.find(b => b.n === n);
   G.adminTick(1); await flush(); await flush();
   D.talk(b0, 'Як справи?');
   T.ev('NET.on = false; WORLD.on = false; ACCT = null; NET.ws = null;');
-  assert(sent.some(s => /"rq"/.test(s) && /goTo/.test(s)) && sent.some(s => /aitalk/.test(s)), `онлайн: наміри й репліки йдуть автору раунду через канал «Дедлайну» (${sent.length} повідомлень)`);
+  assert(sent.some(s => /deadline:rq/.test(s) && /goTo/.test(s)) && sent.some(s => /aitalk/.test(s)), `онлайн: наміри й репліки йдуть автору раунду через канал «Дедлайну» (${sent.length} повідомлень)`);
   assert(sent.every(s => !s.includes('TESTKEY')) && !JSON.stringify(T.P).includes('TESTKEY') && G.S.tok - t0 >= 77, 'ключ ніколи не потрапляє в мережеві повідомлення грі й у збереження; токени враховано');
   assert(w.localStorage.getItem('nb_ai_bots_v1').includes('TESTKEY'), 'ключ лежить лише в localStorage адміна');
 

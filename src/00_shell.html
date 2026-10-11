@@ -292,6 +292,18 @@ body.touch #quest{max-width:190px;font-size:12px}
 .btn.alt{background:#E2D6EE;color:var(--ink)}
 .btn:disabled{opacity:.4;cursor:default}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
+#frpops{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;width:min(360px,calc(100vw - 32px))}
+.frpop{position:relative;overflow:hidden;background:rgba(46,35,70,.94);color:#fff;padding:10px 12px 12px;border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.3);font-size:14px;animation:tin .25s ease-out}
+.frpop .btns{margin-top:8px}.frpop .frbar{position:absolute;left:0;bottom:0;height:3px;width:100%;background:#7FE3D0;transform-origin:left;animation:frbar 30s linear forwards}
+@keyframes frbar{to{transform:scaleX(0)}}
+.frpick{margin-top:6px}.frlist .row .btns.small{flex-wrap:nowrap}
+.axhelp{margin:0 0 12px;padding:8px 10px;border-radius:12px;background:rgba(127,127,127,.08)}
+.axhelp>summary{font-size:15px;color:inherit;margin:0}
+.axlist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.axitem{border-radius:10px;border:1px solid rgba(127,127,127,.25);overflow:hidden}
+.axitem.on{border-color:rgba(127,127,127,.5)}
+.axhead{display:block;width:100%;text-align:left;padding:8px 10px;font:inherit;font-weight:700;background:none;border:0;color:inherit;cursor:pointer}
+.axbody{padding:0 10px 10px}
 .chip{background:var(--soft);border-radius:10px;padding:5px 9px;font-size:13px}
 .list{display:flex;flex-direction:column;gap:8px}
 .row{display:flex;align-items:center;gap:10px;background:var(--soft);border-radius:14px;padding:10px 12px}

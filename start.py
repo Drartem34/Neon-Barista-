@@ -266,12 +266,13 @@ class Tunnel:
 
 # ===================== ГРАВЦІ =====================
 class Player:
-    __slots__ = ('id', 'name', 'writer', 'state', 'joined', 'msgs', 'last', 'ip', 'login', 'fx')
+    __slots__ = ('id', 'name', 'writer', 'state', 'joined', 'msgs', 'last', 'ip', 'login', 'fx', 'frq')
 
     def __init__(self, pid, writer, ip):
         self.id, self.writer, self.ip = pid, writer, ip
         self.login = None
         self.fx = []
+        self.frq = []
         self.name = f'Бариста-{pid}'
         self.state = {}
         self.joined = time.time()
@@ -380,6 +381,7 @@ async def ws_session(reader, writer, headers, ip):
         WORLD.send({'t': 'leave', 'id': pid})
         log(f'- гравець #{pid} «{p.name}» вийшов')
         await broadcast({'t': 'leave', 'id': pid})
+        if p.login: await fr_presence(p.login)
         try: writer.close()
         except Exception: pass
 
@@ -403,6 +405,7 @@ async def handle_msg(p: Player, m):
         WORLD.send({'t': 'join', 'id': p.id, 'name': p.name})
         await send(p, {'t': 'hello', 'id': p.id, 'world': WORLD.ready, 'asig': WORLD.sig if WORLD.ready else addons_sig(), 'players': [{'id': o.id, 'name': o.name, 's': o.state} for o in PLAYERS.values() if o is not p]})
         await broadcast({'t': 'join', 'id': p.id, 'name': p.name}, skip=p)
+        await fr_presence(p.login)
         log(f'  #{p.id} назвався «{p.name}»')
     elif t == 's':
         s = {}
@@ -412,7 +415,7 @@ async def handle_msg(p: Player, m):
                 s[k] = round(float(v), 2)
         for k in ('m', 'w', 'g', 'e'):
             if k in m: s[k] = m[k] if isinstance(m[k], (int, bool)) or (isinstance(m[k], str) and len(m[k]) < 12) else 0
-        for k in ('a', 'i', 'zn', 'act', 'tg', 'cr'):
+        for k in ('a', 'i', 'zn', 'act', 'tg', 'cr', 'md'):
             v = m.get(k)
             if isinstance(v, str) and len(v) < 24: s[k] = v
         if isinstance(m.get('hp'), (int, float)): s['hp'] = max(0, min(100, int(m['hp'])))
@@ -474,12 +477,134 @@ async def handle_msg(p: Player, m):
                 await send(to, out)
         elif k in ('fan', 'boom'):
             await broadcast(out, skip=p)
+    elif t == 'fr':
+        await friends_msg(p, m)
     elif t == 'gift':
         to = PLAYERS.get(m.get('to'))
         d = m.get('d')
         if to and isinstance(d, str) and re.fullmatch(r'[a-z]{2,12}', d):
             await send(to, {'t': 'gift', 'from': p.id, 'name': p.name, 'd': d})
             log(f'  «{p.name}» пригостив «{to.name}»: {d}')
+
+# ===================== ДРУЗІ =====================
+# Список друзів — у saves/accounts.json (u['friends'] — логіни малими літерами, взаємно).
+# Запити й запрошення живуть у пам'яті FR_PEND 30 с (+запас): ключ (від, кому, вид).
+FR_PEND = {}
+FR_INV_T = {}                   # логін → часи запрошень (не більше 3 за 10 с)
+FR_TTL = 35
+FR_MAX = 100
+
+def fr_list(u):
+    out = []
+    for l in u.get('friends', []):
+        f = user_of(l)
+        if not f:
+            continue
+        o = player_of(f['login'])
+        d = {'n': f['login'], 'on': bool(o)}
+        if o:
+            d['id'] = o.id
+            for k in ('md', 'zn'):
+                if o.state.get(k): d[k] = o.state[k]
+        out.append(d)
+    return out
+
+async def fr_push(login):
+    # свіжий список друзів гравцю (якщо онлайн)
+    u, o = user_of(login), player_of(login)
+    if u and o:
+        await send(o, {'t': 'fr', 'op': 'list', 'list': fr_list(u)})
+
+async def fr_presence(login):
+    # друг зайшов / вийшов — оновити списки його друзів онлайн
+    u = user_of(login)
+    for l in (u or {}).get('friends', []):
+        await fr_push(l)
+
+def fr_gc():
+    now = time.time()
+    for k in [k for k, v in FR_PEND.items() if now - v['t'] > FR_TTL]:
+        FR_PEND.pop(k, None)
+
+async def friends_msg(p, m):
+    op = m.get('op')
+    now = time.time()
+    p.frq = [x for x in p.frq if now - x < 10]
+    if len(p.frq) >= 20:
+        return
+    p.frq.append(now)
+    me = user_of(p.login)
+    if not me or not isinstance(op, str):
+        return
+    fr_gc()
+    if op == 'list':
+        await send(p, {'t': 'fr', 'op': 'list', 'list': fr_list(me)}); return
+    name = m.get('n')
+    if not isinstance(name, str) or not (1 <= len(name) <= 20):
+        return
+    other = user_of(name)
+    if not other or other is me:
+        await send(p, {'t': 'fr', 'op': 'err', 'm': 'Такого гравця немає' if not other else 'Це ти :)'}); return
+    me_l, ot_l = me['login'].lower(), other['login'].lower()
+    mine = me.setdefault('friends', [])
+    o = player_of(other['login'])
+    if op == 'req':
+        if ot_l in mine:
+            await send(p, {'t': 'fr', 'op': 'err', 'm': f'{other["login"]} уже у твоїх друзях'}); return
+        if len(mine) >= FR_MAX:
+            await send(p, {'t': 'fr', 'op': 'err', 'm': 'Забагато друзів'}); return
+        if not o:
+            await send(p, {'t': 'fr', 'op': 'err', 'm': f'{other["login"]} зараз не в мережі'}); return
+        if (ot_l, me_l, 'req') in FR_PEND:      # зустрічний запит — одразу дружба
+            m, op = {'ok': True}, 'ans'
+        elif (me_l, ot_l, 'req') in FR_PEND or sum(1 for k in FR_PEND if k[0] == me_l and k[2] == 'req') >= 5:
+            await send(p, {'t': 'fr', 'op': 'err', 'm': 'Запит уже надіслано — зачекай відповіді'}); return
+        else:
+            FR_PEND[(me_l, ot_l, 'req')] = {'t': now}
+            await send(o, {'t': 'fr', 'op': 'req', 'n': me['login'], 'id': p.id})
+            await send(p, {'t': 'fr', 'op': 'sent', 'n': other['login']}); return
+    if op == 'ans':
+        if not FR_PEND.pop((ot_l, me_l, 'req'), None):
+            await send(p, {'t': 'fr', 'op': 'err', 'm': 'Запит застарів'}); return
+        if m.get('ok') is True:
+            theirs = other.setdefault('friends', [])
+            if ot_l not in mine: mine.append(ot_l)
+            if me_l not in theirs: theirs.append(me_l)
+            save_accounts()
+            log(f'  👥 «{me["login"]}» і «{other["login"]}» тепер друзі')
+            if o: await send(o, {'t': 'fr', 'op': 'acc', 'n': me['login']})
+            await send(p, {'t': 'fr', 'op': 'acc', 'n': other['login']})
+            await fr_push(me['login']); await fr_push(other['login'])
+        elif o:
+            await send(o, {'t': 'fr', 'op': 'dec', 'n': me['login']})
+        return
+    if op == 'del':
+        if ot_l in mine: mine.remove(ot_l)
+        theirs = other.get('friends', [])
+        if me_l in theirs: theirs.remove(me_l)
+        save_accounts()
+        await fr_push(me['login']); await fr_push(other['login']); return
+    if op == 'inv':
+        if ot_l not in mine or not o:
+            await send(p, {'t': 'fr', 'op': 'err', 'm': 'Запрошувати можна лише друзів онлайн'}); return
+        q = FR_INV_T[me_l] = [x for x in FR_INV_T.get(me_l, []) if now - x < 10]
+        if len(q) >= 3:
+            await send(p, {'t': 'fr', 'op': 'err', 'm': 'Не так швидко — зачекай кілька секунд'}); return
+        q.append(now)
+        md = m.get('md')
+        md = md if isinstance(md, str) and re.fullmatch(r'[\w\-]{1,24}', md) else ''
+        FR_PEND[(me_l, ot_l, 'inv')] = {'t': now, 'md': md}
+        out = {'t': 'fr', 'op': 'inv', 'n': me['login'], 'id': p.id, 'md': md}
+        for k in ('x', 'y', 'z'):
+            if k in p.state: out[k] = p.state[k]
+        await send(o, out)
+        await send(p, {'t': 'fr', 'op': 'isent', 'n': other['login']}); return
+    if op == 'invans':
+        inv = FR_PEND.pop((ot_l, me_l, 'inv'), None)
+        if not inv:
+            await send(p, {'t': 'fr', 'op': 'err', 'm': 'Запрошення застаріло'}); return
+        if o: await send(o, {'t': 'fr', 'op': 'invans', 'n': me['login'], 'ok': m.get('ok') is True, 'md': inv['md']})
+        return
 
 # ===================== СЕРВЕР СВІТУ (Node.js) =====================
 # Моби, боси, візки, баки, ящики й снаряди рахує окремий процес server/world.js —

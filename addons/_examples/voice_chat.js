@@ -173,5 +173,5 @@ const TAB = A.tab('voice', '🎙️ Голос', () => {
   else if (a === 'off') voiceOff();
   else { VC.mode = a; A.data().mode = a; applyMic(); }
   renderPanel();
-});
+}, { menu: true });
 $('#pbody').addEventListener('input', e => { if (e.target.dataset && e.target.dataset.vcvol) { A.data().vol = +e.target.value / 100; const b = e.target.parentElement.querySelector('b'); if (b) b.textContent = e.target.value; } });

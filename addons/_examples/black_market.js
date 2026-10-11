@@ -161,4 +161,4 @@ const TAB = A.tab('market', '🕶️ Чорний ринок', () => {
     if (P.coins < 30) return; P.coins -= 30; const d = A.data(); d.lastC = contract().id; d.c = null; MSG.t = 'Добре, є інша робота…';
   }
   refreshHUD(); save(); renderPanel();
-});
+}, { menu: true });

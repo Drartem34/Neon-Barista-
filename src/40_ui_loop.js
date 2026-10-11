@@ -172,7 +172,7 @@ function updGiver() {
   else if (tutActive()) t = null;
   else if (st !== 'active') t = [GIVER.x, GIVER.z];
   else if (q.target) t = q.target;
-  if (t && dist2(pl.x, pl.z, t[0], t[1]) > (tt ? 2.4 : 6) && !pl.falling) {
+  if (t && dist2(pl.x, pl.z, t[0], t[1]) > (tt ? 2.4 : 6) && !pl.falling && !inMiniGame()) {   // у міні-грі стрілки на відкритий світ не показуємо
     qArrow.visible = true; qArrow.position.set(pl.x, .2 + pl.y, pl.z);
     qArrow.rotation.y = angTo(pl.x, pl.z, t[0], t[1]);
   } else qArrow.visible = false;
@@ -406,7 +406,7 @@ function refreshLook() {
 
 /* ---------- Панелі ---------- */
 let panel = null, selU = null, newConfirm = false;
-const TABS = [['pause', '⏸️ Пауза'], ['map', '🗺️ Мапа'], ['journal', '📔 Щоденник'], ['inv', '🎒 Речі'], ['cases', '🎁 Кейси'], ['skills', '🌳 Навички'], ['drinks', '☕ Напої'], ['craft', '🛠️ Крафт'], ['work', '🔧 Майстерня'], ['shop', '🛒 Крамниця'], ['home', '🏝️ Острів'], ['stash', '📦 Сховок'], ['quest', '📜 Квест'], ['sound', '⚙️ Налаштування'], ['help', '❔ Довідка'], ['online', '👥 Онлайн'], ['admin', '🛡️ Адмін']];
+const TABS = [['pause', '⏸️ Пауза'], ['map', '🗺️ Мапа'], ['journal', '📔 Щоденник'], ['inv', '🎒 Речі'], ['cases', '🎁 Кейси'], ['skills', '🌳 Навички'], ['drinks', '☕ Напої'], ['craft', '🛠️ Крафт'], ['work', '🔧 Майстерня'], ['shop', '🛒 Крамниця'], ['home', '🏝️ Острів'], ['stash', '📦 Сховок'], ['quest', '📜 Квест'], ['sound', '⚙️ Налаштування'], ['help', '❔ Довідка'], ['friends', '👥 Друзі'], ['online', '👥 Онлайн'], ['admin', '🛡️ Адмін']];
 function openPanel(name) {
   panel = name; paused = !NET.on || pl.dead; input.atk = false;   // онлайн світ не зупиняється, поки відкрите меню pl.charge = 0; input.jumpHeld = false;
   for (const k in keys) keys[k] = false;
@@ -421,15 +421,16 @@ const inHub = () => dist2(pl.x, pl.z, 0, 0) < ISLMAP.hub.r;
 function needChips(need) { return Object.keys(need).map(k => `<span class="chip" style="${(P.ing[k] || 0) < need[k] ? 'color:#C2335A' : ''}">${ING[k].ic} ${ING[k].n} ${P.ing[k] || 0}/${need[k]}</span>`).join(' '); }
 function renderPanel() {
   if (!panel) return;
-  $('#ptabs').innerHTML = TABS.filter(([id]) => (id !== 'admin' || (ACCT && ACCT.admin)) && (id !== 'online' || NET.on)).map(([id, n]) => {
+  const mg = inMiniGame(true);
+  $('#ptabs').innerHTML = TABS.filter(([id]) => (id !== 'admin' || (ACCT && ACCT.admin)) && (id !== 'online' || NET.on) && !(mg && MG_HIDE_TABS.includes(id) && id !== panel)).map(([id, n]) => {
     const sp = n.indexOf(' '), ic = n.slice(0, sp), lb = n.slice(sp + 1);
     const dot = (id === 'inv' && P.pts) || (id === 'skills' && P.sp) || (id === 'cases' && Object.values(P.cases || {}).some(n => n > 0));
-    return `<button data-tab="${id}" class="${id === panel ? 'on' : ''}" title="${lb}"><span class="ti">${ic}</span><span class="tl">${lb}</span>${dot ? '<i class="td"></i>' : ''}</button>`;
+    return `<button data-tab="${id}" class="${id === panel || (id === 'help' && helpAxTab(panel)) ? 'on' : ''}" title="${lb}"><span class="ti">${ic}</span><span class="tl">${lb}</span>${dot ? '<i class="td"></i>' : ''}</button>`;
   }).join('');
-  const cur = TABS.find(([id]) => id === panel); $('#ptitle').textContent = cur ? cur[1] : '';
+  const cur = TABS.find(([id]) => id === (helpAxTab(panel) ? 'help' : panel)); $('#ptitle').textContent = cur ? cur[1] : '';
   const on = $('#ptabs .on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const body = $('#pbody');
-  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, pause: renderPause, admin: renderAdmin, online: renderOnline }[panel] || addonTabRender(panel);
+  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, pause: renderPause, admin: renderAdmin, online: renderOnline, friends: renderFriends }[helpAxTab(panel) ? 'help' : panel] || addonTabRender(panel);
   body.innerHTML = f();
   if (panel === 'map') drawMap();
 }
@@ -447,21 +448,25 @@ function itemStatsHTML(it) {
   const aff = it.aff.length && B.slot === 'hand' ? `<div class="muted" style="font-size:12px">Афікси: ${it.aff.map(a => { const A = HAFF.find(x => x.k === a.k); return `+${a.v}% ${A.n}`; }).join(', ')}</div>` : '';
   return `<div class="kv">${rows.map(r => `<span>${r[0]}</span><span>${r[1]}</span>`).join('')}</div>${aff}`;
 }
+/* У міні-грі ховаємо те, що має сенс лише у відкритому світі: квест, острів/база, сховок, дослідницьке спорядження, інгредієнти, продаж. */
+const MG_HIDE_TABS = ['quest', 'home', 'stash'];
+const MG_NOTE = '<p class="note mgnote">🎮 Ти в міні-грі — частина інвентарю схована</p>';
+const owOnly = it => { const B = BASE[it.b]; return !!(B && B.explore && B.slot !== 'hand' && !eqSlotOf(it)); };
 function renderInv() {
-  const view = INV.view || 'items';
+  const view = INV.view || 'items', mg = inMiniGame(true);
   const vt = [['items', '🎒 Речі', P.inv.some(i => i.isNew)], ['res', '🧪 Ресурси', false], ['char', '👤 Персонаж', P.pts > 0]]
     .map(([k, n, dot]) => `<button class="seg ${view === k ? 'on' : ''}" data-act="iview" data-arg="${k}">${n}${dot ? ' •' : ''}</button>`).join('');
-  const head = `<div class="segs">${vt}</div>`;
-  if (view === 'res') return head + renderInvRes();
+  const head = `<div class="segs">${vt}</div>${mg ? MG_NOTE : ''}`;
+  if (view === 'res') return head + renderInvRes(mg);
   if (view === 'char') return head + renderInvChar();
-  return head + renderInvItems();
+  return head + renderInvItems(mg);
 }
 const EQ_SLOTS = [['hand1', 'Основна рука', '✋'], ['hand2', 'Друга рука', '🤚'], ['head', 'Голова', '🧢'], ['apron', 'Фартух', '🦺'], ['shoes', 'Взуття', '👟'], ['acc', 'Аксесуар', '💍'], ['gear', 'Кавове обладн.', '⚙️']];
-function renderInvItems() {
+function renderInvItems(mg) {
   const eq = EQ_SLOTS.map(([s, n, ic]) => { const it = eqItem(s); return `<button class="eqs sm ${it ? 'r' + it.r : ''} ${it && it.u === selU ? 'selected' : ''}" data-act="sel" data-arg="${it ? it.u : ''}" title="${n}${it ? ': ' + itemName(it) : ' — порожньо'}"><span class="ic" style="${it ? '' : 'opacity:.3'}">${it ? BASE[it.b].ic : ic}</span><span class="lb">${n}</span></button>`; }).join('');
-  const sorted = P.inv.filter(it => !eqSlotOf(it)).filter(invFilter).sort(invSort);
+  const sorted = P.inv.filter(it => !eqSlotOf(it) && !(mg && owOnly(it))).filter(invFilter).sort(invSort);
   const grid = sorted.map(it => `<button class="it r${it.r} ${it.broken ? 'broken' : ''} ${it.u === selU ? 'selected' : ''}" data-act="sel" data-arg="${it.u}" title="${itemName(it)}">${BASE[it.b].ic}${it.fav ? '<span class="fav">⭐</span>' : ''}${it.isNew ? '<span class="newd"></span>' : ''}${it.lvl ? `<span class="lv">+${it.lvl}</span>` : ''}${BASE[it.b].slot === 'hand' && !it.broken ? `<span class="durb"><i style="width:${it.dur / it.maxDur * 100}%"></i></span>` : ''}</button>`).join('');
-  const sel = selU && itemByU(selU);
+  const sel = selU && itemByU(selU) && !(mg && owOnly(itemByU(selU))) ? itemByU(selU) : null;
   let det = `<div class="detail muted idet">Натисни на річ, щоб побачити її і вдягнути.<br><br>Подвійний клік — одразу вдягнути.<br>⭐ — захищає від масових дій.</div>`;
   if (sel) {
     const B = BASE[sel.b], es = eqSlotOf(sel);
@@ -470,7 +475,7 @@ function renderInvItems() {
     if (es) main = `<button class="btn big1" data-act="uneq">Зняти</button>`;
     else if (B.slot === 'hand') main = `<button class="btn big1" data-act="eq" data-arg="hand1">✋ В руку</button><button class="btn alt" data-act="eq" data-arg="hand2" title="У другу руку (X — поміняти)">🤚</button>`;
     else main = `<button class="btn big1" data-act="eq" data-arg="${B.slot}">Одягнути</button>`;
-    const more = `<button class="btn alt" data-act="fav">${sel.fav ? '★ Прибрати' : '☆ Улюблене'}</button>${nearStash() && !es ? '<button class="btn alt" data-act="tostash">📦 У сховок</button>' : ''}<button class="btn alt" data-act="sell" ${inHub() && !sel.fav && !es ? '' : 'disabled'} title="${inHub() ? '' : 'Продати можна тільки в «Гущі»'}">🪙 Продати · ${sell}</button><button class="btn alt" data-act="dis" ${sel.fav || es ? 'disabled' : ''}>🔩 Розібрати</button>`;
+    const more = `<button class="btn alt" data-act="fav">${sel.fav ? '★ Прибрати' : '☆ Улюблене'}</button>${nearStash() && !es && !mg ? '<button class="btn alt" data-act="tostash">📦 У сховок</button>' : ''}${mg ? '' : `<button class="btn alt" data-act="sell" ${inHub() && !sel.fav && !es ? '' : 'disabled'} title="${inHub() ? '' : 'Продати можна тільки в «Гущі»'}">🪙 Продати · ${sell}</button>`}<button class="btn alt" data-act="dis" ${sel.fav || es ? 'disabled' : ''}>🔩 Розібрати</button>`;
     det = `<div class="detail idet"><div class="ihead"><span class="bigic r${sel.r}">${B.ic}</span><div><h4 class="t${sel.r}">${itemName(sel)}</h4><div class="muted" style="font-size:12px">${RAR[sel.r].name}${sel.broken ? ' · <b style="color:#C2335A">зламано</b>' : ''}${es ? ' · вдягнуто' : ''}${B.explore ? ' · знахідка' : ''}${B.bossOnly ? ' · трофей боса' : ''}</div></div></div>
       ${B.d ? `<p style="margin:8px 0 0;font-size:13px">${B.d}</p>` : ''}
       ${compareHTML(sel)}
@@ -485,14 +490,14 @@ function renderInvItems() {
     <div class="itool"><div class="chips">${fchips}</div><button class="fchip" data-act="isortnext" title="Змінити сортування">↕ ${sortN}</button></div>
     <div class="invgrid">${grid || '<span class="muted" style="grid-column:1/-1">Тут порожньо</span>'}</div>
     <div class="ifoot"><span class="muted">${P.inv.length}/60 речей</span><button class="btn alt" data-act="autoeq">✨ Вдягнути найкраще</button>
-      <details class="bulk"><summary>Масові дії</summary><div class="btns"><button class="btn alt" data-act="bulkdis">Розібрати всі Common</button><button class="btn alt" data-act="bulksell" ${inHub() ? '' : 'disabled'}>Продати всі Common</button></div></details></div>
+      <details class="bulk"><summary>Масові дії</summary><div class="btns"><button class="btn alt" data-act="bulkdis">Розібрати всі Common</button>${mg ? '' : `<button class="btn alt" data-act="bulksell" ${inHub() ? '' : 'disabled'}>Продати всі Common</button>`}</div></details></div>
   </div><div class="invside">${det}</div></div>`;
 }
-function renderInvRes() {
+function renderInvRes(mg) {
   const ings = Object.keys(ING).filter(k => P.ing[k]).map(k => `<div class="res"><span class="ic">${ING[k].ic}</span><b>${P.ing[k]}</b><span>${ING[k].n}</span></div>`).join('') || '<span class="muted">Порожньо — збирай на островах і з монстрів.</span>';
   const dr = knownDrinks().map((d, i) => `<div class="res ${P.drinks[d] ? '' : 'off'}"><span class="ic">${DRINK[d].ic}</span><b>${P.drinks[d] || 0}</b><span>${DRINK[d].n}</span><small>${i + 1}</small></div>`).join('');
   return `<h3>Напої</h3><p class="muted" style="font-size:12px;margin-top:-6px">Q / ПКМ — кинути вибраний напій, 1–8 — вибрати.</p><div class="resgrid">${dr}</div>
-    <h3 style="margin-top:14px">Інгредієнти</h3><div class="resgrid">${ings}</div>`;
+    ${mg ? '' : `<h3 style="margin-top:14px">Інгредієнти</h3><div class="resgrid">${ings}</div>`}`;
 }
 function renderInvChar() {
   const stats = ST_KEYS.map(k => `<span>${STAT_IC[k]} ${STATN[k]}</span><b>${S[k]}</b>${P.pts ? `<button data-act="stat" data-arg="${k}" aria-label="Додати">+</button>` : '<span></span>'}`).join('');
@@ -607,6 +612,12 @@ function mmPvp() {
   c.querySelector('.mm-desc').textContent = pvpModes().map(m => m.n).join(' · ');
 }
 function curMode() { return MODES.find(m => { try { return m.here && m.here(); } catch (e) { return false; } }) || null; }
+/* Гравець у міні-грі: режим каже «ти тут» або гравець стоїть на острові аддона, що має режим (лобі, поверхи). Кеш на кадр. */
+let _mgT = -1, _mgV = false;
+function inMiniGame(fresh) {
+  if (_mgT === gameTime && !fresh) return _mgV; _mgT = gameTime;
+  return _mgV = !!curMode() || ISL.some(s => s.mode && s.r && dist2(pl.x, pl.z, s.x, s.z) < s.r + 2);
+}
 function renderPause() {
   const cur = curMode();
   const card = (id, ic, n, sub, on, locked) => `<button class="mode${on ? ' on' : ''}" data-mode="${id}" ${locked ? 'disabled' : ''}><span class="mic">${ic}</span><b>${n}</b><span class="msub">${sub}</span>${on ? '<i>ти тут</i>' : locked ? '<i>🔒 скоро</i>' : ''}</button>`;
@@ -632,7 +643,7 @@ $('#pbody').addEventListener('click', e => {
   closePanel(); m.go();
 });
 function renderHelp() {
-  return `<h3>Як грати</h3>
+  return `${helpGamesHTML()}<h3>Як грати</h3>
   <p><b>Мета.</b> Ти не воюєш — ти обслуговуєш. Монстри — це вигорілі люди. Удари предметами збивають їм стрес (але не нижче чверті) і відкидають. Остаточно заспокоює тільки кава: кинь її або подай впритул.</p>
   <p><b>Фізика й хаос.</b> Відкинутий монстр ламає ящики, кулери й принтери. Принтер вибухає й розкидає всіх навколо, кулер робить підлогу слизькою. Монстра можна збити з острова — «полетів у відпустку».</p>
   <p><b>Ухиляння.</b> Ривок дає кадри невразливості. Ривок у момент удару — «ідеальне ухиляння»: сповільнення часу й витривалість.</p>

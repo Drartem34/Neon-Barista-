@@ -14,7 +14,7 @@ w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => 
 w.__ADDON_CODE = ['progression', 'black_market', 'hover_highlight', 'speakers', 'voice_chat', 'dynamic_bg', 'super_graphics'].map(id => ({ id, src: id + '.js', code: fs.readFileSync(path.join(root, 'addons/_examples', id + '.js'), 'utf8') }));
 let src = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n');
 src += ';window.__T={get P(){return P},pl,MON,ADDONS,ISLMAP,startGame,frame,openPanel,closePanel,get panel(){return panel},getInteract:()=>getInteract(),inHub:()=>inHub(),get WORKBENCH(){return WORKBENCH},spawnMonster,screenPos,input,questEvent,addItem,makeItem,renderPanel};';
-src += ';window.__K={withAddon,Addon,addonKey};';
+src += ';window.__K={withAddon,Addon,addonKey,TABS,INV,inMiniGame,get qArrow(){return qArrow}};';
 w.eval(src);
 (async () => {
 const T = w.__T; let now = 1000;
@@ -111,6 +111,32 @@ T.renderPanel(); assert(body().textContent.includes('Прогрес'), 'нови
   w.__K.withAddon(rec('a1'), () => w.__K.Addon.key('KeyY', () => { hits.push('a1'); }));
   w.__K.withAddon(rec('a2'), () => w.__K.Addon.key('KeyY', () => { hits.push('a2'); return false; }));
   assert(w.__K.addonKey('KeyY') === true && hits.join() === 'a2,a1', 'дві обробки KeyY: новіша відмовилась (false) — спрацювала попередня');
+}
+// описи міні-гор — у «Довідці», а не окремими вкладками; режим ховає стрілки й частину інвентарю
+{
+  const K = w.__K, rec = id => ({ id, name: id, ok: true, err: '' });
+  let clicks = 0, here = false;
+  const key = w.__K.withAddon(rec('mg'), () => { w.__K.Addon.island({ id: 'mgisl', n: 'Тест-острів', x: 400, z: 400, r: 10 }); w.__K.Addon.mode({ id: 'mgmode', n: 'Тест-гра', go() { }, here: () => here }); return w.__K.Addon.tab('mg', '🧪 Тест-гра', () => '<p>Опис тест-гри <button data-mg="1">дія</button></p>', e => { if (e.target.closest('[data-mg]')) clicks++; }); });
+  assert(!K.TABS.some(t => t[0] === key) && K.TABS.some(t => t[0] === 'ax_speakers'), 'вкладка міні-гри не в меню, а «{ menu: true }» (Колонки) — у меню');
+  T.openPanel('help'); const bd = () => w.document.querySelector('#pbody');
+  assert(/Міні-ігри/.test(bd().textContent) && bd().querySelector(`[data-axhelp="${key}"]`) && !/Опис тест-гри/.test(bd().textContent), 'у Довідці є «🎮 Міні-ігри» з пунктом (згорнутим)');
+  bd().querySelector(`[data-axhelp="${key}"]`).click();
+  assert(T.panel === key && /Опис тест-гри/.test(bd().textContent) && w.document.querySelector('#ptabs .on').dataset.tab === 'help', 'клік — пункт розгорнувся, підсвічена вкладка «Довідка»');
+  bd().querySelector('[data-mg]').click(); assert(clicks === 1, 'кнопки аддона всередині акордеону працюють');
+  T.openPanel(key); assert(/Опис тест-гри/.test(bd().textContent), 'openPanel(key) відкриває Довідку з розгорнутим пунктом');
+  T.closePanel();
+  T.P.qstate = 'offer'; T.pl.x = 30; T.pl.z = 30; here = false; step(.1);
+  assert(K.qArrow.visible && !K.inMiniGame(true), 'у відкритому світі стрілка квесту видна');
+  here = true; step(.1);
+  assert(!K.qArrow.visible && K.inMiniGame(true), 'у міні-грі (curMode) стрілка квесту схована');
+  here = false; T.pl.x = 402; T.pl.z = 400; step(.05);
+  assert(K.inMiniGame(true) && !K.qArrow.visible, 'на острові режиму стрілка теж схована');
+  T.addItem(T.makeItem('compass', 1)); K.INV.view = 'items'; K.INV.filter = 'all';
+  T.openPanel('inv');
+  assert(/частина інвентарю схована/.test(bd().textContent) && !bd().querySelector('.invgrid').textContent.includes('🧭') && ![...w.document.querySelectorAll('#ptabs [data-tab]')].some(b => b.dataset.tab === 'quest' || b.dataset.tab === 'home'), 'у міні-грі: примітка, компас і вкладки Квест/Острів сховані');
+  T.closePanel(); T.pl.x = 30; T.pl.z = 30; step(.05); T.openPanel('inv');
+  assert(!/частина інвентарю схована/.test(bd().textContent) && bd().querySelector('.invgrid').textContent.includes('🧭'), 'поза міні-грою все повернулось');
+  T.closePanel();
 }
 console.log('ALL OK'); process.exit(0);
 })();

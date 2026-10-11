@@ -292,6 +292,18 @@ body.touch #quest{max-width:190px;font-size:12px}
 .btn.alt{background:#E2D6EE;color:var(--ink)}
 .btn:disabled{opacity:.4;cursor:default}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
+#frpops{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;width:min(360px,calc(100vw - 32px))}
+.frpop{position:relative;overflow:hidden;background:rgba(46,35,70,.94);color:#fff;padding:10px 12px 12px;border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.3);font-size:14px;animation:tin .25s ease-out}
+.frpop .btns{margin-top:8px}.frpop .frbar{position:absolute;left:0;bottom:0;height:3px;width:100%;background:#7FE3D0;transform-origin:left;animation:frbar 30s linear forwards}
+@keyframes frbar{to{transform:scaleX(0)}}
+.frpick{margin-top:6px}.frlist .row .btns.small{flex-wrap:nowrap}
+.axhelp{margin:0 0 12px;padding:8px 10px;border-radius:12px;background:rgba(127,127,127,.08)}
+.axhelp>summary{font-size:15px;color:inherit;margin:0}
+.axlist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.axitem{border-radius:10px;border:1px solid rgba(127,127,127,.25);overflow:hidden}
+.axitem.on{border-color:rgba(127,127,127,.5)}
+.axhead{display:block;width:100%;text-align:left;padding:8px 10px;font:inherit;font-weight:700;background:none;border:0;color:inherit;cursor:pointer}
+.axbody{padding:0 10px 10px}
 .chip{background:var(--soft);border-radius:10px;padding:5px 9px;font-size:13px}
 .list{display:flex;flex-direction:column;gap:8px}
 .row{display:flex;align-items:center;gap:10px;background:var(--soft);border-radius:14px;padding:10px 12px}
@@ -4156,7 +4168,7 @@ function makeArrow(c) { const g = new THREE.Group(); const m = mesh(new THREE.Co
 function updArrows() {
   if (!cArrow) { cArrow = makeArrow('#7FE3D0'); dArrow = makeArrow('#E9C98F'); }
   cArrow.visible = false; dArrow.visible = false;
-  if (pl.falling) return;
+  if (pl.falling || inMiniGame()) return;
   if (S.fx.has('compass')) {
     let best = null, bd = 1e9;
     for (const L of LANDMARKS) if (!P.disc[L.id]) { const d = dist2(pl.x, pl.z, L.x, L.z); if (d < bd) { bd = d; best = L; } }
@@ -4844,7 +4856,7 @@ function netConnect() {
   ws.onopen = () => { NET.on = true; NET.retry = 0; ws.send(JSON.stringify({ t: 'join', token: ACCT && ACCT.token })); $('#online').hidden = false; $('#chatbtn').hidden = false; };
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } netMsg(m); };
   ws.onclose = () => {
-    const was = NET.on; NET.on = false; NET.ws = null; worldDisable();
+    const was = NET.on; NET.on = false; NET.ws = null; worldDisable(); FR.list = null; if (panel === 'friends') renderPanel();
     for (const id in NET.players) dropRemote(id);
     refreshOnline();
     if (was) toast('🔌 Зв’язок із сервером втрачено. Перепідключаюся…');
@@ -4855,6 +4867,7 @@ function netSend(o) { if (NET.on && NET.ws && NET.ws.readyState === 1) NET.ws.se
 function netMsg(m) {
   if (netAccountMsg(m) || funNetMsg(m)) return;
   if (m.t === 'ax') { addonNet(m); return; }
+  if (m.t === 'fr') { frMsg(m); return; }
   if (m.t === 'addons') { banner('🧩 Аддони на сервері оновились — онови сторінку (F5)'); toast('🧩 Сервер отримав нові аддони. <b>Онови сторінку (F5)</b>, щоб у тебе й на сервері було однаково — інакше деякі предмети будуть «фантомами».'); return; }
   if (m.t === 'ws') { worldSnapshot(m); return; }
   if (m.t === 'w') { worldPersonal(m); return; }
@@ -4955,7 +4968,7 @@ function netStateTick(dt) {
     NET.sendT = .1;
     const it = eqItem('hand1');
     const act = myAct();
-    netSend({ t: 's', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), f: +pl.face.toFixed(2), m: pl.moving ? 1 : 0, w: isWet(pl.terr) && pl.y < -.3 ? 1 : 0, g: pl.gliding ? 1 : 0, a: P.cos, i: it && !it.broken ? it.b : '', zn: curZone ? curZone.id : '', l: P.lvl, act, tg: act === 'atk' && lastHitM && gameTime - lastHitT < 2 ? (lastHitM.T.n || '').slice(0, 23) : '', hp: Math.round(clamp(pl.hp / S.maxHP, 0, 1) * 100), cr: carryCode() });
+    netSend({ t: 's', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), f: +pl.face.toFixed(2), m: pl.moving ? 1 : 0, w: isWet(pl.terr) && pl.y < -.3 ? 1 : 0, g: pl.gliding ? 1 : 0, a: P.cos, i: it && !it.broken ? it.b : '', zn: curZone ? curZone.id : '', l: P.lvl, act, tg: act === 'atk' && lastHitM && gameTime - lastHitT < 2 ? (lastHitM.T.n || '').slice(0, 23) : '', hp: Math.round(clamp(pl.hp / S.maxHP, 0, 1) * 100), cr: carryCode(), md: (curMode() || {}).id || '' });
   }
 }
 /* Що зараз робить гравець — бачать інші (над головою, у вкладці «Онлайн», в адмінці й моніторі сервера). */
@@ -5215,7 +5228,7 @@ function updGiver() {
   else if (tutActive()) t = null;
   else if (st !== 'active') t = [GIVER.x, GIVER.z];
   else if (q.target) t = q.target;
-  if (t && dist2(pl.x, pl.z, t[0], t[1]) > (tt ? 2.4 : 6) && !pl.falling) {
+  if (t && dist2(pl.x, pl.z, t[0], t[1]) > (tt ? 2.4 : 6) && !pl.falling && !inMiniGame()) {   // у міні-грі стрілки на відкритий світ не показуємо
     qArrow.visible = true; qArrow.position.set(pl.x, .2 + pl.y, pl.z);
     qArrow.rotation.y = angTo(pl.x, pl.z, t[0], t[1]);
   } else qArrow.visible = false;
@@ -5449,7 +5462,7 @@ function refreshLook() {
 
 /* ---------- Панелі ---------- */
 let panel = null, selU = null, newConfirm = false;
-const TABS = [['pause', '⏸️ Пауза'], ['map', '🗺️ Мапа'], ['journal', '📔 Щоденник'], ['inv', '🎒 Речі'], ['cases', '🎁 Кейси'], ['skills', '🌳 Навички'], ['drinks', '☕ Напої'], ['craft', '🛠️ Крафт'], ['work', '🔧 Майстерня'], ['shop', '🛒 Крамниця'], ['home', '🏝️ Острів'], ['stash', '📦 Сховок'], ['quest', '📜 Квест'], ['sound', '⚙️ Налаштування'], ['help', '❔ Довідка'], ['online', '👥 Онлайн'], ['admin', '🛡️ Адмін']];
+const TABS = [['pause', '⏸️ Пауза'], ['map', '🗺️ Мапа'], ['journal', '📔 Щоденник'], ['inv', '🎒 Речі'], ['cases', '🎁 Кейси'], ['skills', '🌳 Навички'], ['drinks', '☕ Напої'], ['craft', '🛠️ Крафт'], ['work', '🔧 Майстерня'], ['shop', '🛒 Крамниця'], ['home', '🏝️ Острів'], ['stash', '📦 Сховок'], ['quest', '📜 Квест'], ['sound', '⚙️ Налаштування'], ['help', '❔ Довідка'], ['friends', '👥 Друзі'], ['online', '👥 Онлайн'], ['admin', '🛡️ Адмін']];
 function openPanel(name) {
   panel = name; paused = !NET.on || pl.dead; input.atk = false;   // онлайн світ не зупиняється, поки відкрите меню pl.charge = 0; input.jumpHeld = false;
   for (const k in keys) keys[k] = false;
@@ -5464,15 +5477,16 @@ const inHub = () => dist2(pl.x, pl.z, 0, 0) < ISLMAP.hub.r;
 function needChips(need) { return Object.keys(need).map(k => `<span class="chip" style="${(P.ing[k] || 0) < need[k] ? 'color:#C2335A' : ''}">${ING[k].ic} ${ING[k].n} ${P.ing[k] || 0}/${need[k]}</span>`).join(' '); }
 function renderPanel() {
   if (!panel) return;
-  $('#ptabs').innerHTML = TABS.filter(([id]) => (id !== 'admin' || (ACCT && ACCT.admin)) && (id !== 'online' || NET.on)).map(([id, n]) => {
+  const mg = inMiniGame(true);
+  $('#ptabs').innerHTML = TABS.filter(([id]) => (id !== 'admin' || (ACCT && ACCT.admin)) && (id !== 'online' || NET.on) && !(mg && MG_HIDE_TABS.includes(id) && id !== panel)).map(([id, n]) => {
     const sp = n.indexOf(' '), ic = n.slice(0, sp), lb = n.slice(sp + 1);
     const dot = (id === 'inv' && P.pts) || (id === 'skills' && P.sp) || (id === 'cases' && Object.values(P.cases || {}).some(n => n > 0));
-    return `<button data-tab="${id}" class="${id === panel ? 'on' : ''}" title="${lb}"><span class="ti">${ic}</span><span class="tl">${lb}</span>${dot ? '<i class="td"></i>' : ''}</button>`;
+    return `<button data-tab="${id}" class="${id === panel || (id === 'help' && helpAxTab(panel)) ? 'on' : ''}" title="${lb}"><span class="ti">${ic}</span><span class="tl">${lb}</span>${dot ? '<i class="td"></i>' : ''}</button>`;
   }).join('');
-  const cur = TABS.find(([id]) => id === panel); $('#ptitle').textContent = cur ? cur[1] : '';
+  const cur = TABS.find(([id]) => id === (helpAxTab(panel) ? 'help' : panel)); $('#ptitle').textContent = cur ? cur[1] : '';
   const on = $('#ptabs .on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const body = $('#pbody');
-  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, pause: renderPause, admin: renderAdmin, online: renderOnline }[panel] || addonTabRender(panel);
+  const f = { home: renderHomePanel, stash: renderStash, map: renderMap, journal: renderJournal, inv: renderInv, cases: renderCases, sound: renderSound, skills: renderSkills, drinks: renderDrinks, craft: renderCraft, work: renderWork, shop: renderShop, quest: renderQuestPanel, help: renderHelp, pause: renderPause, admin: renderAdmin, online: renderOnline, friends: renderFriends }[helpAxTab(panel) ? 'help' : panel] || addonTabRender(panel);
   body.innerHTML = f();
   if (panel === 'map') drawMap();
 }
@@ -5490,21 +5504,25 @@ function itemStatsHTML(it) {
   const aff = it.aff.length && B.slot === 'hand' ? `<div class="muted" style="font-size:12px">Афікси: ${it.aff.map(a => { const A = HAFF.find(x => x.k === a.k); return `+${a.v}% ${A.n}`; }).join(', ')}</div>` : '';
   return `<div class="kv">${rows.map(r => `<span>${r[0]}</span><span>${r[1]}</span>`).join('')}</div>${aff}`;
 }
+/* У міні-грі ховаємо те, що має сенс лише у відкритому світі: квест, острів/база, сховок, дослідницьке спорядження, інгредієнти, продаж. */
+const MG_HIDE_TABS = ['quest', 'home', 'stash'];
+const MG_NOTE = '<p class="note mgnote">🎮 Ти в міні-грі — частина інвентарю схована</p>';
+const owOnly = it => { const B = BASE[it.b]; return !!(B && B.explore && B.slot !== 'hand' && !eqSlotOf(it)); };
 function renderInv() {
-  const view = INV.view || 'items';
+  const view = INV.view || 'items', mg = inMiniGame(true);
   const vt = [['items', '🎒 Речі', P.inv.some(i => i.isNew)], ['res', '🧪 Ресурси', false], ['char', '👤 Персонаж', P.pts > 0]]
     .map(([k, n, dot]) => `<button class="seg ${view === k ? 'on' : ''}" data-act="iview" data-arg="${k}">${n}${dot ? ' •' : ''}</button>`).join('');
-  const head = `<div class="segs">${vt}</div>`;
-  if (view === 'res') return head + renderInvRes();
+  const head = `<div class="segs">${vt}</div>${mg ? MG_NOTE : ''}`;
+  if (view === 'res') return head + renderInvRes(mg);
   if (view === 'char') return head + renderInvChar();
-  return head + renderInvItems();
+  return head + renderInvItems(mg);
 }
 const EQ_SLOTS = [['hand1', 'Основна рука', '✋'], ['hand2', 'Друга рука', '🤚'], ['head', 'Голова', '🧢'], ['apron', 'Фартух', '🦺'], ['shoes', 'Взуття', '👟'], ['acc', 'Аксесуар', '💍'], ['gear', 'Кавове обладн.', '⚙️']];
-function renderInvItems() {
+function renderInvItems(mg) {
   const eq = EQ_SLOTS.map(([s, n, ic]) => { const it = eqItem(s); return `<button class="eqs sm ${it ? 'r' + it.r : ''} ${it && it.u === selU ? 'selected' : ''}" data-act="sel" data-arg="${it ? it.u : ''}" title="${n}${it ? ': ' + itemName(it) : ' — порожньо'}"><span class="ic" style="${it ? '' : 'opacity:.3'}">${it ? BASE[it.b].ic : ic}</span><span class="lb">${n}</span></button>`; }).join('');
-  const sorted = P.inv.filter(it => !eqSlotOf(it)).filter(invFilter).sort(invSort);
+  const sorted = P.inv.filter(it => !eqSlotOf(it) && !(mg && owOnly(it))).filter(invFilter).sort(invSort);
   const grid = sorted.map(it => `<button class="it r${it.r} ${it.broken ? 'broken' : ''} ${it.u === selU ? 'selected' : ''}" data-act="sel" data-arg="${it.u}" title="${itemName(it)}">${BASE[it.b].ic}${it.fav ? '<span class="fav">⭐</span>' : ''}${it.isNew ? '<span class="newd"></span>' : ''}${it.lvl ? `<span class="lv">+${it.lvl}</span>` : ''}${BASE[it.b].slot === 'hand' && !it.broken ? `<span class="durb"><i style="width:${it.dur / it.maxDur * 100}%"></i></span>` : ''}</button>`).join('');
-  const sel = selU && itemByU(selU);
+  const sel = selU && itemByU(selU) && !(mg && owOnly(itemByU(selU))) ? itemByU(selU) : null;
   let det = `<div class="detail muted idet">Натисни на річ, щоб побачити її і вдягнути.<br><br>Подвійний клік — одразу вдягнути.<br>⭐ — захищає від масових дій.</div>`;
   if (sel) {
     const B = BASE[sel.b], es = eqSlotOf(sel);
@@ -5513,7 +5531,7 @@ function renderInvItems() {
     if (es) main = `<button class="btn big1" data-act="uneq">Зняти</button>`;
     else if (B.slot === 'hand') main = `<button class="btn big1" data-act="eq" data-arg="hand1">✋ В руку</button><button class="btn alt" data-act="eq" data-arg="hand2" title="У другу руку (X — поміняти)">🤚</button>`;
     else main = `<button class="btn big1" data-act="eq" data-arg="${B.slot}">Одягнути</button>`;
-    const more = `<button class="btn alt" data-act="fav">${sel.fav ? '★ Прибрати' : '☆ Улюблене'}</button>${nearStash() && !es ? '<button class="btn alt" data-act="tostash">📦 У сховок</button>' : ''}<button class="btn alt" data-act="sell" ${inHub() && !sel.fav && !es ? '' : 'disabled'} title="${inHub() ? '' : 'Продати можна тільки в «Гущі»'}">🪙 Продати · ${sell}</button><button class="btn alt" data-act="dis" ${sel.fav || es ? 'disabled' : ''}>🔩 Розібрати</button>`;
+    const more = `<button class="btn alt" data-act="fav">${sel.fav ? '★ Прибрати' : '☆ Улюблене'}</button>${nearStash() && !es && !mg ? '<button class="btn alt" data-act="tostash">📦 У сховок</button>' : ''}${mg ? '' : `<button class="btn alt" data-act="sell" ${inHub() && !sel.fav && !es ? '' : 'disabled'} title="${inHub() ? '' : 'Продати можна тільки в «Гущі»'}">🪙 Продати · ${sell}</button>`}<button class="btn alt" data-act="dis" ${sel.fav || es ? 'disabled' : ''}>🔩 Розібрати</button>`;
     det = `<div class="detail idet"><div class="ihead"><span class="bigic r${sel.r}">${B.ic}</span><div><h4 class="t${sel.r}">${itemName(sel)}</h4><div class="muted" style="font-size:12px">${RAR[sel.r].name}${sel.broken ? ' · <b style="color:#C2335A">зламано</b>' : ''}${es ? ' · вдягнуто' : ''}${B.explore ? ' · знахідка' : ''}${B.bossOnly ? ' · трофей боса' : ''}</div></div></div>
       ${B.d ? `<p style="margin:8px 0 0;font-size:13px">${B.d}</p>` : ''}
       ${compareHTML(sel)}
@@ -5528,14 +5546,14 @@ function renderInvItems() {
     <div class="itool"><div class="chips">${fchips}</div><button class="fchip" data-act="isortnext" title="Змінити сортування">↕ ${sortN}</button></div>
     <div class="invgrid">${grid || '<span class="muted" style="grid-column:1/-1">Тут порожньо</span>'}</div>
     <div class="ifoot"><span class="muted">${P.inv.length}/60 речей</span><button class="btn alt" data-act="autoeq">✨ Вдягнути найкраще</button>
-      <details class="bulk"><summary>Масові дії</summary><div class="btns"><button class="btn alt" data-act="bulkdis">Розібрати всі Common</button><button class="btn alt" data-act="bulksell" ${inHub() ? '' : 'disabled'}>Продати всі Common</button></div></details></div>
+      <details class="bulk"><summary>Масові дії</summary><div class="btns"><button class="btn alt" data-act="bulkdis">Розібрати всі Common</button>${mg ? '' : `<button class="btn alt" data-act="bulksell" ${inHub() ? '' : 'disabled'}>Продати всі Common</button>`}</div></details></div>
   </div><div class="invside">${det}</div></div>`;
 }
-function renderInvRes() {
+function renderInvRes(mg) {
   const ings = Object.keys(ING).filter(k => P.ing[k]).map(k => `<div class="res"><span class="ic">${ING[k].ic}</span><b>${P.ing[k]}</b><span>${ING[k].n}</span></div>`).join('') || '<span class="muted">Порожньо — збирай на островах і з монстрів.</span>';
   const dr = knownDrinks().map((d, i) => `<div class="res ${P.drinks[d] ? '' : 'off'}"><span class="ic">${DRINK[d].ic}</span><b>${P.drinks[d] || 0}</b><span>${DRINK[d].n}</span><small>${i + 1}</small></div>`).join('');
   return `<h3>Напої</h3><p class="muted" style="font-size:12px;margin-top:-6px">Q / ПКМ — кинути вибраний напій, 1–8 — вибрати.</p><div class="resgrid">${dr}</div>
-    <h3 style="margin-top:14px">Інгредієнти</h3><div class="resgrid">${ings}</div>`;
+    ${mg ? '' : `<h3 style="margin-top:14px">Інгредієнти</h3><div class="resgrid">${ings}</div>`}`;
 }
 function renderInvChar() {
   const stats = ST_KEYS.map(k => `<span>${STAT_IC[k]} ${STATN[k]}</span><b>${S[k]}</b>${P.pts ? `<button data-act="stat" data-arg="${k}" aria-label="Додати">+</button>` : '<span></span>'}`).join('');
@@ -5650,6 +5668,12 @@ function mmPvp() {
   c.querySelector('.mm-desc').textContent = pvpModes().map(m => m.n).join(' · ');
 }
 function curMode() { return MODES.find(m => { try { return m.here && m.here(); } catch (e) { return false; } }) || null; }
+/* Гравець у міні-грі: режим каже «ти тут» або гравець стоїть на острові аддона, що має режим (лобі, поверхи). Кеш на кадр. */
+let _mgT = -1, _mgV = false;
+function inMiniGame(fresh) {
+  if (_mgT === gameTime && !fresh) return _mgV; _mgT = gameTime;
+  return _mgV = !!curMode() || ISL.some(s => s.mode && s.r && dist2(pl.x, pl.z, s.x, s.z) < s.r + 2);
+}
 function renderPause() {
   const cur = curMode();
   const card = (id, ic, n, sub, on, locked) => `<button class="mode${on ? ' on' : ''}" data-mode="${id}" ${locked ? 'disabled' : ''}><span class="mic">${ic}</span><b>${n}</b><span class="msub">${sub}</span>${on ? '<i>ти тут</i>' : locked ? '<i>🔒 скоро</i>' : ''}</button>`;
@@ -5675,7 +5699,7 @@ $('#pbody').addEventListener('click', e => {
   closePanel(); m.go();
 });
 function renderHelp() {
-  return `<h3>Як грати</h3>
+  return `${helpGamesHTML()}<h3>Як грати</h3>
   <p><b>Мета.</b> Ти не воюєш — ти обслуговуєш. Монстри — це вигорілі люди. Удари предметами збивають їм стрес (але не нижче чверті) і відкидають. Остаточно заспокоює тільки кава: кинь її або подай впритул.</p>
   <p><b>Фізика й хаос.</b> Відкинутий монстр ламає ящики, кулери й принтери. Принтер вибухає й розкидає всіх навколо, кулер робить підлогу слизькою. Монстра можна збити з острова — «полетів у відпустку».</p>
   <p><b>Ухиляння.</b> Ривок дає кадри невразливості. Ривок у момент удару — «ідеальне ухиляння»: сповільнення часу й витривалість.</p>
@@ -6020,6 +6044,98 @@ $('#pbody').addEventListener('click', e => {
   api('admin', { act, login, reason: ($('#adm-reason') || {}).value || '' }).then(r => { ADM.err = r.ok ? '' : (r.e || 'Помилка'); loadAdmin(); });
 });
 $('#pbody').addEventListener('input', e => { if (e.target.id === 'adm-q') { ADM.q = e.target.value; const pos = e.target.selectionStart; renderPanel(); const i = $('#adm-q'); i.focus(); i.setSelectionRange(pos, pos); } });
+/* =====================================================================
+   ДРУЗІ (👥 Друзі) — лише онлайн. Ідентичність — логін акаунта (ACCT.login), той самий, що в онлайн-світі.
+   Список друзів зберігає сервер (saves/accounts.json), запити й запрошення він лише ретранслює ({t:'fr', op}).
+   op: list · req (запит) · ans (відповідь) · del · inv (запросити: md — режим або '' = «до мене») · invans.
+   Спливашки з кнопками зникають самі за 30 с.
+   ===================================================================== */
+const FR = { list: null, asked: 0, pick: null, sent: {} };
+const FR_POP_T = 30000;
+function frSend(op, o) { netSend(Object.assign({ t: 'fr', op }, o || {})); }
+function frRefresh() { if (panel === 'friends') renderPanel(); }
+function frIsFriend(n) { return !!(FR.list && FR.list.some(f => f.n.toLowerCase() === String(n).toLowerCase())); }
+function frModeName(id) { const m = MODES.find(x => x.id === id); return m ? `${m.ic || '🎮'} ${m.n}` : ''; }
+function frWhere(f) {
+  if (!f.on) return '⚫ не в мережі';
+  const md = f.md && frModeName(f.md), zn = f.zn && ISLMAP[f.zn] ? ISLMAP[f.zn].n : '';
+  return '🟢 онлайн' + (md ? ' · ' + md : zn ? ' · 🏝️ ' + zn : '');
+}
+/* спливашка з [Прийняти] [Відмовитись]; за 30 с зникає сама (сервер теж забуває запит) */
+function frPopup(html, onYes, onNo) {
+  let box = $('#frpops');
+  if (!box) { box = document.createElement('div'); box.id = 'frpops'; document.body.appendChild(box); }
+  const d = document.createElement('div'); d.className = 'frpop';
+  d.innerHTML = `<div class="frtx">${html}</div><div class="btns"><button class="btn" data-y="1">Прийняти</button><button class="btn alt" data-n="1">Відмовитись</button></div><i class="frbar"></i>`;
+  let done = false;
+  const fin = fn => { if (done) return; done = true; clearTimeout(tm); d.remove(); if (fn) fn(); };
+  const tm = setTimeout(() => fin(null), FR_POP_T);
+  d.addEventListener('click', e => { if (e.target.closest('[data-y]')) fin(onYes); else if (e.target.closest('[data-n]')) fin(onNo); });
+  box.appendChild(d); sfx('waypoint');
+  return d;
+}
+/* прийняв запрошення: у лобі режиму (go()) або до друга (телепорт) */
+function frJoin(m) {
+  const mode = m.md && MODES.find(x => x.id === m.md), cur = curMode();
+  if (mode) {
+    if (cur === mode) { toast(`🎮 Ти вже тут: ${escapeHTML(mode.n)}`); return; }
+    if (cur && cur.leave && !cur.leave()) return;
+    closePanel(); mode.go(); toast(`🎮 ${escapeHTML(mode.n)} — разом із <b>${escapeHTML(m.n)}</b>`); return;
+  }
+  const r = NET.players[m.id], x = r ? r.x : m.x, z = r ? r.z : m.z, y = r ? r.y : m.y;
+  if (typeof x !== 'number' || typeof z !== 'number') { toast('🤷 Не знаю, де зараз друг'); return; }
+  if (cur && cur.leave && !cur.leave()) return;
+  closePanel(); const f = $('#fade'); if (f) f.style.opacity = 1; sfx('travel');
+  setTimeout(() => {
+    pl.x = x + 1; pl.z = z + .5; pl.y = y || 0; pl.vy = 0; pl.falling = false; pl.jump = null; pl.safe = { x: pl.x, z: pl.z };
+    camPos.set(pl.x, pl.y + 20, pl.z + 18); camLook.set(pl.x, pl.y + .5, pl.z); if (f) f.style.opacity = 0;
+    toast(`📍 Ти поруч із <b>${escapeHTML(m.n)}</b>`);
+  }, 260);
+}
+function frMsg(m) {
+  const n = escapeHTML(m.n || '');
+  if (m.op === 'list') { FR.list = Array.isArray(m.list) ? m.list : []; frRefresh(); }
+  else if (m.op === 'req') frPopup(`👥 <b>${n}</b> хоче додати тебе в друзі`, () => frSend('ans', { n: m.n, ok: true }), () => frSend('ans', { n: m.n, ok: false }));
+  else if (m.op === 'sent') { FR.sent[m.n.toLowerCase()] = Date.now(); toast(`📨 Запит у друзі надіслано: <b>${n}</b>`); frRefresh(); }
+  else if (m.op === 'acc') { toast(`🤝 <b>${n}</b> тепер твій друг!`); sfx('waypoint'); }
+  else if (m.op === 'dec') { delete FR.sent[String(m.n).toLowerCase()]; toast(`🙅 <b>${n}</b> відхилив запит у друзі`); frRefresh(); }
+  else if (m.op === 'inv') {
+    const where = m.md ? (frModeName(m.md) || escapeHTML(m.md)) : '📍 до себе';
+    frPopup(`🎮 <b>${n}</b> запрошує тебе в ${where}`, () => { frSend('invans', { n: m.n, ok: true }); frJoin(m); }, () => frSend('invans', { n: m.n, ok: false }));
+  }
+  else if (m.op === 'isent') toast(`📨 Запрошення надіслано: <b>${n}</b>`);
+  else if (m.op === 'invans') toast(m.ok ? `✅ <b>${n}</b> прийняв запрошення` : `🙅 <b>${n}</b> відхилив запрошення`);
+  else if (m.op === 'err') toast('👥 ' + escapeHTML(m.m || 'Помилка'));
+}
+function renderFriends() {
+  if (!NET.on) return '<h3>👥 Друзі</h3><p class="muted">Друзі доступні в онлайні.</p>';
+  if (!FR.list || Date.now() - FR.asked > 4000) { FR.asked = Date.now(); frSend('list'); }
+  const cur = curMode();
+  const pick = n => `<div class="frpick"><span class="muted" style="font-size:12px">Куди кличеш?</span><div class="btns small">
+    <button class="btn" data-fr="inv" data-n="${escapeHTML(n)}" data-md="">📍 До мене</button>${MODES.map(m => `<button class="btn ${cur === m ? '' : 'alt'}" data-fr="inv" data-n="${escapeHTML(n)}" data-md="${m.id}">${m.ic || '🎮'} ${escapeHTML(m.n)}${cur === m ? ' (я тут)' : ''}</button>`).join('')}
+    <button class="btn alt" data-fr="pick" data-n="">✕</button></div></div>`;
+  const fl = (FR.list || []).slice().sort((a, b) => b.on - a.on || a.n.localeCompare(b.n)).map(f => `<div class="row"><span class="ic">${f.on ? '🧑‍🍳' : '💤'}</span><div class="tx"><b>${escapeHTML(f.n)}</b><div class="need">${frWhere(f)}</div>${FR.pick === f.n && f.on ? pick(f.n) : ''}</div>
+    <div class="btns small">${f.on ? `<button class="btn" data-fr="pick" data-n="${escapeHTML(f.n)}">🎮 Запросити</button>` : ''}<button class="btn alt" data-fr="del" data-n="${escapeHTML(f.n)}" title="Прибрати з друзів">✕</button></div></div>`).join('');
+  const others = Object.values(NET.players).filter(r => r.name && !frIsFriend(r.name)).map(r => {
+    const sent = Date.now() - (FR.sent[r.name.toLowerCase()] || 0) < FR_POP_T;
+    return `<div class="row"><span class="ic">🧑‍🍳</span><div class="tx"><b>${escapeHTML(r.name)}</b> · рів. ${r.lvl || 1}</div><div class="btns small"><button class="btn" data-fr="add" data-n="${escapeHTML(r.name)}" ${sent ? 'disabled' : ''}>${sent ? '⏳ Надіслано' : '➕ Додати'}</button></div></div>`;
+  }).join('');
+  return `<h3>👥 Друзі · ${(FR.list || []).filter(f => f.on).length}/${(FR.list || []).length} онлайн</h3>
+    <div class="list frlist">${FR.list ? fl || '<p class="muted">Поки нікого. Додай гравців зі списку нижче або за ніком.</p>' : '<p class="muted">Завантажую…</p>'}</div>
+    <h3 style="margin-top:14px">➕ Додати за ніком</h3><div class="btns"><input id="frname" maxlength="20" placeholder="Нік гравця" autocomplete="off" style="flex:1;min-width:120px;padding:8px;border-radius:10px;border:1px solid rgba(127,127,127,.4);font:inherit"><button class="btn" data-fr="addname">➕ Додати</button></div>
+    <h3 style="margin-top:14px">🟢 Зараз у грі</h3><div class="list">${others || '<p class="muted">Інших гравців онлайн немає (або всі вже твої друзі).</p>'}</div>`;
+}
+$('#pbody').addEventListener('click', e => {
+  if (panel !== 'friends') return;
+  const b = e.target.closest('[data-fr]'); if (!b || b.disabled) return;
+  const a = b.dataset.fr, n = b.dataset.n;
+  if (a === 'add') frSend('req', { n });
+  else if (a === 'addname') { const v = ($('#frname') && $('#frname').value || '').trim(); if (v) frSend('req', { n: v }); }
+  else if (a === 'pick') { FR.pick = FR.pick === n ? null : n || null; renderPanel(); }
+  else if (a === 'inv') { frSend('inv', { n, md: b.dataset.md || '' }); FR.pick = null; renderPanel(); }
+  else if (a === 'del') frSend('del', { n });
+});
+$('#pbody').addEventListener('keydown', e => { if (panel === 'friends' && e.target.id === 'frname' && e.key === 'Enter') { const v = e.target.value.trim(); if (v) frSend('req', { n: v }); } });
 /* =====================================================================
    ЗВУК: адаптивна lo-fi музика + просторові ефекти (WebAudio, без файлів)
    Шари музики: keys (електропіано), bass, drums, tension (бій), lead (бос), crackle (вініл).
@@ -7427,7 +7543,7 @@ function worldBosses(dt, k) {
    Аддон — звичайний .js, що бачить усі змінні гри й має API `Addon`
    (див. addons/README.md). Працюють, коли гра відкрита через start.py.
    ===================================================================== */
-const ADDONS = { list: [], hooks: { world: [], start: [], tick: [] }, tabs: {}, keys: {}, net: {}, dyn: [], cur: null, ready: false, sig: null, late: false, done: false };
+const ADDONS = { list: [], hooks: { world: [], start: [], tick: [] }, tabs: {}, modeOf: {}, keys: {}, net: {}, dyn: [], cur: null, ready: false, sig: null, late: false, done: false };
 
 function addonRec() { return ADDONS.cur || { id: 'addon', name: 'addon', ok: true, err: '' }; }
 function addonFail(rec, e) {
@@ -7455,17 +7571,19 @@ const Addon = {
   island(def, bridgeTo) {
     if (ISLMAP[def.id]) throw new Error('Острів уже є: ' + def.id);
     const s = Object.assign({ top: '#C3E6A8', rock: '#9389C9', tier: 1 }, def);
-    ISL.push(s); ISLMAP[s.id] = s;
+    s.addon = addonRec().id; if (ADDONS.modeOf[s.addon]) s.mode = ADDONS.modeOf[s.addon]; ISL.push(s); ISLMAP[s.id] = s;
     [].concat(bridgeTo || []).forEach(t => Addon.bridge(s.id, t));
     return s;
   },
   /** Міст між двома островами. */
   bridge(a, b) { if (!ISLMAP[a] || !ISLMAP[b]) throw new Error('Немає острова для мосту: ' + a + ' / ' + b); BR.push(makeBridge(a, b)); },
-  /** Вкладка в меню: render() повертає HTML, onClick(e) — кліки всередині. */
-  tab(id, title, render, onClick) {
-    const rec = addonRec(), key = 'ax_' + id;
-    ADDONS.tabs[key] = { rec, render, onClick };
-    TABS.splice(TABS.length - 2, 0, [key, title]);
+  /** Опис міні-гри / аддона: render() повертає HTML, onClick(e) — кліки всередині.
+      За замовчуванням живе в «❔ Довідка → 🎮 Міні-ігри» (акордеон); opts.menu: true — окрема вкладка в меню (інструменти: ринок, колонки, голос).
+      openPanel(key) відкриває Довідку з розгорнутим пунктом; поки він розгорнутий, panel === key. */
+  tab(id, title, render, onClick, opts) {
+    const rec = addonRec(), key = 'ax_' + id, menu = !!(opts && opts.menu);
+    ADDONS.tabs[key] = { rec, render, onClick, title, help: !menu };
+    if (menu) TABS.splice(TABS.length - 2, 0, [key, title]);
     return key;
   },
   /** Клавіша: Addon.key('KeyG', () => …). Поверни false — і гра обробить клавішу як звичайно. */
@@ -7476,7 +7594,7 @@ const Addon = {
   /** Позначити об'єкт, що рухається / змінює колір (інакше оптимізатор «заморозить» його у статиці). */
   dynamic(obj) { ADDONS.dyn.push(obj); return obj; },
   /** Режим / міні-гра в меню паузи (Esc): { id, ic, n, sub, go() — перенести туди, here() — чи гравець зараз там, leave() — вийти (false — лишитись) }. */
-  mode(def) { if (def && def.id && !MODES.some(m => m.id === def.id)) { MODES.push(Object.assign({}, def)); if (def.group === 'pvp' && !window.__SIM && typeof mmPvp === 'function') mmPvp(); } },
+  mode(def) { if (def && def.id && !MODES.some(m => m.id === def.id)) { const aid = addonRec().id; ISL.forEach(s => { if (s.addon === aid) s.mode = def.id; }); ADDONS.modeOf[aid] = def.id; MODES.push(Object.assign({}, def)); if (def.group === 'pvp' && !window.__SIM && typeof mmPvp === 'function') mmPvp(); } },
   /** Сховище аддона в прогресі гравця (зберігається разом з акаунтом). */
   data() { const id = addonRec().id; P.addons = P.addons || {}; return P.addons[id] = P.addons[id] || {}; },
 };
@@ -7496,6 +7614,23 @@ function addonTabRender(id) {
   const t = ADDONS.tabs[id]; if (!t) return null;
   return () => { const html = withAddon(t.rec, () => addonRun(t.rec, t.render)); return t.rec.ok ? (html || '') : `<p class="note">Аддон «${escapeHTML(t.rec.name)}» зламався: ${escapeHTML(t.rec.err)}</p>`; };
 }
+/* «❔ Довідка → 🎮 Міні-ігри»: акордеон з описами міні-ігор (вкладки аддонів без opts.menu). Розгорнутий пункт = panel. */
+const helpAxTab = id => { const t = ADDONS.tabs[id]; return t && t.help ? t : null; };
+let axHelpOpen = false;
+function helpGamesHTML() {
+  const keys = Object.keys(ADDONS.tabs).filter(k => ADDONS.tabs[k].help);
+  if (!keys.length) return '';
+  return `<details class="axhelp" ${axHelpOpen || helpAxTab(panel) ? 'open' : ''}><summary><b>🎮 Міні-ігри</b> <span class="muted" style="font-size:12px">· ${keys.length} — опис, правила й кнопки</span></summary><div class="axlist">${keys.map(k => {
+    const t = ADDONS.tabs[k], on = panel === k;
+    return `<div class="axitem${on ? ' on' : ''}" data-axtab="${k}"><button class="axhead" data-axhelp="${k}">${on ? '▾' : '▸'} ${escapeHTML(t.title)}</button>${on ? `<div class="axbody">${addonTabRender(k)()}</div>` : ''}</div>`;
+  }).join('')}</div></details>`;
+}
+$('#pbody').addEventListener('click', e => {
+  const sm = e.target.closest('.axhelp > summary'); if (sm) { axHelpOpen = !sm.parentNode.open; return; }
+  const b = e.target.closest('[data-axhelp]'); if (!b) return;
+  axHelpOpen = true; panel = panel === b.dataset.axhelp ? 'help' : b.dataset.axhelp; renderPanel();
+  const el = $('#pbody [data-axtab="' + panel + '"]'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+});
 /* true — клавішу забрав аддон; якщо обробник повернув false, гра обробляє клавішу як звичайно. */
 function addonKey(code) {
   for (let k = ADDONS.keys[code]; k; k = k[2]) { if (!k[0].ok) continue; const r = withAddon(k[0], () => addonRun(k[0], k[1])); if (r !== false && k[0].ok) return true; }

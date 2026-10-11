@@ -5,7 +5,7 @@
    Аддон — звичайний .js, що бачить усі змінні гри й має API `Addon`
    (див. addons/README.md). Працюють, коли гра відкрита через start.py.
    ===================================================================== */
-const ADDONS = { list: [], hooks: { world: [], start: [], tick: [] }, tabs: {}, keys: {}, net: {}, dyn: [], cur: null, ready: false, sig: null, late: false, done: false };
+const ADDONS = { list: [], hooks: { world: [], start: [], tick: [] }, tabs: {}, modeOf: {}, keys: {}, net: {}, dyn: [], cur: null, ready: false, sig: null, late: false, done: false };
 
 function addonRec() { return ADDONS.cur || { id: 'addon', name: 'addon', ok: true, err: '' }; }
 function addonFail(rec, e) {
@@ -33,17 +33,19 @@ const Addon = {
   island(def, bridgeTo) {
     if (ISLMAP[def.id]) throw new Error('Острів уже є: ' + def.id);
     const s = Object.assign({ top: '#C3E6A8', rock: '#9389C9', tier: 1 }, def);
-    ISL.push(s); ISLMAP[s.id] = s;
+    s.addon = addonRec().id; if (ADDONS.modeOf[s.addon]) s.mode = ADDONS.modeOf[s.addon]; ISL.push(s); ISLMAP[s.id] = s;
     [].concat(bridgeTo || []).forEach(t => Addon.bridge(s.id, t));
     return s;
   },
   /** Міст між двома островами. */
   bridge(a, b) { if (!ISLMAP[a] || !ISLMAP[b]) throw new Error('Немає острова для мосту: ' + a + ' / ' + b); BR.push(makeBridge(a, b)); },
-  /** Вкладка в меню: render() повертає HTML, onClick(e) — кліки всередині. */
-  tab(id, title, render, onClick) {
-    const rec = addonRec(), key = 'ax_' + id;
-    ADDONS.tabs[key] = { rec, render, onClick };
-    TABS.splice(TABS.length - 2, 0, [key, title]);
+  /** Опис міні-гри / аддона: render() повертає HTML, onClick(e) — кліки всередині.
+      За замовчуванням живе в «❔ Довідка → 🎮 Міні-ігри» (акордеон); opts.menu: true — окрема вкладка в меню (інструменти: ринок, колонки, голос).
+      openPanel(key) відкриває Довідку з розгорнутим пунктом; поки він розгорнутий, panel === key. */
+  tab(id, title, render, onClick, opts) {
+    const rec = addonRec(), key = 'ax_' + id, menu = !!(opts && opts.menu);
+    ADDONS.tabs[key] = { rec, render, onClick, title, help: !menu };
+    if (menu) TABS.splice(TABS.length - 2, 0, [key, title]);
     return key;
   },
   /** Клавіша: Addon.key('KeyG', () => …). Поверни false — і гра обробить клавішу як звичайно. */
@@ -54,7 +56,7 @@ const Addon = {
   /** Позначити об'єкт, що рухається / змінює колір (інакше оптимізатор «заморозить» його у статиці). */
   dynamic(obj) { ADDONS.dyn.push(obj); return obj; },
   /** Режим / міні-гра в меню паузи (Esc): { id, ic, n, sub, go() — перенести туди, here() — чи гравець зараз там, leave() — вийти (false — лишитись) }. */
-  mode(def) { if (def && def.id && !MODES.some(m => m.id === def.id)) { MODES.push(Object.assign({}, def)); if (def.group === 'pvp' && !window.__SIM && typeof mmPvp === 'function') mmPvp(); } },
+  mode(def) { if (def && def.id && !MODES.some(m => m.id === def.id)) { const aid = addonRec().id; ISL.forEach(s => { if (s.addon === aid) s.mode = def.id; }); ADDONS.modeOf[aid] = def.id; MODES.push(Object.assign({}, def)); if (def.group === 'pvp' && !window.__SIM && typeof mmPvp === 'function') mmPvp(); } },
   /** Сховище аддона в прогресі гравця (зберігається разом з акаунтом). */
   data() { const id = addonRec().id; P.addons = P.addons || {}; return P.addons[id] = P.addons[id] || {}; },
 };
@@ -74,6 +76,23 @@ function addonTabRender(id) {
   const t = ADDONS.tabs[id]; if (!t) return null;
   return () => { const html = withAddon(t.rec, () => addonRun(t.rec, t.render)); return t.rec.ok ? (html || '') : `<p class="note">Аддон «${escapeHTML(t.rec.name)}» зламався: ${escapeHTML(t.rec.err)}</p>`; };
 }
+/* «❔ Довідка → 🎮 Міні-ігри»: акордеон з описами міні-ігор (вкладки аддонів без opts.menu). Розгорнутий пункт = panel. */
+const helpAxTab = id => { const t = ADDONS.tabs[id]; return t && t.help ? t : null; };
+let axHelpOpen = false;
+function helpGamesHTML() {
+  const keys = Object.keys(ADDONS.tabs).filter(k => ADDONS.tabs[k].help);
+  if (!keys.length) return '';
+  return `<details class="axhelp" ${axHelpOpen || helpAxTab(panel) ? 'open' : ''}><summary><b>🎮 Міні-ігри</b> <span class="muted" style="font-size:12px">· ${keys.length} — опис, правила й кнопки</span></summary><div class="axlist">${keys.map(k => {
+    const t = ADDONS.tabs[k], on = panel === k;
+    return `<div class="axitem${on ? ' on' : ''}" data-axtab="${k}"><button class="axhead" data-axhelp="${k}">${on ? '▾' : '▸'} ${escapeHTML(t.title)}</button>${on ? `<div class="axbody">${addonTabRender(k)()}</div>` : ''}</div>`;
+  }).join('')}</div></details>`;
+}
+$('#pbody').addEventListener('click', e => {
+  const sm = e.target.closest('.axhelp > summary'); if (sm) { axHelpOpen = !sm.parentNode.open; return; }
+  const b = e.target.closest('[data-axhelp]'); if (!b) return;
+  axHelpOpen = true; panel = panel === b.dataset.axhelp ? 'help' : b.dataset.axhelp; renderPanel();
+  const el = $('#pbody [data-axtab="' + panel + '"]'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+});
 /* true — клавішу забрав аддон; якщо обробник повернув false, гра обробляє клавішу як звичайно. */
 function addonKey(code) {
   for (let k = ADDONS.keys[code]; k; k = k[2]) { if (!k[0].ok) continue; const r = withAddon(k[0], () => addonRun(k[0], k[1])); if (r !== false && k[0].ok) return true; }

@@ -292,5 +292,5 @@ const TAB = A.tab('speakers', '🔊 Колонки', () => {
   else if (a === 'buy' && inHub() && P.coins >= PRICE) { P.coins -= PRICE; d.spk = (d.spk || 0) + 1; SEL.msg = '🔊 Колонку куплено.'; sfx('coin'); refreshHUD(); save(); }
   else if (a === 'craft') { if (!Object.keys(CRAFT_NEED).every(k => (P.ing[k] || 0) >= CRAFT_NEED[k])) return; for (const k in CRAFT_NEED) P.ing[k] -= CRAFT_NEED[k]; d.spk = (d.spk || 0) + 1; SEL.msg = '🛠️ Колонку зібрано.'; sfx('legend'); save(); }
   initAudio(); renderPanel();
-});
+}, { menu: true });
 $('#pbody').addEventListener('input', e => { if (e.target.dataset && e.target.dataset.spvol) { A.data().vol = +e.target.value / 100; const b = e.target.parentElement.querySelector('b'); if (b) b.textContent = e.target.value; } });

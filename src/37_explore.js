@@ -322,7 +322,7 @@ function makeArrow(c) { const g = new THREE.Group(); const m = mesh(new THREE.Co
 function updArrows() {
   if (!cArrow) { cArrow = makeArrow('#7FE3D0'); dArrow = makeArrow('#E9C98F'); }
   cArrow.visible = false; dArrow.visible = false;
-  if (pl.falling) return;
+  if (pl.falling || inMiniGame()) return;
   if (S.fx.has('compass')) {
     let best = null, bd = 1e9;
     for (const L of LANDMARKS) if (!P.disc[L.id]) { const d = dist2(pl.x, pl.z, L.x, L.z); if (d < bd) { bd = d; best = L; } }

@@ -17,7 +17,7 @@ function netConnect() {
   ws.onopen = () => { NET.on = true; NET.retry = 0; ws.send(JSON.stringify({ t: 'join', token: ACCT && ACCT.token })); $('#online').hidden = false; $('#chatbtn').hidden = false; };
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } netMsg(m); };
   ws.onclose = () => {
-    const was = NET.on; NET.on = false; NET.ws = null; worldDisable();
+    const was = NET.on; NET.on = false; NET.ws = null; worldDisable(); FR.list = null; if (panel === 'friends') renderPanel();
     for (const id in NET.players) dropRemote(id);
     refreshOnline();
     if (was) toast('🔌 Зв’язок із сервером втрачено. Перепідключаюся…');
@@ -28,6 +28,7 @@ function netSend(o) { if (NET.on && NET.ws && NET.ws.readyState === 1) NET.ws.se
 function netMsg(m) {
   if (netAccountMsg(m) || funNetMsg(m)) return;
   if (m.t === 'ax') { addonNet(m); return; }
+  if (m.t === 'fr') { frMsg(m); return; }
   if (m.t === 'addons') { banner('🧩 Аддони на сервері оновились — онови сторінку (F5)'); toast('🧩 Сервер отримав нові аддони. <b>Онови сторінку (F5)</b>, щоб у тебе й на сервері було однаково — інакше деякі предмети будуть «фантомами».'); return; }
   if (m.t === 'ws') { worldSnapshot(m); return; }
   if (m.t === 'w') { worldPersonal(m); return; }
@@ -128,7 +129,7 @@ function netStateTick(dt) {
     NET.sendT = .1;
     const it = eqItem('hand1');
     const act = myAct();
-    netSend({ t: 's', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), f: +pl.face.toFixed(2), m: pl.moving ? 1 : 0, w: isWet(pl.terr) && pl.y < -.3 ? 1 : 0, g: pl.gliding ? 1 : 0, a: P.cos, i: it && !it.broken ? it.b : '', zn: curZone ? curZone.id : '', l: P.lvl, act, tg: act === 'atk' && lastHitM && gameTime - lastHitT < 2 ? (lastHitM.T.n || '').slice(0, 23) : '', hp: Math.round(clamp(pl.hp / S.maxHP, 0, 1) * 100), cr: carryCode() });
+    netSend({ t: 's', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), f: +pl.face.toFixed(2), m: pl.moving ? 1 : 0, w: isWet(pl.terr) && pl.y < -.3 ? 1 : 0, g: pl.gliding ? 1 : 0, a: P.cos, i: it && !it.broken ? it.b : '', zn: curZone ? curZone.id : '', l: P.lvl, act, tg: act === 'atk' && lastHitM && gameTime - lastHitT < 2 ? (lastHitM.T.n || '').slice(0, 23) : '', hp: Math.round(clamp(pl.hp / S.maxHP, 0, 1) * 100), cr: carryCode(), md: (curMode() || {}).id || '' });
   }
 }
 /* Що зараз робить гравець — бачать інші (над головою, у вкладці «Онлайн», в адмінці й моніторі сервера). */

@@ -1598,7 +1598,7 @@ function clientTick(dt) {
   updEnemies(dt);
   // друзі: лежать / сховались / їх тягнуть / у підвалі
   if (NET.on) for (const id in NET.players) {
-    const r = NET.players[id], s = ST.on && ST.pl[r.name]; r.h.root.visible = !(s && (s.h || s.tk));
+    const r = NET.players[id], s = ST.on && ST.pl[r.name]; if (s && (s.h || s.tk)) r.h.root.visible = false;   // лише ховаємо (видимість щокадру вмикає ядро) — не «вмикати» чужих: інакше ламали маскування в Хованках і стіни «Дедлайну»
     if (s && s.d) { if (s.dr) { r.h.body.rotation.x = -1.35; r.h.body.position.y = .2; if (r.h.aL) { r.h.aL.rotation.x = -2.6 + Math.sin(t * 9) * .5; r.h.aR.rotation.x = -2.6 + Math.cos(t * 8) * .5; } } else { r.h.body.rotation.x = 1.4; r.h.body.position.y = -.55; } }
   }
   updAct(dt);

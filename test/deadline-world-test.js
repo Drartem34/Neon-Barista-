@@ -11,7 +11,8 @@ const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'barista-world-'));
 for (const f of ['start.py']) fs.copyFileSync(path.join(root, f), path.join(tmpRoot, f));
 for (const d of ['dist', 'src', 'server']) fs.cpSync(path.join(root, d), path.join(tmpRoot, d), { recursive: true });
 fs.symlinkSync(path.join(root, 'node_modules'), path.join(tmpRoot, 'node_modules'));
-fs.cpSync(path.join(root, 'addons/_examples/deadline'), path.join(tmpRoot, 'addons/deadline'), { recursive: true });
+// ALL_ADDONS=1 — з усіма аддонами разом (інші режими не мають ламати стіни-видимість, лобі й раунд)
+for (const id of process.env.ALL_ADDONS ? fs.readdirSync(path.join(root, 'addons/_examples')) : ['deadline']) fs.cpSync(path.join(root, 'addons/_examples', id), path.join(tmpRoot, 'addons', id), { recursive: true });
 const srv = spawn('python3', [path.join(tmpRoot, 'start.py'), '--no-ui', '--tunnel', 'none', '--port', String(PORT)], { stdio: 'ignore' });
 function cleanup(code) { try { srv.kill(); } catch (e) { } try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (e) { } process.exit(code); }
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); cleanup(1); } console.log('ok -', m); };

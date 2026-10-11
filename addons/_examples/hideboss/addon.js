@@ -1737,7 +1737,7 @@ function clientTick(dt) {
   { const it = document.getElementById('hb-intro'); if (it && !it.dataset.f && (!running || !(inIsl(pl.x, pl.z)))) it.remove(); }
   if (V.roleT > 0 && !(running && inIsl(pl.x, pl.z))) { V.roleT = 0; const r = document.getElementById('hb-role'); if (r) r.style.display = 'none'; }   // картка ролі не їде з тобою у світ   // пішов з режиму, не закривши «як грати», — вікно не висить над світом (і над інвентарем)
   render(dt);
-  if (!running) { syncBar(); lobbyUI(); return; }
+  if (!running) { if (V.lbl) V.lbl.style.display = 'none'; syncBar(); lobbyUI(); return; }   // гра не йде — підписи (боти, кімнати) не висять
   const fv = floorAt(pl.x, pl.z);
   if (fv >= 0 && !pl.dead) {
     const F = FL[fv];

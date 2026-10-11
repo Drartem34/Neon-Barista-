@@ -139,7 +139,7 @@ async function follow(T, D, Ts) {
     const L = D.L, sg = L.walls.map(q => ({ ax: L.x + q[0], az: L.z + q[1], bx: L.x + q[2], bz: L.z + q[3] })).find(q => Math.hypot(q.bx - q.ax, q.bz - q.az) >= 3 && [-1, 1].every(sd => { const l = Math.hypot(q.bx - q.ax, q.bz - q.az), nx = -(q.bz - q.az) / l, nz = (q.bx - q.ax) / l, x = (q.ax + q.bx) / 2 + nx * 1.3 * sd, z = (q.az + q.bz) / 2 + nz * 1.3 * sd; return Math.abs(x - L.x) < L.hx - 1 && Math.abs(z - L.z) < L.hz - 1; }));
     const l = Math.hypot(sg.bx - sg.ax, sg.bz - sg.az), nx = -(sg.bz - sg.az) / l, nz = (sg.bx - sg.ax) / l, cx = (sg.ax + sg.bx) / 2, cz = (sg.az + sg.bz) / 2;
     const rb = () => Object.values(a.NET.players).find(p => p.name === b.w.__deadline.myKey());
-    at(a, { x: cx + nx * 1, z: cz + nz * 1 }); at(b, { x: cx - nx * 1.2, z: cz - nz * 1.2 }); await tick(Ts, 1);
+    at(a, { x: cx + nx * 1, z: cz + nz * 1 }); at(b, { x: cx - nx * 1.2, z: cz - nz * 1.2 }); await tick(Ts, 1.6);   // 0,3 с «пауза» + ~0,55 с плавного танення
     assert(rb() && !rb().h.root.visible && +rb().tag.style.opacity === 0 && rb().tag.style.opacity !== '', '👁️ колега за стіною: у Бухгалтера його не видно (модель і ім’я)');
     at(b, { x: cx + nx * 1.6, z: cz + nz * 1.6 }); await tick(Ts, 1);
     assert(rb().h.root.visible && rb().tag.style.opacity === '', '👁️ колега вийшов з-за стіни — знову видно');

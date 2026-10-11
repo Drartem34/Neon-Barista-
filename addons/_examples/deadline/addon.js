@@ -798,7 +798,7 @@ function crew() {
   return SIMSIDE ? simPlayers().filter(p => !p.dead && inOffice(p.x, p.z) && !(ST.on && ST.fd && ST.fd.includes(p.name))).map(p => ({ name: p.name, x: p.x, z: p.z }))
     : (running && !pl.dead && inOffice(pl.x, pl.z) ? [{ name: 'me', x: pl.x, z: pl.z }] : []);
 }
-function posOf(k) { const p = crew().find(c => c.name === k); return p || { x: START.p.x, z: START.p.z }; }
+function posOf(k) { const p = crew().find(c => c.name === k) || (String(k).startsWith('🤖 ') && ST.bt.find(b => botWho(b) === k)); return p ? { x: p.x, z: p.z } : { x: START.p.x, z: START.p.z }; }
 function toFloor(it, n, x, z) {
   if (!ITEM[it] || n <= 0) return;
   const p = freeSpot(x, z);
@@ -858,6 +858,8 @@ function onReq(d, from) {
   // 🪑 крісло на коліщатках: ядро сервера обрізає координати тіл до ±500, а наші поверхи далі — тож позицію крісла пересилаємо самі
   if (d.k === 'chairpos') { const i = d.i | 0, x = +d.x, z = +d.z; if (isFinite(x) && isFinite(z) && floorOf(x, z) >= 0) { if (ST.on) AU.pg[k] = ST.t + 3; } if (isFinite(x) && isFinite(z) && floorOf(x, z) >= 0) emit({ k: 'chairpos', who: k, i, x: r2(x), z: r2(z), f: r2(+d.f || 0) }); return; }
   if (d.k === 'ready') { if (!ST.on) { if (d.on) AU.ready[k] = 1; else delete AU.ready[k]; countVotes(); emit({ k: 'ready', who: k, on: d.on ? 1 : 0 }); lobbyCheck(0); if (!ST.on) pushState(); } return; }
+  // v8: 👑 адмін лобі (онлайн — хто першим зайшов на поверх, перевіряє сервер; офлайн — ти) обирає собі роль на наступний раунд
+  if (d.k === 'role') { const r = String(d.r || ''); if (!ST.on && ROLEP.some(q => q[0] === r) && k && k === (SIMSIDE ? hostKey() : 'me')) { if (r) AU.rpk[k] = r; else delete AU.rpk[k]; ST.rp = [k, r]; pushState(); } return; }
   if (d.k === 'vote') { const v = d.v | 0; if (!ST.on && v >= 0 && v < LAY.length && AU.votes[k] !== v) { AU.votes[k] = v; countVotes(); emit({ k: 'voted', who: k, v }); pushState(); } return; }
   if (d.k === 'drop') { if (h.it) { const p = posOf(k); toFloor(h.it, h.n, p.x, p.z); } setHeld(k, '', 0, 0); pushState(); return; }
   if (!ST.on) return;
@@ -1155,7 +1157,8 @@ function authTick(dt) {
   if (!ST.on) {
     // лобі: голоси, «готові», таймер старту
     countVotes(); lobbyCheck(dt); if (ST.on) return;
-    const sig = ST.vo.join() + ST.nx + JSON.stringify(ST.lp) + ST.bt.map(b => b.n).join() + ST.fo + (ST.cd < 0 ? -1 : Math.ceil(ST.cd * 5)) + (ST.fw < 0 ? -1 : Math.ceil(ST.fw)); if (sig !== AU.vsig) { AU.vsig = sig; pushState(); }
+    ST.rp = [hostKey(), AU.rpk[hostKey()] || ''];
+    const sig = ST.vo.join() + ST.nx + JSON.stringify(ST.lp) + ST.rp.join() + ST.bt.map(b => b.n).join() + ST.fo + (ST.cd < 0 ? -1 : Math.ceil(ST.cd * 5)) + (ST.fw < 0 ? -1 : Math.ceil(ST.fw)); if (sig !== AU.vsig) { AU.vsig = sig; pushState(); }
     if (SIMSIDE && c.length && (AU.stT -= dt) <= 0) { AU.stT = .3; pushState(); } return;
   }
   ST.t += dt;
@@ -1232,9 +1235,12 @@ const coneHit = (p, a, x, z, len, w) => { const dd = dist2(p.x, p.z, x, z); if (
 /* ---------- Початок і кінець раунду ---------- */
 function start3() {
   const hum = AU.hum0 && AU.hum0.length ? AU.hum0 : crew().map(p => p.name);
-  let sab = '';
-  // онлайн від 3 людей — завжди хтось із гравців; удвох — зрідка; інакше — колега-NPC
-  if (SIMSIDE && (hum.length >= 3 || (hum.length === 2 && Math.random() < AU.sabP2))) sab = pick(hum);
+  // v8: онлайн від 2 людей ролі (🕵️ 👔 🧑‍💻 🛡️ 🧑‍🎓) розподіляються між людьми І 🤖 ботами разом; адмін може взяти роль собі
+  const mix = SIMSIDE && hum.length >= 2, pool = mix ? [...hum, ...ST.bt.map(botWho)] : hum.slice(), pk = rolePick(hum);
+  AU.cast = { pool, pk };
+  let sab = pk && pk[1] === 'sab' ? pk[0] : '';
+  // онлайн від 2 людей — хтось із команди (людина чи бот); інакше — колега-NPC
+  if (!sab && SIMSIDE && (hum.length >= 3 || mix)) sab = pick(pool.filter(k => !pk || k !== pk[0])) || '';
   if (!sab && DESKS.length) sab = 'npc:' + pick(DESKS).i;
   start7(hum, sab);                                                               // v7: 👔 бос і 🧑‍💻 сисадмін — публічні ролі
   Object.assign(AU, { sab, salt: Math.random().toString(36).slice(2, 10), sbT: rand(40, 60), sbcd: {}, mc: {}, mtCd: 0, spamT: 0, fireMax: 0 });
@@ -1242,7 +1248,7 @@ function start3() {
   Object.assign(ST, { ag: DESKS.map(() => 0), pst: [], fire: 0, pud: null, lit: [], pp: [], mo: [], th: [], burn: [], mt: null, sbC: 0, sk: sab.startsWith('npc:') ? 'n' : 'p', sh: [AU.salt, hashS(AU.salt + sab)], clr: [] });
   const d = dock(); ST.rb = { x: d.x, z: d.z, f: 0, arm: 0, t: 0, dead: 0, wp: 0 };
   start5();
-  emit({ k: 'msg', txt: ST.sk === 'p' ? '🕵️ Серед <b>гравців</b> — САБОТАЖНИК! Підозрюєш когось — 🚨 нарада (клавіша 8).' : '🕵️ Серед <b>колег</b> — САБОТАЖНИК! Стеж за підказками свідків і клич 🚨 нараду (клавіша 8).' });
+  emit({ k: 'msg', txt: ST.sk === 'p' ? '🕵️ Серед <b>команди</b> (люди й 🤖 боти) — САБОТАЖНИК! Підозрюєш когось — 🚨 нарада (клавіша 8).' : '🕵️ Серед <b>колег</b> — САБОТАЖНИК! Стеж за підказками свідків і клич 🚨 нараду (клавіша 8).' });
 }
 function sabName(k) { return !k ? '' : k.startsWith('npc:') ? NAMES[+k.slice(4)] || 'колега' : k; }
 function end3(win) {
@@ -1578,14 +1584,14 @@ function botSabotage() {
   if (!sabDo(w, w === 'litter' ? at : null)) return false;
   AU.sp += SABP[w] || 1; clue5(AU.sab, w, at); if (w === 'burn') { const r = roomAt(at.x, at.z); emit({ k: 'alarm', room: r ? r.n : '', x: r2(at.x), z: r2(at.z) }); }
   // свідки: двоє колег отримують алібі — коло підозрюваних звужується
-  const si = +AU.sab.slice(4), pool2 = shuffle(DESKS.map(d => d.i).filter(i => i !== si && !ST.clr.includes(i))).slice(0, 2);
+  const si = +AU.sab.slice(4), pool2 = AU.sab.startsWith('🤖 ') ? [] : shuffle(DESKS.map(d => d.i).filter(i => i !== si && !ST.clr.includes(i))).slice(0, 2);   // 🤖 бот-саботажник: свідків-колег нема
   ST.clr.push(...pool2);
   const rm = roomAt(at.x, at.z);
   emit({ k: 'sabo', w, room: rm ? rm.n : '', cl: pool2.map(i => NAMES[i]) }); pushState();
   return true;
 }
 function startMeeting(by) {
-  const npc = ST.sk !== 'p', c = npc ? DESKS.map(d => 'npc:' + d.i) : crew().map(p => p.name), n = npc ? DESKS.map(d => NAMES[d.i]) : c.slice();
+  const npc = ST.sk !== 'p', c = npc ? DESKS.map(d => 'npc:' + d.i) : [...crew().map(p => p.name), ...ST.bt.map(botWho)], n = npc ? DESKS.map(d => NAMES[d.i]) : c.slice();
   ST.mt = { ph: 'go', t: GO_T, c, n, v: {}, cnt: c.map(() => 0), who: [], skip: 0, by };   // спершу — 20 с дійти до переговорної
   emit({ k: 'meet', who: by }); pushState();
 }
@@ -1597,10 +1603,13 @@ function endMeeting() {
   const key = M.c[out], nm = M.n[out], ok = key === AU.sab ? 1 : 0;
   if (key === AU.int && !AU.intOk) { AU.intOk = 1; emit({ k: 'mres', out: key, nm, ok: 0, imm: 1 }); pushState(); return; }   // 🧑‍🎓 стажеру пробачають перше звинувачення
   if (ok) { ST.sbC = 1; emit({ k: 'mres', out: key, nm, ok }); endRound(true, `🕵️ Саботажника спіймано на нараді: ${nm}!`, ''); return; }   // v6: спіймали — раунд виграно
+  const bot = key.startsWith('🤖 ') ? ST.bt.find(q => botWho(q) === key) : null;
   if (key.startsWith('npc:')) { const i = +key.slice(4); ST.ag[i] = 100; turnPest(i, 'fired'); }   // образили невинного колегу
+  else if (bot || key.startsWith('🤖 ')) { if (bot) ST.bt.splice(ST.bt.indexOf(bot), 1); }   // v8: невинного бота звільнили — пішов додому
   else { ST.fd = (ST.fd || []).concat(key); setHeld(key, '', 0, 0); }                 // v6: невинного гравця звільнили — для нього раунд скінчився
-  emit({ k: 'mres', out: key, nm, ok, fired: key.startsWith('npc:') ? 0 : 1 }); pushState();
-  if (!key.startsWith('npc:') && !crew().length) endRound(false, 'Звільнили всіх — звіт нікому здавати.');
+  const hu = !key.startsWith('npc:') && !key.startsWith('🤖 ');
+  emit({ k: 'mres', out: key, nm, ok, fired: hu ? 1 : 0 }); pushState();
+  if (hu && !crew().length) endRound(false, 'Звільнили всіх — звіт нікому здавати.');
 }
 
 /* ---------- Кадр автора раунду (v3). true — триває нарада, решта світу завмерла ---------- */
@@ -1613,7 +1622,7 @@ function auth3(dt, c) {
   auth5(dt, c); auth7(dt, c);
   AU.mtCd = Math.max(0, AU.mtCd - dt);
   for (const k in AU.sbcd) AU.sbcd[k] -= dt;
-  if (AU.sab.startsWith('npc:') && !ST.sbC && ST.t > 20 && (AU.sbT -= dt) <= 0) { AU.sbT = rand(45, 65); botSabotage(); }
+  if ((AU.sab.startsWith('npc:') || AU.sab.startsWith('🤖 ')) && !ST.sbC && ST.t > 20 && (AU.sbT -= dt) <= 0) { AU.sbT = rand(45, 65); botSabotage(); }
   if (AU.spamT > 0 && (AU.spamT -= dt) <= 0) startFire(35, '🖥️ Комп’ютер заспамив серверну запитами — СЕРВЕРНА ГОРИТЬ!');
   updFire(dt); updPests(dt, c); updPlanes(dt); updToss(dt); updMolo(dt); updPud(dt); updRoomba(dt, c);
   return false;
@@ -2029,7 +2038,7 @@ function finish(e) {
   const sab = V.wasSab; V.wasSab = false;
   if (sab) { coins = e.sw ? 160 : 15; xp = e.sw ? 160 : 30; } else if (e.sc) coins += 40;   // 🕵️ саботажник: своя нагорода; команда, що його спіймала, — +40
   P.coins += coins; addXP(xp);
-  const d = A.data(); d.rounds = (d.rounds || 0) + 1; if (win) { d.wins = (d.wins || 0) + 1; d.best = Math.max(d.best || 0, Math.round(left)); } d.stars = Math.max(d.stars || 0, stars); d.fixes = (d.fixes || 0) + fx;
+  const d = A.data(); d.rounds = (d.rounds || 0) + 1; if (win && !sab) { d.wins = (d.wins || 0) + 1; d.best = Math.max(d.best || 0, Math.round(left)); } d.stars = Math.max(d.stars || 0, stars); d.fixes = (d.fixes || 0) + fx;
   if (pf) d.perfect = (d.perfect || 0) + 1;
   if (sab && e.sw) d.sabWins = (d.sabWins || 0) + 1; if (!sab && e.sc) d.caught = (d.caught || 0) + 1;
   d.floors = d.floors || {}; if (win) d.floors[e.v | 0] = 1;
@@ -2176,7 +2185,7 @@ function lobbyDef() {
   const me = lobbyMe(), nx = LAY[ST.nx];
   const mine = me && me[2] >= 0 ? me[2] : V.vote, ready = !!(me && me[1]);
   const tie = ST.vo.some(Boolean) && ST.vo.filter(v => v === Math.max(...ST.vo)).length > 1;
-  return { title: '⏰ Дедлайн о 18:00 · лобі', sub: `Обери поверх — клікни по картці. У раунді ${TEAM} учасників: люди + 🤖 боти, що доповнюють лобі. Ліфт везе на поверх з найбільшою кількістю голосів. Зараз: <b>${nx.n}</b>${tie ? ' (нічия — жереб)' : ''}.`,
+  return { title: '⏰ Дедлайн о 18:00 · лобі', sub: `Обери поверх — клікни по картці. У раунді ${TEAM} учасників: люди + 🤖 боти, що доповнюють лобі. Ліфт везе на поверх з найбільшою кількістю голосів. Зараз: <b>${nx.n}</b>${tie ? ' (нічия — жереб)' : ''}.${rolePickHTML()}`,
     maps: LAY.map((q, i) => ({ n: q.n, img: `addons/deadline/map${i + 1}.jpg`, about: ABOUT[i] || '' })), votes: ST.vo, mine, ready,
     players: ST.lp.map(a => ({ n: nmLb(a[0]), ready: !!a[1], vote: a[2] })).concat(ST.bt.map(b => ({ n: '🤖 Бот ' + b.n, ready: true, vote: -1 }))), info: lobbyInfo(),
     onVote: i => { if (ST.on || i < 0 || i >= LAY.length) return; V.vote = i; req('vote', { v: i }); },
@@ -2210,8 +2219,9 @@ function crossesWall(x0, z0, x1, z1) {
   return false;
 }
 /* 👁️ Видимість як в Among Us: інших гравців, ботів, зомбі й начальника (моделі й підписи) не видно, коли між вами стіна.
-   Плавно (~0,15 с) гасне підпис, модель зникає на половині. Лише на поверсі «Дедлайну», де стоїш ти. */
-const LOS_T = .15;
+   Плавно: зайшов за стіну — ще ~0,3 с видно (LOS_G), далі модель і підпис тануть за ~0,55 с (LOS_T); вийшов — проявляються.
+   Ліхтарики й світло схованих теж гаснуть. Лише на поверсі «Дедлайну», де стоїш ти. */
+const LOS_T = .55, LOS_G = .3;
 function seeThrough(x, z) {
   const f = floorOf(pl.x, pl.z); if (f < 0 || floorOf(x, z) !== f) return true;
   const Lx = LAY[f];
@@ -2220,16 +2230,28 @@ function seeThrough(x, z) {
 }
 function losFade(o, x, z, dt) {   // o — будь-що, де тримаємо альфу; повертає альфу 0…1
   const want = !running || pl.dead || seeThrough(x, z) ? 1 : 0;
-  o.losA = o.losA == null ? want : clamp(o.losA + (want ? 1 : -1) * dt / LOS_T, 0, 1);
+  if (o.losA == null) { o.losA = want; o.losG = 0; return want; }
+  if (want) o.losG = 0; else o.losG = (o.losG || 0) + dt;   // коротка «пауза довіри» перед зникненням
+  if (want || o.losG > LOS_G) o.losA = clamp(o.losA + (want ? 1 : -1) * dt / LOS_T, 0, 1);
   return o.losA;
 }
+// прозорість усієї моделі: матеріали клонуємо (вони бувають спільні з іншими моделями) і пам'ятаємо рідну прозорість
+function losAlpha(root, a) {
+  if ((root.userData.losAl == null ? 1 : root.userData.losAl) === a) return; root.userData.losAl = a;
+  root.traverse(o => {
+    if (!o.material || o.isSprite) return;
+    if (!o.userData.losM) { o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone(); o.userData.losM = (Array.isArray(o.material) ? o.material : [o.material]).map(m => [m.transparent, m.opacity]); }
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach((m, i) => { const [t0, o0] = o.userData.losM[i] || [false, 1], tr = t0 || a < 1; if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; } m.opacity = o0 * a; });
+  });
+}
 function losModel(root, a, sticky) {   // sticky — модель, яку більше ніхто щокадру не вмикає (зомбі, начальник)
-  if (a < .5) { if (root.visible) { root.visible = false; if (sticky) root.userData.losHid = 1; } }
+  if (a <= 0) { if (root.visible) { root.visible = false; if (sticky) root.userData.losHid = 1; } }
   else if (sticky && root.userData.losHid) { root.visible = true; root.userData.losHid = 0; }
+  if (a > 0 || root.userData.losAl != null) losAlpha(root, a > 0 ? a : 1);
 }
 function losTick(dt) {
   if (floorOf(pl.x, pl.z) < 0) {   // не в «Дедлайні» — повертаємо все, що сховали
-    if (V.losOn) { V.losOn = false; for (const id in NET.players) { const r = NET.players[id]; r.losA = null; r.tag.style.opacity = ''; } if (V.bm) for (const [, m] of V.bm) { m.losA = null; m.el.style.opacity = ''; } if (V.zm) for (const [, v] of V.zm) { v.losA = null; losModel(v.h.root, 1, true); } if (V.boss) { V.losB = null; losModel(V.boss.root, 1, true); } }
+    if (V.losOn) { V.losOn = false; for (const id in NET.players) { const r = NET.players[id]; r.losA = null; r.tag.style.opacity = ''; if (r.h) losAlpha(r.h.root, 1); } if (V.bm) for (const [, m] of V.bm) { m.losA = null; m.el.style.opacity = ''; losAlpha(m.h.root, 1); } if (V.zm) for (const [, v] of V.zm) { v.losA = null; losModel(v.h.root, 1, true); } if (V.boss) { V.losB = null; losModel(V.boss.root, 1, true); } }
     return;
   }
   V.losOn = true;
@@ -2346,17 +2368,22 @@ function darkness() {
   V.dark.style.opacity = on ? (Math.random() < .03 ? .7 : 1) : 0; if (!on) return;
   const c = V.dark, W_ = innerWidth | 0, H_ = innerHeight | 0; if (c.width !== W_ || c.height !== H_) { c.width = W_; c.height = H_; }
   const g = c.getContext && c.getContext('2d'); if (!g || !g.fillRect) return;
-  g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, W_, H_); g.fillStyle = 'rgba(10,6,25,.9)'; g.fillRect(0, 0, W_, H_);
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.clearRect(0, 0, W_, H_); g.fillStyle = 'rgba(10,6,25,.9)'; g.fillRect(0, 0, W_, H_);
   g.globalCompositeOperation = 'destination-out';
-  const L5 = [{ x: pl.x, z: pl.z, f: pl.face }, ...ST.bt.map(b => ({ x: b.x, z: b.z, f: b.f || 0 }))];
-  for (const id in NET.players) { const r = NET.players[id]; if (r && inOffice(r.x, r.z)) L5.push({ x: r.x, z: r.z, f: r.face || 0 }); }
+  // 👁️ світло колег за стіною не видно: альфа як у їхньої моделі (losFade), без неї — пряма перевірка видимості
+  const la = (o, x, z) => o && o.losA != null ? o.losA : seeThrough(x, z) ? 1 : 0;
+  const L5 = [{ x: pl.x, z: pl.z, f: pl.face, a: 1 }, ...ST.bt.map(b => ({ x: b.x, z: b.z, f: b.f || 0, a: la(V.bm && V.bm.get(b.n), b.x, b.z) }))];
+  for (const id in NET.players) { const r = NET.players[id]; if (r && inOffice(r.x, r.z)) L5.push({ x: r.x, z: r.z, f: r.face || 0, a: la(r, r.x, r.z) }); }
+  V.litN = L5.filter(q => q.a > .02).length;   // для тестів: скільки ліхтариків зараз світить
   const grad = (x, y, r0, r1) => { const gr = g.createRadialGradient(x, y, r0, x, y, r1); if (gr) { gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(.7, 'rgba(0,0,0,.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; } return gr; };
   for (const q of L5) {
+    if (q.a <= .02) continue; g.globalAlpha = Math.min(1, q.a);
     const p = screenPos(q.x, 1, q.z), e = screenPos(q.x + Math.sin(q.f) * 7, 1, q.z + Math.cos(q.f) * 7); if (!p.vis) continue;
     if (grad(p.x, p.y, 0, 60)) { g.beginPath(); g.arc(p.x, p.y, 60, 0, 7); g.fill(); }
     const a = Math.atan2(e.y - p.y, e.x - p.x), len = Math.max(80, Math.hypot(e.x - p.x, e.y - p.y));
     if (grad(p.x, p.y, 10, len)) { g.beginPath(); g.moveTo(p.x, p.y); g.arc(p.x, p.y, len, a - .42, a + .42); g.closePath(); g.fill(); }
   }
+  g.globalAlpha = 1;
 }
 
 /* ---------- Дії «тримай поруч» ---------- */
@@ -3208,11 +3235,13 @@ function start5() {
   Object.assign(AU, { st: {}, sp: 0, trail: null, badge: {}, pwH: {}, mopT: 45, av: 0, bv: 0, chkU: 0, intOk: 0, camSeen: {} });
   // 👕 кольори сорочок: у кожного гравця й колеги-NPC свій (повторюються — камера лише звужує коло)
   const hum = AU.hum0 && AU.hum0.length ? AU.hum0 : crew().map(p => p.name);
-  ST.shc = [...hum, ...DESKS.map(d => 'npc:' + d.i)].map((k, i) => [k, (i + (Math.random() * 6 | 0)) % SHIRT.length]);
+  ST.shc = [...hum, ...ST.bt.map(botWho), ...DESKS.map(d => 'npc:' + d.i)].map((k, i) => [k, (i + (Math.random() * 6 | 0)) % SHIRT.length]);
   // 🛡️ безпековик і 🧑‍🎓 стажер — таємні, як і саботажник
-  const pool = shuffle(hum.filter(k => k !== AU.sab && k !== AU.boss && k !== AU.sys)); let sec = '', int = '';
+  // v8: серед людей і 🤖 ботів; адмін, що обрав 🛡️/🧑‍🎓/👤, отримує саме це
+  const CS = AU.cast || {}, pk = CS.pk, pool = shuffle((CS.pool || hum).filter(k => k !== AU.sab && k !== AU.boss && k !== AU.sys && !(pk && k === pk[0]))); let sec = '', int = '';
   if (SIMSIDE) { if (pool.length >= (AU.boss ? 1 : 2)) sec = pool[0]; if (pool[1] && Math.random() < .6) int = pool[1]; }
   else if (pool[0]) { const r = Math.random(); if (r < .4) sec = pool[0]; else if (r < .7) int = pool[0]; }
+  if (pk && pk[1] === 'sec') sec = pk[0]; if (pk && pk[1] === 'int') int = pk[0];
   setRoles(sec, int);
   // 🪑 рідкісне таємне завдання саботажника (~10% раундів): накатати 5 м на кріслі
   if (AU.sab && !AU.sab.startsWith('npc:') && Math.random() < .1) ST.co = 1;
@@ -3645,11 +3674,28 @@ const BCD = { yell: 8, shv: 12, asg: 20, cof: 60, pc: 40, arg: 30, svc: 45, cbl:
 Object.assign(ST, { bh: '', sy: '', rt: 0, idl: [], inc: [], hlp: [], asg: null, tn: 100, cbl: null, fu: 0 });
 Object.assign(AU, { boss: '', sys: '', lw: {}, pg: {}, bcd: {}, rtp: {}, rtT: 0, rtA: 0, incT: 0, hlpT: 0, shd: {}, fu: 0, idSig: '', bAway: 0, yAway: 0 });
 Object.assign(V, { boss7: false, sys7: false, cd7: {}, rid7: -1, bfT: 0, tumT: 0, rtp: 0, l7: new Map(), s7: new Map(), it7: null });
+/* ---------- v8: 👑 адмін обирає собі роль у лобі ---------- */
+const ROLEP = [['', '🎲 Випадково'], ['work', '👤 Працівник'], ['sab', '🕵️ Саботажник'], ['boss', '👔 Бос'], ['sys', '🧑‍💻 Сисадмін'], ['sec', '🛡️ Безпековик'], ['int', '🧑‍🎓 Стажер']];
+Object.assign(ST, { rp: ['', ''] }); Object.assign(AU, { rpk: {}, cast: null });
+function hostKey() { return SIMSIDE ? ((crew()[0] || {}).name || '') : 'me'; }   // онлайн «адмін» лобі — найдавніший гравець на поверсі
+function rolePick(hum) { const h = hostKey(), r = AU.rpk[h]; return r && h && (!SIMSIDE || hum.includes(h)) ? [h, r] : null; }
+const amAdmin = () => !ST.on && (!SIMSIDE && AUTH() ? true : !!(ST.rp[0] && isMe(ST.rp[0])));
+function rolePickHTML() {
+  if (!amAdmin()) return ST.rp[0] ? `<div style="margin-top:6px;font-size:12px;opacity:.75">👑 Адмін лобі: ${escapeHTML(nmLb(ST.rp[0]))}</div>` : '';
+  const cur = ST.rp[1] || '';
+  return `<div style="margin-top:8px;font-size:13px">👑 <b>Ти адмін</b> — твоя роль у наступному раунді: ${ROLEP.map(([id, l]) => `<button data-dlrp="${id}" style="margin:2px;padding:3px 8px;border-radius:9px;border:2px solid ${id === cur ? '#FFB020' : 'rgba(0,0,0,.15)'};background:${id === cur ? '#FFE7A8' : '#fff'};font:700 12px system-ui;cursor:pointer">${l}</button>`).join('')}</div>`;
+}
+if (!SIMSIDE && typeof document !== 'undefined') document.addEventListener('click', e => {
+  const b = e.target && e.target.closest && e.target.closest('[data-dlrp]'); if (!b || ST.on) return;
+  const r = b.dataset.dlrp || ''; req('role', { r }); toast(`👑 Твоя роль у наступному раунді: <b>${(ROLEP.find(q => q[0] === r) || ROLEP[0])[1]}</b>`); sfx('ui');
+});
 const fRole = () => !SIMSIDE && typeof window !== 'undefined' && window.__deadlineRole;   // тестовий гачок офлайн: 'boss' | 'sys'
 function start7(hum, sab) {
-  const rest = shuffle(hum.filter(k => k !== sab)), fr = fRole();
-  const boss = SIMSIDE ? (hum.length >= 3 ? rest[0] || '' : '') : fr === 'boss' ? 'me' : '';
-  const sys = SIMSIDE ? (hum.length >= 4 ? rest[1] || '' : '') : fr === 'sys' ? 'me' : '';
+  // v8: бос і сисадмін — з усієї команди (люди + боти); випав бот — роль грає NPC (начальник / сисадмін), як раніше
+  const C = AU.cast || {}, pool = C.pool || hum, pk = C.pk, fr = fRole(), rest = shuffle(pool.filter(k => k !== sab && !(pk && k === pk[0])));
+  const hm = k => k && !k.startsWith('🤖 ') ? k : '';
+  const boss = pk && pk[1] === 'boss' ? pk[0] : SIMSIDE ? (pool.length >= 3 ? hm(rest.shift()) : '') : fr === 'boss' ? 'me' : '';
+  const sys = pk && pk[1] === 'sys' ? pk[0] : SIMSIDE ? (pool.length >= 4 ? hm(rest.shift()) : '') : fr === 'sys' ? 'me' : '';
   Object.assign(AU, { boss, sys, lw: {}, pg: {}, bcd: {}, rtp: {}, rtT: 0, rtA: rand(70, 110), incT: rand(20, 32), hlpT: rand(25, 40), shd: {}, fu: 0, idSig: '', bAway: 0, yAway: 0 });
   Object.assign(ST, { bh: boss, sy: sys, rt: 0, idl: [], inc: [], hlp: [], asg: null, tn: 100, cbl: null, fu: 0 });
   start4();
@@ -3657,9 +3703,10 @@ function start7(hum, sab) {
 function end7() { Object.assign(AU, { boss: '', sys: '' }); Object.assign(ST, { bh: '', sy: '', rt: 0, idl: [], inc: [], hlp: [], asg: null, cbl: null, fu: 0, tn: 100 }); }
 function snap7() {
   return { b7: [ST.bh, ST.sy, ST.fu], rt: ST.rt, idl: ST.idl, inc: ST.inc.map(q => [q.id, q.w, q.x, q.z, Math.ceil(q.t)]), hl: ST.hlp.map(q => [q.id, q.i, q.x, q.z, Math.ceil(q.t)]),
-    asg: ST.asg ? [ST.asg.n, Math.ceil(ST.asg.t), ST.asg.tx] : 0, tn: Math.round(ST.tn), cbl: ST.cbl ? [ST.cbl.k, ST.cbl.b.x, ST.cbl.b.z, Math.ceil(ST.cbl.t)] : 0, ...snap4() };
+    asg: ST.asg ? [ST.asg.n, Math.ceil(ST.asg.t), ST.asg.tx] : 0, tn: Math.round(ST.tn), rp: ST.rp, cbl: ST.cbl ? [ST.cbl.k, ST.cbl.b.x, ST.cbl.b.z, Math.ceil(ST.cbl.t)] : 0, ...snap4() };
 }
 function applySnap7(d) {
+  if (Array.isArray(d.rp)) ST.rp = [String(d.rp[0] || ''), String(d.rp[1] || '')];
   if (Array.isArray(d.b7)) { ST.bh = String(d.b7[0] || ''); ST.sy = String(d.b7[1] || ''); ST.fu = d.b7[2] ? 1 : 0; }
   ST.rt = d.rt ? 1 : 0; ST.tn = d.tn == null ? 100 : clamp(+d.tn, 0, 100);
   ST.idl = Array.isArray(d.idl) ? d.idl.slice(0, 12).map(a => [String(a[0]), String(a[1] || 'i')]) : [];

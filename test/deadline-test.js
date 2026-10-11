@@ -204,18 +204,29 @@ step(1); assert(F.ST.on, 'гра йде далі після здачі звіт�
     if (crossed) thru++;
   }
   assert(!thru, `спринт і ривки в стіну 2 с — гравець по свій бік (${Math.min(4, segs.length)} стін × 4 режими, пролетів: ${thru})`);
-  // 👁️ видимість як в Among Us: бот за стіною — ні моделі, ні підпису; вийшов з-за стіни — знову видно (плавно, ~0,15 с)
+  // 👁️ видимість як в Among Us: бот за стіною — ні моделі, ні підпису; вийшов з-за стіни — знову видно (плавно: 0,3 с «пауза», далі тане ~0,55 с)
   const sg = segs[0], mx0 = (sg.ax + sg.bx) / 2, mz0 = (sg.az + sg.bz) / 2, b = F.ST.bt[0], m = () => F.V.bm.get(b.n);
   assert(b && m(), 'у раунді є бот з моделлю й підписом');
   const put = (x, z) => { b.x = b.tx = x; b.z = b.tz = z; b.path = null; b.job = ''; };
-  at({ x: mx0 - mx * .9, z: mz0 - mz * .9 }); put(mx0 - mx * 1.6, mz0 - mz * 1.6); step(.3);
+  at({ x: mx0 - mx * .9, z: mz0 - mz * .9 }); put(mx0 - mx * 1.6, mz0 - mz * 1.6); step(.8);
   assert(m().h.root.visible && m().el.style.opacity === '', 'бот по твій бік стіни — видно');
-  put(mx0 + mx * 1.2, mz0 + mz * 1.2); step(2 / 60); const a1 = m().losA; step(.3);
-  assert(!m().h.root.visible && m().el.style.opacity !== '' && +m().el.style.opacity === 0 && a1 > 0 && a1 < 1, `бот зайшов за стіну: модель схована, підпис згас (плавно: за 2 кадри прозорість ${a1.toFixed(2)})`);
-  put(mx0 - mx * 1.6, mz0 - mz * 1.6); step(.3);
-  assert(m().h.root.visible && m().el.style.opacity === '' && m().el.style.display !== 'none', 'бот по твій бік стіни — знову видно');
+  const mOp = () => { let o = 1; m().h.root.traverse(q => { if (q.isMesh && q.material && !Array.isArray(q.material)) o = Math.min(o, q.material.opacity); }); return o; };
+  // ⚡ у блекаут: ліхтарик бота по твій бік стіни світить
+  const pw0 = F.ST.pw; F.ST.pw = 0; step(2 / 60); const lit0 = F.V.litN; F.ST.pw = pw0;
+  put(mx0 + mx * 1.2, mz0 + mz * 1.2); step(.2); const a0 = m().losA;
+  assert(a0 === 1 && m().h.root.visible, 'бот щойно зайшов за стіну — ще 0,3 с видно (без різкого зникнення)');
+  step(.35); const a1 = m().losA, o1 = mOp();
+  assert(m().h.root.visible && a1 > 0 && a1 < 1 && o1 < 1 && +m().el.style.opacity < 1, `бот тане плавно: альфа ${a1.toFixed(2)}, матеріали прозорі (${o1.toFixed(2)}), підпис блякне`);
+  step(.6);
+  assert(!m().h.root.visible && m().el.style.opacity !== '' && +m().el.style.opacity === 0, 'бот за стіною: модель схована, підпис згас');
+  F.ST.pw = 0; step(2 / 60); const lit1 = F.V.litN; F.ST.pw = pw0;
+  assert(lit0 > lit1, `⚡ блекаут: ліхтарик бота за стіною не видно (світять ${lit0} → ${lit1})`);
+  put(mx0 - mx * 1.6, mz0 - mz * 1.6); step(.15);
+  assert(m().h.root.visible && m().losA > 0 && m().losA < 1, 'вийшов з-за стіни — проявляється плавно');
+  step(.6);
+  assert(m().h.root.visible && m().el.style.opacity === '' && m().el.style.display !== 'none' && mOp() === 1, 'бот по твій бік стіни — знову видно (повністю непрозорий)');
   const zm0 = F.V.zm && [...F.V.zm.values()][0], zz = F.ST.zom[0];
-  if (zm0 && zz) { zz.x = zz.tx = mx0 + mx * 1.2; zz.z = zz.tz = mz0 + mz * 1.2; zz.stun = 9; step(.3); assert(!zm0.h.root.visible, '🧟 зомбі за стіною теж не видно'); zz.x = zz.tx = mx0 - mx * 1.6; zz.z = zz.tz = mz0 - mz * 1.6; step(.3); assert(zm0.h.root.visible, '🧟 і знову видно, коли стіни між вами нема'); }
+  if (zm0 && zz) { zz.x = zz.tx = mx0 + mx * 1.2; zz.z = zz.tz = mz0 + mz * 1.2; zz.stun = 9; step(1); assert(!zm0.h.root.visible, '🧟 зомбі за стіною теж не видно'); zz.x = zz.tx = mx0 - mx * 1.6; zz.z = zz.tz = mz0 - mz * 1.6; step(.6); assert(zm0.h.root.visible, '🧟 і знову видно, коли стіни між вами нема'); }
 }
 F.ST.t = F.ST.dur; step(.3);   // ⏩ 18:00
 const d = T.P.addons.deadline;

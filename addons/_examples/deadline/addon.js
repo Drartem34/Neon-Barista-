@@ -1237,10 +1237,10 @@ function start3() {
   const hum = AU.hum0 && AU.hum0.length ? AU.hum0 : crew().map(p => p.name);
   // v8: онлайн від 2 людей ролі (🕵️ 👔 🧑‍💻 🛡️ 🧑‍🎓) розподіляються між людьми І 🤖 ботами разом; адмін може взяти роль собі
   const mix = SIMSIDE && hum.length >= 2, pool = mix ? [...hum, ...ST.bt.map(botWho)] : hum.slice(), pk = rolePick(hum);
-  AU.cast = { pool, pk };
+  AU.cast = { pool, pk, hn: hum.length };
   let sab = pk && pk[1] === 'sab' ? pk[0] : '';
   // онлайн від 2 людей — хтось із команди (людина чи бот); інакше — колега-NPC
-  if (!sab && SIMSIDE && (hum.length >= 3 || mix)) sab = pick(pool.filter(k => !pk || k !== pk[0])) || '';
+  if (!sab && SIMSIDE && (hum.length >= 3 || mix)) { const sp = humFirst(pool.filter(k => !pk || k !== pk[0]), 'sab'), sh = sp.filter(k => isBotK(k) === isBotK(sp[0])); sab = pick(humFirst.on() && sh.length ? sh : sp) || ''; }
   if (!sab && DESKS.length) sab = 'npc:' + pick(DESKS).i;
   start7(hum, sab);                                                               // v7: 👔 бос і 🧑‍💻 сисадмін — публічні ролі
   Object.assign(AU, { sab, salt: Math.random().toString(36).slice(2, 10), sbT: rand(40, 60), sbcd: {}, mc: {}, mtCd: 0, spamT: 0, fireMax: 0 });
@@ -3239,7 +3239,7 @@ function start5() {
   // 🛡️ безпековик і 🧑‍🎓 стажер — таємні, як і саботажник
   // v8: серед людей і 🤖 ботів; адмін, що обрав 🛡️/🧑‍🎓/👤, отримує саме це
   const CS = AU.cast || {}, pk = CS.pk, pool = shuffle((CS.pool || hum).filter(k => k !== AU.sab && k !== AU.boss && k !== AU.sys && !(pk && k === pk[0]))); let sec = '', int = '';
-  if (SIMSIDE) { if (pool.length >= (AU.boss ? 1 : 2)) sec = pool[0]; if (pool[1] && Math.random() < .6) int = pool[1]; }
+  if (SIMSIDE) { const p2 = humFirst(pool, 'sec'); if (p2.length >= (AU.boss ? 1 : 2)) sec = p2[0]; const p3 = humFirst(pool.filter(k => k !== sec), 'int'); if (p3[0] && Math.random() < .6) int = p3[0]; }
   else if (pool[0]) { const r = Math.random(); if (r < .4) sec = pool[0]; else if (r < .7) int = pool[0]; }
   if (pk && pk[1] === 'sec') sec = pk[0]; if (pk && pk[1] === 'int') int = pk[0];
   setRoles(sec, int);
@@ -3677,8 +3677,14 @@ Object.assign(V, { boss7: false, sys7: false, cd7: {}, rid7: -1, bfT: 0, tumT: 0
 /* ---------- v8: 👑 адмін обирає собі роль у лобі ---------- */
 const ROLEP = [['', '🎲 Випадково'], ['work', '👤 Працівник'], ['sab', '🕵️ Саботажник'], ['boss', '👔 Бос'], ['sys', '🧑‍💻 Сисадмін'], ['sec', '🛡️ Безпековик'], ['int', '🧑‍🎓 Стажер']];
 Object.assign(ST, { rp: ['', ''] }); Object.assign(AU, { rpk: {}, cast: null });
+const isBotK = k => String(k).startsWith('🤖 ');
+// тестовий гачок сервера (world-тест кладе крихітний аддон, напр. 'sab,boss,sec'): від 3 людей ці ролі спершу отримують люди,
+// решта ролей і всі ролі удвох — спершу 🤖 боти. У грі гачка нема — усе навмання
+const humFirst = (l, r) => { if (!humFirst.on()) return l; const H = l.filter(k => !isBotK(k)), B = l.filter(isBotK); return (AU.cast ? AU.cast.hn : crew().length) >= 3 && String(window.__deadlineCastTest).split(',').includes(r) ? [...H, ...B] : [...B, ...H]; };
+humFirst.on = () => SIMSIDE && typeof window !== 'undefined' && !!window.__deadlineCastTest;
 function hostKey() { return SIMSIDE ? ((crew()[0] || {}).name || '') : 'me'; }   // онлайн «адмін» лобі — найдавніший гравець на поверсі
-function rolePick(hum) { const h = hostKey(), r = AU.rpk[h]; return r && h && (!SIMSIDE || hum.includes(h)) ? [h, r] : null; }
+function rolePick(hum) { const h = SIMSIDE ? ST.rp[0] || hostKey() : 'me', r = AU.rpk[h];   // адмін — той, кого лобі показувало до старту
+  return r && h && (!SIMSIDE || hum.includes(h)) ? [h, r] : null; }
 const amAdmin = () => !ST.on && (!SIMSIDE && AUTH() ? true : !!(ST.rp[0] && isMe(ST.rp[0])));
 function rolePickHTML() {
   if (!amAdmin()) return ST.rp[0] ? `<div style="margin-top:6px;font-size:12px;opacity:.75">👑 Адмін лобі: ${escapeHTML(nmLb(ST.rp[0]))}</div>` : '';
@@ -3692,10 +3698,10 @@ if (!SIMSIDE && typeof document !== 'undefined') document.addEventListener('clic
 const fRole = () => !SIMSIDE && typeof window !== 'undefined' && window.__deadlineRole;   // тестовий гачок офлайн: 'boss' | 'sys'
 function start7(hum, sab) {
   // v8: бос і сисадмін — з усієї команди (люди + боти); випав бот — роль грає NPC (начальник / сисадмін), як раніше
-  const C = AU.cast || {}, pool = C.pool || hum, pk = C.pk, fr = fRole(), rest = shuffle(pool.filter(k => k !== sab && !(pk && k === pk[0])));
+  const C = AU.cast || {}, pool = C.pool || hum, pk = C.pk, fr = fRole(), rest = shuffle(pool.filter(k => k !== sab && !(pk && k === pk[0]))), take = r => { const o = humFirst(rest, r)[0]; if (o) rest.splice(rest.indexOf(o), 1); return o; };
   const hm = k => k && !k.startsWith('🤖 ') ? k : '';
-  const boss = pk && pk[1] === 'boss' ? pk[0] : SIMSIDE ? (pool.length >= 3 ? hm(rest.shift()) : '') : fr === 'boss' ? 'me' : '';
-  const sys = pk && pk[1] === 'sys' ? pk[0] : SIMSIDE ? (pool.length >= 4 ? hm(rest.shift()) : '') : fr === 'sys' ? 'me' : '';
+  const boss = pk && pk[1] === 'boss' ? pk[0] : SIMSIDE ? (pool.length >= 3 ? hm(take('boss')) : '') : fr === 'boss' ? 'me' : '';
+  const sys = pk && pk[1] === 'sys' ? pk[0] : SIMSIDE ? (pool.length >= 4 ? hm(take('sys')) : '') : fr === 'sys' ? 'me' : '';
   Object.assign(AU, { boss, sys, lw: {}, pg: {}, bcd: {}, rtp: {}, rtT: 0, rtA: rand(70, 110), incT: rand(20, 32), hlpT: rand(25, 40), shd: {}, fu: 0, idSig: '', bAway: 0, yAway: 0 });
   Object.assign(ST, { bh: boss, sy: sys, rt: 0, idl: [], inc: [], hlp: [], asg: null, tn: 100, cbl: null, fu: 0 });
   start4();

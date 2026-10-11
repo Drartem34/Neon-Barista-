@@ -7,12 +7,16 @@ const THREE = require('three');
 const root = path.join(__dirname, '..');
 const PORT = 7811;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+let V8H = null;   // v8: адмін лобі, що обрав роль
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'barista-world-'));
 for (const f of ['start.py']) fs.copyFileSync(path.join(root, f), path.join(tmpRoot, f));
 for (const d of ['dist', 'src', 'server']) fs.cpSync(path.join(root, d), path.join(tmpRoot, d), { recursive: true });
 fs.symlinkSync(path.join(root, 'node_modules'), path.join(tmpRoot, 'node_modules'));
 // ALL_ADDONS=1 — з усіма аддонами разом (інші режими не мають ламати стіни-видимість, лобі й раунд)
 for (const id of process.env.ALL_ADDONS ? fs.readdirSync(path.join(root, 'addons/_examples')) : ['deadline']) fs.cpSync(path.join(root, 'addons/_examples', id), path.join(tmpRoot, 'addons', id), { recursive: true });
+// тестовий гачок сервера: від 3 людей ролі спершу отримують люди (саботажник, бос, безпековик — гравці); удвох — спершу 🤖 боти
+// (бот-саботажник, гравці — працівники). У грі без гачка — усе навмання між людьми й ботами.
+fs.writeFileSync(path.join(tmpRoot, 'addons', 'zz_dltest.js'), "window.__deadlineCastTest = 'sab,boss,sec';\n");
 const srv = spawn('python3', [path.join(tmpRoot, 'start.py'), '--no-ui', '--tunnel', 'none', '--port', String(PORT)], { stdio: 'ignore' });
 function cleanup(code) { try { srv.kill(); } catch (e) { } try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (e) { } process.exit(code); }
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); cleanup(1); } console.log('ok -', m); };
@@ -120,7 +124,7 @@ async function follow(T, D, Ts) {
   await tick(Ts, 1);
   assert(thrown, 'звіт кидали напарнику');
   assert(sameSeen > 5, 'прогрес чекліста однаковий в обох');
-  assert(D.ST.on && E.ST.on && D.ST.rd && E.ST.rd && maxSi >= 5 && E.ST.si === 0 && E.ST.steps.length === 5, 'v6: звіт здано — раунд НЕ скінчився: в обох «звіт готовий» і чекліст додатка');
+  assert(D.ST.on && E.ST.on && D.ST.rd && E.ST.rd && maxSi >= 5 && E.ST.si === 0 && E.ST.steps.length === 5, 'v6: звіт здано — раунд НЕ скінчився: в обох «звіт готовий» і чекліст додатка' + (E.ST.rd ? '' : ' [' + JSON.stringify({ si: E.ST.si, st: E.ST.steps, rt: E.ST.rt, sk: E.ST.sk, sab: [D.V.sab, E.V.sab], g: [D.goal().id, D.goal().txt, E.goal().id, E.goal().txt], mg: [D.V.mg && D.V.mg.kind, E.V.mg && E.V.mg.kind], role: [D.V.role, E.V.role], bh: E.ST.bh, sy: E.ST.sy }) + ']'));
   let SBx = null;
   // …тепер шукаємо саботажника: хто він — з хешу в знімку (так у грі перевіряє себе сам саботажник), 🚨 нарада й голос — раунд виграно
   {
@@ -130,6 +134,7 @@ async function follow(T, D, Ts) {
     for (let i = 0; i < 12 && !(D.ST.mt && D.ST.mt.ph === 'vote' && E.ST.mt && E.ST.mt.ph === 'vote'); i++) await tick(Ts, .3);
     const M = CX.ST.mt, sh = CX.ST.sh, si = M ? M.c.findIndex(k => CX.hashS(sh[0] + k) === sh[1]) : -1;
     assert(M && M.ph === 'vote' && si >= 0, '🚨 нарада після здачі звіту — голосування, саботажника знайшли (' + (M && M.n[si]) + ')');
+    assert(D.ST.sk === 'p' && M.c.some(k => k.startsWith('🤖 ')) && M.c.filter(k => !k.startsWith('🤖 ')).length === 2, `v8: удвох ролі між людьми й 🤖 ботами — шкідник у команді, кандидати: ${M.n.join(', ')}`);
     for (const T of Ts) { const el = T.w.document.getElementById('dl-meet'), bt = el && el.querySelector(`[data-mv="${si}"]`); if (bt && !T.w.__deadline.V.sab) bt.click(); }
     for (let i = 0; i < 30 && (D.ST.on || E.ST.on); i++) await tick(Ts, 1);
     assert(!D.ST.on && !E.ST.on && D.ST.sbC === 1, '🕵️ саботажника спіймано на нараді — раунд скінчився в обох');
@@ -170,6 +175,13 @@ async function follow(T, D, Ts) {
     assert(T3.every(T => lob(T)), 'троє в лобі 63-го — у кожного вікно лобі');
     for (const T of T3) lob(T).querySelector('[data-lv="3"]').click(); await tick(T3, 1);
     assert(Dx.every(X => X.ST.vo[3] === 3 && X.ST.nx === 3), '🗳️ троє голосують за «70 · Nest Office (COO)»');
+    // 👑 v8: адмін лобі (хто першим зайшов на поверх) обирає собі роль; сервер не приймає вибір від інших
+    { const hk = D.ST.rp[0], H = T3.find(T => T.w.__deadline.myKey() === hk), NH = T3.filter(T => T !== H);
+      assert(H && lob(H).querySelectorAll('[data-dlrp]').length === 7 && NH.every(T => !lob(T).querySelector('[data-dlrp]') && /Адмін лобі/.test(lob(T).textContent)), `👑 адмін лобі — ${hk}: лише в нього вибір ролі (7 кнопок)`);
+      NH[0].w.__deadline.req('role', { r: 'boss' }); await tick(T3, .6);
+      assert(Dx.every(X => X.ST.rp[0] === hk && X.ST.rp[1] === ''), '👑 не-адмін просить роль — сервер відкидає');
+      lob(H).querySelector('[data-dlrp="sab"]').click(); for (let i = 0; i < 10 && !Dx.every(X => X.ST.rp[1] === 'sab'); i++) await tick(T3, .2);
+      assert(Dx.every(X => X.ST.rp[1] === 'sab'), '👑 адмін обрав «🕵️ Саботажник» — бачать усі'); V8H = H; }
     for (const T of T3) lob(T).querySelector('.rdy').click();
     for (let i = 0; i < 30 && !Dx.every(X => X.ST.on); i++) await tick(T3, .5);
     assert(Dx.every(X => X.ST.on && X.ST.vi === 3 && X.L.id === 'deadline4') && T3.every(T => Math.hypot(T.pl.x - D.START.p.x, T.pl.z - D.START.p.z) < 2.5), '🛗 раунд на Nest Office (COO) — ліфт переніс усіх');
@@ -178,9 +190,10 @@ async function follow(T, D, Ts) {
     await tick(T3, .5);
     const sabs = T3.filter(T => T.w.__deadline.V.sab);
     assert(sabs.length === 1, `саботажник рівно один (${sabs.length})`);
+    assert(sabs[0] === V8H, '🕵️ саботажник — адмін, як і обрав');
     const S = sabs[0], SX = S.w.__deadline, crewT = T3.filter(T => T !== S), Y = crewT.find(T => T.w.__deadline.ST.bh !== T.w.__deadline.myKey()) || crewT[0], YX = Y.w.__deadline, Z = crewT.find(T => T !== Y);   // Y — працівник (у боса інший набір слотів)
     const role = T => { const r = T.w.document.getElementById('dl-role'); return r && r.style.display !== 'none' ? r.dataset.role : ''; };
-    assert(role(S) === 'sab' && crewT.filter(T => role(T) === 'boss').length === 1 && crewT.filter(T => role(T) === 'crew').length === 1, `🤫 картку «🕵️ Ти — САБОТАЖНИК» бачить лише ${S.P.name || 'він'}; один — «👔 Ти — БОС», ще один — «сумлінний працівник»`);
+    assert(role(S) === 'sab' && crewT.filter(T => role(T) === 'boss').length === 1 && crewT.filter(T => role(T) === 'crew').length === 1, `🤫 картку «🕵️ Ти — САБОТАЖНИК» бачить лише ${S.P.name || 'він'}; один — «👔 Ти — БОС», ще один — «сумлінний працівник» [${T3.map(T => T.w.__deadline.myKey() + ':' + role(T)).join(' ')} · бос ${D.ST.bh || 'NPC'} · сисадмін ${D.ST.sy || 'NPC'}]`);
     // 👔 v7: бос — випадкова людина, ПУБЛІЧНО (усі бачать хто), і це не саботажник
     const BS = crewT.find(T => role(T) === 'boss'), BX = BS.w.__deadline, WK = crewT.find(T => T !== BS), WX = WK.w.__deadline, bk = BX.myKey();
     assert(Dx.every(X => X.ST.bh === bk) && bk !== SX.myKey() && BX.V.boss7 && !WX.V.boss7, `👔 рівно один публічний бос (${bk}), бос ≠ саботажник — бачать усі`);
@@ -253,7 +266,7 @@ async function follow(T, D, Ts) {
     {
       await meetAll(FI);
       assert(Dx.every(X => X.ST.mt && X.ST.mt.ph === 'vote') && T3.every(T => /Негайно в переговорну/.test(T.w.__deadline.goal().txt) || T.w.__deadline.ST.mt), '🚨 збори №1 скликав ' + FIX.myKey() + ' — усі в переговорній, голосування');
-      assert(T3.every(T => mt(T) && mt(T).style.display !== 'none' && mt(T).querySelectorAll('.dlm-c').length === 2 && /Продовжити роботу/.test(mt(T).textContent) && /Справа/.test(mt(T).textContent)), '🚨 збори у всіх: «Звільнити …» ×2 (себе не видно), «⏭️ Продовжити роботу», 🗂️ справа');
+      assert(T3.every(T => mt(T) && mt(T).style.display !== 'none' && mt(T).querySelectorAll('.dlm-c').length === 2 + D.ST.bt.length && /Продовжити роботу/.test(mt(T).textContent) && /Справа/.test(mt(T).textContent)), '🚨 збори у всіх: «Звільнити …» ×4 — 2 колеги + 🤖 боти (себе не видно), «⏭️ Продовжити роботу», 🗂️ справа');
       const fk = FIX.myKey(), fi = D.ST.mt.c.indexOf(fk);
       for (const T of [OT, S]) mt(T).querySelector(`[data-mv="${fi}"]`).click(); mt(FI).querySelector('[data-mv="-1"]').click();
       await tick(T3, 1.5);
@@ -267,7 +280,7 @@ async function follow(T, D, Ts) {
     // 🚨 нарада №2: OT скликає й голосує за саботажника, той мовчить — по таймеру саботажника спіймано, раунд виграно (v6)
     {
       await meetAll(OT);
-      assert(Dx.every(X => X.ST.mt && X.ST.mt.ph === 'vote' && X.ST.mt.c.length === 2), '🚨 збори №2 — кандидатів двоє (звільненого вже нема)');
+      assert(Dx.every(X => X.ST.mt && X.ST.mt.ph === 'vote' && X.ST.mt.c.length === 2 + X.ST.bt.length), '🚨 збори №2 — кандидатів двоє людей + боти (звільненого вже нема)');
       const sk = SX.myKey(), si = D.ST.mt.c.indexOf(sk);
       mt(OT).querySelector(`[data-mv="${si}"]`).click(); await tick(T3, .8);
       assert(Dx.every(X => !X.ST.on || (X.ST.mt && X.ST.mt.cnt[si] === 2)), '👔 голос боса рахується ×2');

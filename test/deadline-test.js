@@ -632,6 +632,41 @@ const actDone = tg => { for (let j = 0; j < 40 && F.V.act; j++) { at(tg); step(.
     assert(F.V.dashT > 0 && F.AU.pg.me > F.ST.t, '🏓 виграв — прискорення; для боса це «херньою страждає»'); }
   F.ST.t = F.ST.dur; step(.3); assert(!F.ST.on, 'раунд на Nest Office скінчився');
 }
+// ---------- v8: 👑 адмін (офлайн — ти) обирає собі роль у лобі ----------
+{
+  w.__deadlineRole = '';
+  const toLob = () => { at(F.START.p); step(.3); if (!lob()) { F.openLobby(); step(.1); } };
+  const rb = r => lob() && lob().querySelector(`[data-dlrp="${r}"]`);
+  toLob();
+  assert(lob() && ['', 'work', 'sab', 'boss', 'sys', 'sec', 'int'].every(r => rb(r)) && /Ти адмін/.test(lob().textContent), '👑 офлайн ти адмін — у лобі вибір ролі (🎲 👤 🕵️ 👔 🧑‍💻 🛡️ 🧑‍🎓)');
+  rb('int').click(); step(.1);
+  assert(F.AU.rpk.me === 'int' && F.ST.rp[1] === 'int' && /Стажер/.test(toasts()), '👑 обрав «🧑‍🎓 Стажер» — кнопка підсвічена');
+  keepRoles = true; readyGo(); step(.3);
+  assert(F.ST.on && F.AU.int === 'me' && !F.AU.sec, '🧑‍🎓 у раунді ти — стажер (вибір адміна)');
+  F.ST.t = F.ST.dur; step(.3); keepRoles = false;
+  toLob(); rb('boss').click(); step(.1); readyGo(); step(.3);
+  assert(F.ST.on && F.ST.bh === 'me' && F.V.boss7, '👔 обрав «Бос» — у раунді ти бос');
+  F.ST.t = F.ST.dur; step(.3);
+  // 🕵️ адмін-саботажник: шкідник у команді — на нараді кандидати і люди, і 🤖 боти; невинний (і стажер) раунд НЕ закінчує
+  toLob(); rb('sab').click(); step(.1); keepRoles = true; readyGo(); step(.3);
+  assert(F.ST.on && F.ST.sk === 'p' && F.V.sab && F.AU.sab === 'me', '🕵️ обрав «Саботажник» — у раунді ти саботажник (шкідник у команді)');
+  const bk = F.ST.bt.map(b => '🤖 ' + b.n), vote = key => { const M = F.ST.mt; M.ph = 'vote'; M.cnt = M.c.map(k => k === key ? 1 : 0); M.skip = 0; F.endMeeting(); step(.1); };
+  F.setRoles('', bk[0]); F.startMeeting('me'); step(.05);
+  assert(F.ST.mt && bk.every(k => F.ST.mt.c.includes(k)) && F.ST.mt.c.includes('me'), `🚨 нарада: кандидати — люди й боти (${F.ST.mt.c.length})`);
+  vote(bk[0]);
+  assert(F.ST.on && F.AU.intOk && F.ST.bt.some(b => '🤖 ' + b.n === bk[0]) && !F.ST.sbC, '🧑‍🎓 стажера-бота вигнали вперше — пробачили, раунд триває');
+  F.startMeeting('me'); step(.05); vote(bk[0]);
+  assert(F.ST.on && !F.ST.bt.some(b => '🤖 ' + b.n === bk[0]) && !F.ST.sbC, '🧑‍🎓 стажера вигнали вдруге — звільнили, але раунд НЕ скінчився');
+  F.startMeeting('me'); step(.05); vote(bk[1]);
+  assert(F.ST.on && !F.ST.bt.some(b => '🤖 ' + b.n === bk[1]), '👤 невинного бота звільнили — раунд триває');
+  // 🤖 бот-саботажник: спіймали — раунд виграно
+  F.AU.sab = bk[2]; F.ST.sh = [F.AU.salt, F.hashS(F.AU.salt + bk[2])]; F.startMeeting('me'); step(.05); vote(bk[2]);
+  assert(!F.ST.on && F.ST.sbC === 1, '🤖 бота-саботажника спіймали на нараді — раунд скінчився (перемога)');
+  keepRoles = false; F.setRoles('', ''); step(.3);
+  toLob(); rb('').click(); step(.1);
+  assert(!F.AU.rpk.me && F.ST.rp[1] === '', '🎲 «Випадково» — вибір скинуто');
+  F.req('role', { r: 'king' }); step(.05); assert(!F.AU.rpk.me, '👑 невідома роль — сервер відкидає');
+}
 // вихід ліфтом у хаб
 { const E = F.L.exit; at(E); step(.05); it = T.getInteract(); assert(it && /хаб/.test(it.l), 'біля ліфта F — «⬇️ Ліфт у хаб»'); it.fn(); step(.5); assert(F.floorOf(T.pl.x, T.pl.z) < 0 && !lob(), 'ліфт відвіз у хаб — вікно лобі закрилось'); }
 // пішов з офісу — підсумки раунду, картка ролі й міні-гра не висять над відкритим світом (і над інвентарем)

@@ -206,6 +206,13 @@ async function follow(T, D, Ts) {
       assert(Math.abs(WK.pl.x - x0) > .5 || WX.V.tumT > 0, `😤 бос швирнув працівника (${(WK.pl.x - x0).toFixed(1)} м)`);
       at(WK, W0); at(BS, { x: W0.x + 1, z: W0.z }); await tick(T3, .4); BX.bossAct('asg', { key: WX.myKey() }); await tick(T3, .6);
       assert(Dx.every(X => X.ST.asg && X.ST.asg.n === WX.myKey()), `📋 бос доручив ${WX.myKey()}: ${WX.ST.asg && WX.ST.asg.tx} — бачать усі`); }
+    // 💻 онлайн-бос затверджує звіти на ПК: міні-гра «ЗАТВЕРДЖУЮ» справжніми натисканнями (англ. розкладка) → +8 с у всіх
+    { const fn = p => { for (const d of [1.3, 1.6, 1.9, 2.2]) for (let k = 0; k < 12; k++) { const x = p.x + Math.sin(k / 12 * 6.28) * d, z = p.z + Math.cos(k / 12 * 6.28) * d; if (!BX.blocked(x, z, .35) && BX.reachable(x, z)) return { x, z }; } return p; };
+      const bp = fn(BX.BOSS_DESK), d0 = BX.ST.dur; at(BS, bp); await tick(T3, .5); at(BS, bp); const it = BS.getInteract();
+      assert(it && /Затвердити звіт/.test(it.l), `👔 онлайн-бос біля ПК — «${it && it.l}»`); it.fn(); assert(BX.V.mg && BX.V.mg.kind === 'type', '💻 міні-гра набору');
+      for (const [key, code] of [['p', 'KeyP'], ['f', 'KeyF'], ['n', 'KeyN'], ['d', 'KeyD'], ['t', 'KeyT'], ['h', 'KeyH'], ['l', 'KeyL'], [';', 'Semicolon'], ['e', 'KeyE'], ['.', 'Period']]) BS.w.document.body.dispatchEvent(new BS.w.KeyboardEvent('keydown', { key, code, bubbles: true }));
+      for (let i = 0; i < 20 && !(BX.V.cd7.pc > 0); i++) { at(BS, bp); await tick(T3, .1); }
+      assert(!BX.V.mg && BX.V.cd7.pc > 0 && Dx.every(X => X.ST.dur >= d0 + 8), `💻 онлайн-бос затвердив звіти — +8 с у всіх (${d0} → ${Dx.map(X => X.ST.dur).join('/')})`); }
     assert(Dx.every(X => !JSON.stringify(X.ST.sh).includes(S.w.__deadline.myKey())), 'у знімку немає імені саботажника — лише хеш');
     assert(/🕵️/.test(S.w.document.querySelector('#modebar [data-ms="7"]').textContent) && crewT.every(T => /🚨/.test(T.w.document.querySelector('#modebar [data-ms="7"]').textContent)), 'у саботажника 8-й слот — 🕵️, у решти — 🚨 Нарада');
     // 🕵️ саботажник підпалює серверну — бачать усі

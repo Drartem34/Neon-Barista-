@@ -116,7 +116,8 @@ function adminTick(dt) {
   const want = CFG.on && isAdmin() && d && d.active(), bots = d ? d.bots() : [];
   for (const b of bots) {
     const on = want && pickOn(b.n);
-    if (!!S.ctl[b.n] !== on || (on && S.t - S.ctlT > 20)) { d.act(b.n, { k: 'ctl', on: on ? 1 : 0 }); S.ctl[b.n] = on; }
+    if (!!S.ctl[b.n] !== on || (on && !S.fails && S.t - S.ctlT > 20))   // LLM падає — не продовжуємо 🧠: за 40 с бот стане скриптовим
+      { d.act(b.n, { k: 'ctl', on: on ? 1 : 0 }); S.ctl[b.n] = on; }
   }
   if (want && S.t - S.ctlT > 20) S.ctlT = S.t;
   if (!want) return;

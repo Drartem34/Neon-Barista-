@@ -153,7 +153,7 @@ const bot = n => F.ST.bt.find(b => b.n === n);
 
   // ---------- LLM падає → скриптові боти ----------
   w.__aibotsMock = null; const calls = [];
-  Object.assign(G.CFG, { prov: 'gemini', key: 'TESTKEY-SECRET-123', model: '' });
+  Object.assign(G.CFG, { prov: 'gemini', key: 'TESTKEY-SECRET-123', model: '' }); G.save();
   w.fetch = (url, opt) => { calls.push({ url, opt }); return Promise.reject(new Error('мережа лежить')); };
   Object.assign(G.S, { win: [], last: {}, back: 0 }); const e0 = G.S.errs; await run(14);
   assert(G.S.errs > e0 && G.S.log.some(l => /за скриптом/.test(l)), `помилка LLM — лог «бот працює за скриптом» (помилок ${G.S.errs - e0})`);

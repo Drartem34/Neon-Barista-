@@ -18,7 +18,7 @@
    У спільному світі все рахує сервер: завдання, хаос, зомбі, політ звіту, голосування.
    Картинку для картки в меню поклади поруч: addons/deadline/deadline-bg.jpg */
 
-const A = Addon.info({ name: 'Дедлайн о 18:00', version: '5.0', desc: 'Кооп до 5 (люди + боти) на трьох поверхах хмарочоса: здай квартальний звіт до 18:00 — дані, принтер, печатки, кава начальнику, звіт-«гаряча картопля», вантуз проти зомбі, пневмопошта й хаос.' });
+const A = Addon.info({ name: 'Дедлайн о 18:00', version: '6.0', desc: 'Кооп до 5 (люди + боти) на чотирьох поверхах хмарочоса (бос і сисадмін — ролі гравців): здай квартальний звіт до 18:00 — дані, принтер, печатки, кава начальнику, звіт-«гаряча картопля», вантуз проти зомбі, пневмопошта й хаос.' });
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);
@@ -406,6 +406,113 @@ function decoV3(K) {
 }
 
 /* ---------- Набір меблів: без групи (сервер і перший прохід) лише записує тверді перешкоди, з групою — ще й будує меші ---------- */
+/* ---------- Поверх 70 · Nest Office (COO): за ескізом — програмісти, кухня з балконом, HR, кабінет COO, переговорні А/Б, R&D, відкритий простір, серверна, щитова ---------- */
+function mkV4() {
+  const Lx = begin({ id: 'deadline4', n: 'Поверх 70 · Nest Office (COO)', fl: '70', short: 'Nest Office', x: 720, z: -580, hx: 22, hz: 14, night: false, pc: '#7FE08A',
+    pal: { o: '#DDE3EA', i: '#F4F6F8', otop: '#4FB866', top: '#7FE08A', base: '#B8C2CC' },
+    names: ['Фронтендер Назар', 'Бекендерка Оля', 'QA Тимур', 'Девопс Ліна', 'HR Аліна', 'Рекрутер Богдан', 'Інженерка R&D Зоряна', 'Офіс-менеджер Ігор'],
+    rn: { data: 'програмісти й колеги', print: 'відкритий простір', stamp: 'кабінет HR', number: 'шафи HR', scan: 'R&D', send: 'західний коридор', archT: '🗂️ Шафи HR',
+      atStart: 'біля ліфтів', atSend: 'у західному коридорі', atPrint: 'у відкритому просторі', atCoffee: 'на кухні', atPanel: 'у щитовій', atRack: 'у серверній' } });
+  // зовнішні стіни; балкон — поручні (відкрите повітря)
+  wall(-22, -14, 16, -14, [], 'o'); wall(16, -14, 22, -14, [], 'r'); wall(22, -14, 22, -3, [], 'r'); wall(22, -3, 22, 14, [], 'o');
+  wall(-22, -14, -22, 14, [], 'o'); wall(-22, 14, 22, 14, [], 'o');
+  // верхній ряд: програмісти | кухня | балкон
+  wall(-8, -14, -8, -6, [-9.5], 'i'); wall(-22, -6, -8, -6, [-20.5], 'i'); wall(-8, -6, 16, -6, [-6.5, 4, 12], 'i'); wall(16, -14, 16, -3, [-10], 'g');
+  // лівий бік: коридор | HR | кабінет COO
+  wall(-19, -6, -19, 14, [-1.5, 11], 'i'); wall(-19, 3, -8, 3, [-13.5], 'i'); wall(-8, -6, -8, 14, [0, 6], 'i');
+  // центр: переговорна А (скло), R&D, техкоридор
+  wall(-5, -3, -5, 3, [1.2], 'g'); wall(-5, -3, 4, -3, [], 'g'); wall(4, -3, 16, -3, [10], 'i'); wall(16, -3, 22, -3, [20], 'r');
+  wall(4, -3, 4, 3, [], 'g'); wall(18, -3, 18, 3, [0], 'i'); wall(-5, 3, 4, 3, [0], 'g'); wall(4, 3, 22, 3, [7, 15], 'i');
+  // низ: серверна, щитова, переговорна Б (скло)
+  wall(12, 3, 12, 9, [7], 'i'); wall(12, 9, 22, 9, [14.5], 'i'); wall(12, 9, 12, 14, [11.5], 'i'); wall(-8, 9, 3, 9, [-2.5], 'g'); wall(3, 9, 3, 14, [], 'g');
+  Lx.rooms = [
+    { id: 'dev', n: 'ПРОГРАМІСТИ', c: '#4FB866', x0: -22, z0: -14, x1: -8, z1: -6, fl: '#A9C9A0', sg: [-15, -13.7] },
+    { id: 'kit', n: 'КУХНЯ', c: '#FFD27A', x0: -8, z0: -14, x1: 16, z1: -6, fl: '#F2E3B3', sg: [-3, -13.7] },
+    { id: 'balc', n: 'БАЛКОН', c: '#C9CDD9', x0: 16, z0: -14, x1: 22, z1: -3, fl: '#9A9EA8', sg: false, ft: [19, -5, 2.6] },
+    { id: 'wc', n: 'КОРИДОР', c: '#B8B2C8', x0: -22, z0: -6, x1: -19, z1: 14, fl: '#B8BCC4', sg: false },
+    { id: 'hr', n: 'КАБІНЕТ HR', c: '#B07CF0', x0: -19, z0: -6, x1: -8, z1: 3, fl: '#C9B8E8', sg: false, ft: [-13.5, 2.2, 3] },
+    { id: 'coo', n: 'КАБІНЕТ БОСА (COO)', c: '#FF6BD6', x0: -19, z0: 3, x1: -8, z1: 14, fl: '#E8B4C8', sg: false, ft: [-13.5, 13.2, 4.4] },
+    { id: 'c1', n: 'КОРИДОР', c: '#B8B2C8', x0: -8, z0: -6, x1: -5, z1: 3, fl: '#B8BCC4', sg: false },
+    { id: 'c2', n: 'КОРИДОР', c: '#B8B2C8', x0: -5, z0: -6, x1: 16, z1: -3, fl: '#B8BCC4', sg: false },
+    { id: 'ma', n: 'ПЕРЕГОВОРНА А', c: '#FF6BD6', x0: -5, z0: -3, x1: 4, z1: 3, fl: '#F0C4D8', sg: false, ft: [-.5, 2.3, 3.2] },
+    { id: 'rnd', n: 'R&D', c: '#2FBF9A', x0: 4, z0: -3, x1: 18, z1: 3, fl: '#BFEFD9', sg: false, ft: [11, 2.3, 2] },
+    { id: 'tc', n: 'ТЕХКОРИДОР', c: '#9F98B8', x0: 18, z0: -3, x1: 22, z1: 3, fl: '#9A9EA8', sg: false },
+    { id: 'open', n: 'ВІДКРИТИЙ ПРОСТІР', c: '#8E86B0', x0: -8, z0: 3, x1: 12, z1: 9, fl: '#DADDE3', sg: false, ft: [2, 3.7, 4.4] },
+    { id: 'lift', n: 'ВІДКРИТИЙ ПРОСТІР', c: '#8E86B0', x0: 3, z0: 9, x1: 12, z1: 14, fl: '#DADDE3', sg: false },
+    { id: 'srv', n: 'СЕРВЕРНА', c: '#5C9CFF', x0: 12, z0: 3, x1: 22, z1: 9, fl: '#3E4E72', sg: [17, 3.3] },
+    { id: 'tech', n: 'ЩИТОВА ТА ТЕХ КІМНАТА', c: '#6BE7FF', x0: 12, z0: 9, x1: 22, z1: 14, fl: '#2E3346', sg: [18, 9.3] },
+    { id: 'mb', n: 'ПЕРЕГОВОРНА Б', c: '#FF6BD6', x0: -8, z0: 9, x1: 3, z1: 14, fl: '#F0C4D8', sg: false, ft: [-2.5, 13.2, 3.2] },
+  ];
+  const D = [[-20, -12.4], [-16.5, -12.4], [-13, -12.4], [-20, -9.4], [-16.5, -9.4], [-13, -9.4], [-5, 4.3], [-1.5, 4.3]];
+  Lx.desks = D.map(([x, z], i) => ({ i, lx: x, lz: z, x: OX + x, z: OZ + z, p: W(x + 1.15, z + .8) }));
+  Lx.s = {
+    START: st(7, 10.4, 7, 11.7, .6), SEND: st(-20.5, 12.8, -20.5, 11.4, .6),
+    PRINTER: st(10.9, 4.6, 9.5, 4.6, .75), STAPLER: st(-18.4, 1.8, -17.2, 1.8, .55),
+    COFFEE: st(0, -13.3, 0, -11.9, .55), VALVE: st(-7.6, -12.5, -6.6, -12.5, .35), PANEL: st(21.6, 12, 20.5, 12, .35),
+    ARCHIVE: st(-8.6, -4.5, -9.8, -4.5, .6), RACK: st(21.2, 4.3, 19.9, 4.3, .75), SCANNER: st(13, -2.4, 13, -1.1, .5), STAMP: st(-13.5, -2.5, -13.5, -1.1, .55),
+    BOSS_DESK: W(-14, 8), CLOCK: W(-2, -6), IT: W(17, 12.4),
+    COOLER: Object.assign(st(-7.6, -4.6, -6.6, -4.6, .3), { pc: W(-6.4, -4) }),
+  };
+  // точки унікальних фіч поверху
+  Lx.s4 = { DRONE: W(19.5, -11), ROPE: W(20.6, -6.5), ROBOT: W(8, -1.1), DEPLOY: W(-10, -12.1), REV: W(-10.2, -7.9), DOS: W(-15.5, -4.9), SAFE: W(-17.6, 12.1),
+    MICRO: W(-3, -12.2), LATTE: W(4, -12.2), PONG: W(-5.2, 7.4), SECT: W(20.4, 10.4),
+    NOTES: [W(-18.3, -7.3), W(11, -11), W(-7, 13), W(20.8, -.8), W(5, 5.2), W(-18, 4.4)] };
+  Lx.racks = [[21.2, 4.3], [21.2, 6.6], [17.5, 8.3]];
+  Lx.lifts = [W(5, 13), W(7.3, 13)]; Lx.exit = W(9.8, 13);
+  Lx.tube = [st(-21.6, -2.5, -20.5, -2.5, .35), st(21.6, 1.5, 20.5, 1.5, .35)];                                 // західний коридор ↔ техкоридор
+  Lx.stairs = { a: W(10, -12.4), b: W(14, 12.6), da: [10, -13.4, 0], db: [14, 13.4, Math.PI], ic: '🚪', n: 'Пожежні сходи', kind: 'stairs' };
+  Lx.bpath = [W(-14, 9.3), W(-11, 9.3), W(-11, 6), W(-6.5, 6), W(-6.5, 1.2), W(-3.5, 1.2), W(-1, 1.2)];      // COO: стіл → переговорна А
+  Lx.chairs = [[-11, -7.6], [9, 7.6]];
+  seal(Lx, decoV4);
+}
+function decoV4(K) {
+  decoStations(K, 'startup');
+  // програмісти: стіна з мемами, кнопка «Деплой у п'ятницю», ПК код-рев'ю, пуф
+  { const q = K.grp(-21.85, -10, Math.PI / 2); K.GB(q, 0, 1.4, 0, 3.6, 1.1, .05, '#FFFFFF'); for (let k = 0; k < 8; k++) K.GB(q, -1.4 + (k % 4) * .9, 1.15 + Math.floor(k / 4) * .5, .04, .6, .35, .02, ['#7FE08A', '#6BE7FF', '#FFE066', '#FF8AD8'][k % 4]); }
+  K.box(-10, .45, -13.3, .9, .9, .6, '#2E2346', true); K.cyl(-10, .95, -13.3, .22, .25, .12, '#FF3B5C', 16); K.glow(-10, 1.02, -13.3, .2, .02, .2, '#FF5C7A');
+  K.table(-10.2, -6.7, 1.4, .7, '#E8E3F0', '#9F98B8'); K.monitor(-10.2, -6.85, 1, true, 2); K.keyboard(-10.2, -6.55);
+  K.bag(-21, -7.2, '#6BE7FF'); K.plant(-8.7, -13.3, .9);
+  // кухня: стільниця, холодильник, мікрохвильовка, лате-арт станція, стіл
+  K.box(1, .45, -13.4, 12, .9, .8, '#E8E3F0', true); K.box(1, .92, -13.4, 12, .05, .85, '#C9B48E');
+  K.box(-3, 1.1, -13.4, .6, .35, .45, '#4E4A6E'); K.glow(-3, 1.1, -13.15, .35, .22, .01, '#FFD27A');
+  K.box(4, 1.15, -13.4, .4, .45, .35, '#C4956A'); K.cyl(4.4, 1.05, -13.2, .07, .07, .14, '#FFFFFF', 8);
+  K.box(13.3, 1, -13.4, 1, 2, .8, '#D9DEE8', true); K.box(12.85, 1.3, -13, .04, .5, .04, '#4E4A6E');
+  K.table(3, -9.5, 3.2, 1.4, '#FFFFFF', '#C9B48E'); for (const x of [1.8, 4.2]) for (const z of [-10.5, -8.5]) K.cyl(x, .45, z, .2, .2, .06, '#FFD27A', 8);
+  K.plant(15.2, -6.8); K.sign('☕ КУХНЯ', '#FFD27A', 8, -13.75, 2.2, 2.1);
+  // балкон: поручні з квітами, вітряк, майданчик для дрона, лавка
+  K.box(19.5, .07, -11, 1.8, .02, 1.8, '#FFD27A'); K.box(19.5, .08, -11, 1.2, .01, 1.2, '#4E4A6E');
+  K.box(17.2, .25, -6.5, .6, .5, 2, '#8C6A4E', true); K.plant(21.3, -13.3, .8); K.plant(16.8, -13.3, .8);
+  // HR: шафи досьє, стіл, диван для співбесід
+  for (let k = 0; k < 3; k++) K.box(-17.5 + k * 1.1, .65, -5.6, .95, 1.3, .55, '#9F98B8', true);
+  K.sofa(-17.6, -1.5, 2.2, Math.PI / 2, '#B07CF0'); K.plant(-9, 2.2, .9);
+  // кабінет COO: великий стіл (робиться в decoStations), сейф, диван, мапа світу
+  K.box(-17.6, .5, 13.3, .9, 1, .8, '#4E4A6E', true); K.cyl(-17.6, .55, 12.88, .16, .16, .04, '#FFD27A', 12);
+  K.sofa(-10, 13.2, 2.4, Math.PI, '#2E2346'); K.rug(-14, 8.6, 5, 3.4, '#C24A7A');
+  { const q = K.grp(-18.85, 8, Math.PI / 2); K.GB(q, 0, 1.5, 0, 3, 1.4, .05, '#6BE7FF'); K.GB(q, -.6, 1.6, .03, 1, .6, .02, '#7FE08A'); K.GB(q, .7, 1.4, .03, .9, .7, .02, '#7FE08A'); }
+  K.plant(-18.3, 3.8, 1.1);
+  // переговорна А: скляний стіл і крісла
+  K.table(-.5, -1.4, 3.6, 1.1, '#BFE6FF', '#8E86B0'); for (const x of [-1.8, -.5, .8]) K.chair(x, -2.35, 0, '#FF6BD6'); K.plant(3.3, 2.3, .8);   // південна половина — вільна: тут збираються на нараду
+  // R&D: стенд прототипу, 3D-принтер, верстак
+  K.table(8, -2.3, 2.4, .9, '#4E4A6E', '#2E2346'); K.box(8, .95, -2.3, .5, .3, .4, '#6BE7FF');
+  K.box(15.6, .7, -2.3, 1, 1.4, .9, '#2E2346', true); K.glow(15.6, .9, -1.84, .7, .5, .01, '#FF8AD8');
+  K.table(11, 2.2, 2.6, .8, '#C9C3DC', '#4E4A6E'); K.plant(4.7, 2.3, .8);
+  // техкоридор: шафа з кабелями
+  K.box(21.4, .9, -2, .6, 1.8, 1.4, '#8E86B0', true);
+  // відкритий простір: чил-зона з пінг-понгом і мішками, кулер, рослини
+  K.rug(-3, 7.4, 7, 3, '#7FB8A8');
+  K.box(-3, .74, 7.4, 2.7, .06, 1.5, '#2F8F7A', true); K.box(-3, .9, 7.4, .04, .25, 1.6, '#FFFFFF'); for (const sx of [-1, 1]) for (const sz of [-1, 1]) K.box(-3 + sx * 1.2, .37, 7.4 + sz * .6, .06, .74, .06, '#4E4A6E');
+  K.bag(-7.1, 8.3, '#FF8A7A'); K.bag(.9, 8.3, '#B07CF0'); K.plant(11.3, 8.4); K.plant(3.4, 13.3, .9);
+  // переговорна Б: скляні стіни, стіл
+  K.table(-2.5, 11.5, 4.2, 1.6, '#BFE6FF', '#8E86B0'); for (const x of [-4, -2.5, -1]) for (const z of [10.2, 12.8]) K.chair(x, z, z < 11 ? 0 : Math.PI, '#B07CF0');
+  // серверна: охолодження
+  K.box(13, 1, 8.4, .8, 2, .8, '#E8E3F0', true);
+  // щитова й тех кімната: шафи автоматів, стіл сисадміна з трьома моніторами
+  for (let k = 0; k < 3; k++) K.box(21.65, 1.1, 10 + k * 1.1, .35, 1.6, .9, '#4E4A6E');
+  K.table(17, 13.3, 2.4, .8, '#3E4A7C', '#2E2346'); for (const dx of [-.8, 0, .8]) K.monitor(17 + dx, 13.45, -1, true, 1);
+  K.box(13, .6, 13.3, 1, 1.2, .7, '#8E86B0', true);
+}
+
+/* ---------- Набір меблів (kit) ---------- */
 function makeKit(g) {
   const K = {
     g,
@@ -625,14 +732,14 @@ function navPath(x, z, tx, tz) {
 }
 
 /* ---------- Три поверхи: острови, логіка, фізика ---------- */
-mkV1(); mkV2(); mkV3(); useVar(0);
+mkV1(); mkV2(); mkV3(); mkV4(); useVar(0);
 LAY.forEach((Lx, i) => A.island({ id: Lx.id, n: '⏰ Дедлайн · ' + Lx.n, sub: 'кооп · квартальний звіт до 18:00 · ' + Lx.short, x: Lx.x, z: Lx.z, r: ISL_R, top: '#C9C3DC', rock: '#6E668E', biome: 'officeday', dlv: i, tier: 1, safe: true }));
 const _buildIsland = buildIsland;
 buildIsland = function (s) { if (s.biome !== 'officeday' || s.dlv == null) return _buildIsland.apply(this, arguments); return SIMSIDE ? new THREE.Group() : buildVariant(s.dlv); };
 
 /* ---------- Стан раунду ---------- */
 const ST = { on: false, t: 0, dur: 420, lv: 0, steps: [], si: 0, need: 3, fed: 0, desk: [], held: {}, floor: [], zom: [], boss: { x: BPATH[0].x, z: BPATH[0].z, f: 0, i: 0, dir: 1, wait: 6, at: 'desk' },
-  coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, vi: 0, vo: [0, 0, 0], nx: 0, rhp: 100, fly: null, tb: [], xl: null, rid: 0, pf: 1, lp: [], bt: [], cd: -1, fo: 0, fw: -1, lj: '' };
+  coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, vi: 0, vo: LAY.map(() => 0), nx: 0, rhp: 100, fly: null, tb: [], xl: null, rid: 0, pf: 1, lp: [], bt: [], cd: -1, fo: 0, fw: -1, lj: '' };
 const AU = { chaosT: 25, jamP: .45, boomP: .3, jammed: 0, boomed: 0, pwT: 0, rainT: 0, dropT: 0, idle: 0, stT: 0, fid: 0, zid: 0, wins: 0, away: {}, votes: {}, ready: {}, won: 0, vsig: '', excel: 1, fillT: 0, fullT: 0, bi: 0, botAI: 1 };
 /* лобі заповнюється до 5 учасників: люди (у пріоритеті) + 🤖 боти, що приходять по одному */
 const TEAM = 5, LEFT_OUT = 25;                                                   // онлайн: хто не готовий 25 с після заповнення — стартуємо без нього
@@ -661,7 +768,7 @@ function applySnap(d) {
   if (vi !== ST.vi || L !== LAY[vi]) { ST.vi = vi; useVar(vi); }
   Object.assign(ST, { on: !!d.on, t: +d.t || 0, dur: +d.dur || 420, lv: d.lv | 0, si: d.si | 0, need: d.nd | 0, fed: d.fd | 0, coffee: d.cf ? 1 : 0, jam: d.jm ? 1 : 0, pw: d.pw ? 1 : 0, heat: d.ht ? 1 : 0, cm: d.cm ? 1 : 0, rain: d.rn ? 1 : 0, fixes: d.fx | 0,
     nx: clamp(d.nx | 0, 0, LAY.length - 1), rhp: d.rh == null ? 100 : clamp(+d.rh, 0, 100), rid: d.rid | 0, pf: d.pf ? 1 : 0 });
-  if (Array.isArray(d.vo)) ST.vo = [0, 1, 2].map(i => d.vo[i] | 0);
+  if (Array.isArray(d.vo)) ST.vo = LAY.map((_, i) => d.vo[i] | 0);
   if (Array.isArray(d.lp)) ST.lp = d.lp.slice(0, 16).filter(Array.isArray).map(a => [String(a[0]), a[1] ? 1 : 0, a[2] >= 0 && a[2] < LAY.length ? a[2] | 0 : -1]);
   ST.cd = d.cd == null || d.cd < 0 ? -1 : +d.cd; ST.fw = d.fw == null || d.fw < 0 ? -1 : +d.fw; ST.fo = d.fo ? 1 : 0; ST.lj = String(d.lj || '');
   if (Array.isArray(d.bt)) { const old = new Map(ST.bt.map(b => [b.n, b])); ST.bt = d.bt.slice(0, TEAM).map(a => { const b = old.get(String(a[0])) || { n: String(a[0]), x: +a[1], z: +a[2] }; return Object.assign(b, { tx: +a[1], tz: +a[2], f: +a[3], it: a[4] === 'sheets' ? 'sheets' : '', ic: String(a[5] || ''), c: a[6] | 0, mv: a[7] ? 1 : 0 }); }); }
@@ -706,7 +813,7 @@ function spawnZombie(life, at) {
 }
 /* лобі: голоси за поверх і «Я готовий» — з вікна лобі (рахує сервер світу або сам гравець) */
 function countVotes() {
-  const c = crew(), cnt = [0, 0, 0];
+  const c = crew(), cnt = LAY.map(() => 0);
   for (const k in AU.votes) if (!SIMSIDE || c.some(p => p.name === k)) cnt[AU.votes[k]]++;
   ST.vo = cnt; ST.nx = pickVar();
   ST.lp = c.map(p => [p.name, AU.ready[p.name] ? 1 : 0, AU.votes[p.name] != null ? AU.votes[p.name] : -1]);
@@ -714,7 +821,7 @@ function countVotes() {
 // найбільше голосів; нічия — жереб при старті (у прев'ю — поточний поверх або перший з рівних); без голосів — ротація
 function pickVar(roll) {
   const cnt = ST.vo, best = Math.max(...cnt);
-  if (best > 0) { const tied = [0, 1, 2].filter(i => cnt[i] === best); return roll ? pick(tied) : tied.includes(ST.vi) ? ST.vi : tied[0]; }
+  if (best > 0) { const tied = LAY.map((_, i) => i).filter(i => cnt[i] === best); return roll ? pick(tied) : tied.includes(ST.vi) ? ST.vi : tied[0]; }
   return AU.won ? (ST.vi + 1) % LAY.length : ST.vi;      // ніхто не голосував: після перемоги ліфт везе вище, інакше — той самий поверх
 }
 /* лобі: після першого «Я готовий» боти доповнюють команду до 5; старт — коли всі 5 на місці й усі люди готові (відлік 3…2…1) */
@@ -749,7 +856,7 @@ function switchVar(v) {
 function onReq(d, from) {
   const k = keyOf(from), who = SIMSIDE ? escapeHTML(k) : 'Ти', h = heldOf(k);
   // 🪑 крісло на коліщатках: ядро сервера обрізає координати тіл до ±500, а наші поверхи далі — тож позицію крісла пересилаємо самі
-  if (d.k === 'chairpos') { const i = d.i | 0, x = +d.x, z = +d.z; if (isFinite(x) && isFinite(z) && floorOf(x, z) >= 0) emit({ k: 'chairpos', who: k, i, x: r2(x), z: r2(z), f: r2(+d.f || 0) }); return; }
+  if (d.k === 'chairpos') { const i = d.i | 0, x = +d.x, z = +d.z; if (isFinite(x) && isFinite(z) && floorOf(x, z) >= 0) { if (ST.on) AU.pg[k] = ST.t + 3; } if (isFinite(x) && isFinite(z) && floorOf(x, z) >= 0) emit({ k: 'chairpos', who: k, i, x: r2(x), z: r2(z), f: r2(+d.f || 0) }); return; }
   if (d.k === 'ready') { if (!ST.on) { if (d.on) AU.ready[k] = 1; else delete AU.ready[k]; countVotes(); emit({ k: 'ready', who: k, on: d.on ? 1 : 0 }); lobbyCheck(0); if (!ST.on) pushState(); } return; }
   if (d.k === 'vote') { const v = d.v | 0; if (!ST.on && v >= 0 && v < LAY.length && AU.votes[k] !== v) { AU.votes[k] = v; countVotes(); emit({ k: 'voted', who: k, v }); pushState(); } return; }
   if (d.k === 'drop') { if (h.it) { const p = posOf(k); toFloor(h.it, h.n, p.x, p.z); } setHeld(k, '', 0, 0); pushState(); return; }
@@ -770,7 +877,7 @@ function onReq(d, from) {
   else if (d.k === 'print') {
     if (cur() !== 'print' || ST.jam || !ST.pw || h.it) return;
     if ((!AU.jammed || (ST.av && Math.random() < .5)) && Math.random() < AU.jamP) { AU.jammed = 1; chaos('jam'); pushState(); return; }
-    ST.rhp = 100; setHeld(k, 'report', 1, h.cup); advance(k); pushState();
+    ST.rhp = 100; setHeld(k, 'report', 1, h.cup); advance(k); if (AU.sys) ST.tn = Math.max(0, ST.tn - 50); pushState();
   }
   else if (d.k === 'pick') {
     const i = ST.floor.findIndex(f => f.id === d.id); if (i < 0) return;
@@ -853,12 +960,13 @@ function advance(k) {
   emit({ k: 'step', done, next: cur(), who: k });
 }
 function startRound() {
+  AU.hum0 = crew().map(p => p.name);                                              // хто в лобі — до переїзду на інший поверх (crew() рахує по поточному)
   countVotes(); const v = pickVar(true); if (v !== ST.vi || L !== LAY[v]) switchVar(v);
   const lv = SIMSIDE ? AU.wins : (A.data().wins | 0);
   const need = Math.min(5, 3 + lv), subs = shuffle(SUBS.slice()).slice(0, lv >= 3 ? 4 : 3);
   const desks = shuffle(DESKS.map(d => d.i)).slice(0, need);
   Object.assign(ST, { on: true, t: 0, dur: DUR, lv, steps: ['data', 'print', ...subs, 'send'], si: 0, need, fed: 0, desk: DESKS.map(d => desks.includes(d.i) ? 1 : 0), held: {}, floor: [], zom: [],
-    coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, rhp: 100, fly: null, tb: [], xl: null, pf: 1, rid: ST.rid + 1, vo: [0, 0, 0], rd: 0, rdn: 0, fd: [] });
+    coffee: 0, jam: 0, pw: 1, heat: 0, cm: 1, rain: 0, fixes: 0, rhp: 100, fly: null, tb: [], xl: null, pf: 1, rid: ST.rid + 1, vo: LAY.map(() => 0), rd: 0, rdn: 0, fd: [] });
   AU.rdLeft = null; AU.rdBy = '';
   Object.assign(ST.boss, { x: BPATH[0].x, z: BPATH[0].z, i: 0, dir: 1, wait: 8, at: 'desk' });
   for (let i = 0; i < Math.min(5, 2 + lv); i++) spawnZombie();
@@ -894,6 +1002,7 @@ function chaos(w) {
 /* начальник ходить між своїм столом і місцем наради; якщо хтось поруч — зупиняється поговорити */
 function updBoss(dt, c) {
   const B = ST.boss, near = c.find(p => dist2(p.x, p.z, B.x, B.z) < 1.8);
+  if (AU.boss) { const p = c.find(q => q.name === AU.boss); if (p) { B.x = p.x; B.z = p.z; B.at = 'desk'; } return; }   // 👔 бос — гравець: «начальник» там, де він
   if (near) { B.f = Math.atan2(near.x - B.x, near.z - B.z); return; }
   if (B.wait > 0) { B.wait -= dt; B.at = B.i === 0 ? 'desk' : B.i === BPATH.length - 1 ? 'meeting' : 'walk'; return; }
   B.at = 'walk';
@@ -979,12 +1088,12 @@ function updFly(dt, c) {
   }
 }
 /* ---------- 🤖 Боти в раунді: носять дані в принтер, лагодять поломки, гасять серверну, проганяють зомбі від людей ---------- */
-const BOT_SPD = 2.5, BOTFIX = { power: 3, jam: 3.5, cm: 4, heat: 4, rain: 3, excel: 3.5 };
+const BOT_SPD = 2.5, BOTFIX = { power: 3, jam: 3.5, cm: 4, heat: 4, rain: 3, excel: 3.5, router: 9 };
 const botWho = b => '🤖 ' + b.n;
 function botJob(b, c) {
   const taken = j => ST.bt.some(o => o !== b && o.job === j), d2 = p => dist2(b.x, b.z, p.x, p.z);
   if (b.it === 'sheets') return { j: 'feed', p: PRINTER.p, ic: '📄' };
-  const fx = [[ST.fire > 0, 'fire', RACK.p, '🧯'], [!ST.pw, 'power', PANEL.p, '🔧'], [ST.jam, 'jam', PRINTER.p, '🔧'], [!ST.cm, 'cm', COFFEE.p, '🔧'], [ST.heat, 'heat', RACK.p, '🔧'], [ST.rain, 'rain', VALVE.p, '🔧'], [!!ST.xl, 'excel', ST.xl && DESKS[ST.xl.i] ? DESKS[ST.xl.i].p : null, '📊']];
+  const fx = [[ST.fire > 0, 'fire', RACK.p, '🧯'], [!ST.pw, 'power', PANEL.p, '🔧'], [ST.jam, 'jam', PRINTER.p, '🔧'], [!ST.cm, 'cm', COFFEE.p, '🔧'], [ST.heat, 'heat', RACK.p, '🔧'], [ST.rain, 'rain', VALVE.p, '🔧'], [!!ST.xl, 'excel', ST.xl && DESKS[ST.xl.i] ? DESKS[ST.xl.i].p : null, '📊'], [ST.rt && !AU.sys, 'router', ST.rt ? itSpot() : null, '📡']];
   for (const [on, j, p, ic] of fx) if (on && p && !taken(j)) return { j, p, ic };
   if (cur() === 'data' && ST.t > 15) {   // перші 15 с дані збирають люди — боти «розігріваються»
     const d = DESKS.filter(q => ST.desk[q.i] && !pestOf(q.i) && !taken('desk' + q.i)).sort((a, e) => d2(a.p) - d2(e.p))[0];
@@ -998,12 +1107,13 @@ function updBots(dt, c) {
   for (const b of ST.bt) {
     b.mv = 0;
     if (b.cd > 0) { b.cd -= dt; continue; }
+    if (bot7(b, dt)) continue;                                                      // v7: 💤 ледарює / 😵 бос наорав
     if (!b.J || ((b.jt -= dt) <= 0 && b.wt <= 0)) { b.J = botJob(b, c); b.job = b.J.j; b.jt = 1; b.ic = b.J.ic; }
     const J = b.J, j = J.j;
     let tg = J.p;
     if (!tg) { if (!ZWP[b.wp] || dist2(b.x, b.z, ZWP[b.wp].x, ZWP[b.wp].z) < .6) { const h = c.length ? pick(c) : START.p, near = ZWP.filter(q => dist2(q.x, q.z, h.x, h.z) < 8); b.wp = ZWP.indexOf(pick(near.length ? near : ZWP)); } tg = ZWP[b.wp] || START.p; }
     const reach = j === 'fire' ? fireR() + 1 : j.startsWith('zom') ? 1.1 : j === 'walk' ? .5 : .9;
-    if (dist2(b.x, b.z, tg.x, tg.z) > reach) { b.wt = 0; const r = zMove(b, tg.x, tg.z, BOT_SPD * slowAt(b.x, b.z), dt); b.mv = 1; if (j === 'walk' && (r === 'stuck' || r === 'here')) b.wp = -1; continue; }
+    if (dist2(b.x, b.z, tg.x, tg.z) > reach) { b.wt = 0; const r = zMove(b, tg.x, tg.z, BOT_SPD * slowAt(b.x, b.z) * (b.bf > 0 ? 1.45 : 1), dt); b.mv = 1; if (j === 'walk' && (r === 'stuck' || r === 'here')) b.wp = -1; continue; }
     b.wt += dt; if (J.p) b.f = Math.atan2(tg.x - b.x, tg.z - b.z);
     if (j === 'fire') {
       if (b.wt < 1.2) continue; b.wt = 0; ST.fire = Math.max(0, ST.fire - 22);
@@ -1015,6 +1125,7 @@ function updBots(dt, c) {
       if (b.wt < BOTFIX[j]) continue; b.wt = 0; b.J = null; let ok = 0;
       if (j === 'jam' && ST.jam) { ST.jam = 0; ok = 1; } else if (j === 'cm' && !ST.cm) { ST.cm = 1; ok = 1; } else if (j === 'heat' && ST.heat) { ST.heat = 0; ok = 1; }
       else if (j === 'power' && !ST.pw) { ST.pw = 1; ok = 1; } else if (j === 'rain' && ST.rain) { ST.rain = 0; ok = 1; } else if (j === 'excel' && ST.xl) { ST.xl = null; ok = 1; }
+      else if (j === 'router' && ST.rt) rtFix(botWho(b));
       if (ok) { ST.fixes++; emit({ k: 'fixed', w: j, who: botWho(b) }); pushState(); }
       continue;
     }
@@ -1120,11 +1231,12 @@ const coneHit = (p, a, x, z, len, w) => { const dd = dist2(p.x, p.z, x, z); if (
 
 /* ---------- Початок і кінець раунду ---------- */
 function start3() {
-  const hum = crew().map(p => p.name);
+  const hum = AU.hum0 && AU.hum0.length ? AU.hum0 : crew().map(p => p.name);
   let sab = '';
   // онлайн від 3 людей — завжди хтось із гравців; удвох — зрідка; інакше — колега-NPC
   if (SIMSIDE && (hum.length >= 3 || (hum.length === 2 && Math.random() < AU.sabP2))) sab = pick(hum);
   if (!sab && DESKS.length) sab = 'npc:' + pick(DESKS).i;
+  start7(hum, sab);                                                               // v7: 👔 бос і 🧑‍💻 сисадмін — публічні ролі
   Object.assign(AU, { sab, salt: Math.random().toString(36).slice(2, 10), sbT: rand(40, 60), sbcd: {}, mc: {}, mtCd: 0, spamT: 0, fireMax: 0 });
   // хто саботажник — лише хеш із «сіллю»: гравець перевіряє своє ім'я, у знімку імені немає
   Object.assign(ST, { ag: DESKS.map(() => 0), pst: [], fire: 0, pud: null, lit: [], pp: [], mo: [], th: [], burn: [], mt: null, sbC: 0, sk: sab.startsWith('npc:') ? 'n' : 'p', sh: [AU.salt, hashS(AU.salt + sab)], clr: [] });
@@ -1138,7 +1250,7 @@ function end3(win) {
   for (const q of ST.pst) if (q.own) ST.desk[q.i] = 1;
   Object.assign(ST, { ag: DESKS.map(() => 0), pst: [], fire: 0, pud: null, lit: [], pp: [], mo: [], th: [], burn: [], mt: null });
   if (ST.rb) Object.assign(ST.rb, { arm: 0, dead: 0 });
-  AU.sab = ''; AU.spamT = 0;
+  AU.sab = ''; AU.spamT = 0; end7();
   return r;
 }
 /* ---------- Знімок для гравців ---------- */
@@ -1149,7 +1261,7 @@ function snap3() {
     rb: R ? [r2(R.x), r2(R.z), r2(R.f), R.arm, R.dead > 0 ? 1 : 0] : 0, li: ST.lit.map(q => [q.id, q.x, q.z]),
     pp: ST.pp.map(q => [q.id, r2(q.x), r2(q.z), r2(q.a), r2(q.y)]), mo: ST.mo.map(q => [q.id, r2(q.x0), r2(q.z0), r2(q.x1), r2(q.z1), r2(q.T), r2(q.t)]), th: ST.th.map(q => [q.id, q.w, q.x0, q.z0, q.x1, q.z1, r2(q.T), r2(q.t)]),
     bu: ST.burn.map(q => [q.id, q.x, q.z, q.r, r2(q.t)]),
-    mt: M ? [Math.ceil(M.t), M.c, M.n, M.cnt, M.who, M.skip, M.ph === 'go' ? 1 : 0] : 0, sb: [ST.sbC, ST.sk, ST.clr], sh: ST.on && ST.sh ? ST.sh : 0, rd: [ST.rd ? 1 : 0, ST.rdn | 0, ST.fd || []], ...snap5() };
+    mt: M ? [Math.ceil(M.t), M.c, M.n, M.cnt, M.who, M.skip, M.ph === 'go' ? 1 : 0] : 0, sb: [ST.sbC, ST.sk, ST.clr], sh: ST.on && ST.sh ? ST.sh : 0, rd: [ST.rd ? 1 : 0, ST.rdn | 0, ST.fd || []], ...snap5(), ...snap7() };
 }
 function applySnap3(d) {
   if (Array.isArray(d.ag)) ST.ag = DESKS.map((_, i) => clamp(+d.ag[i] || 0, 0, 100));
@@ -1169,7 +1281,7 @@ function applySnap3(d) {
   if (Array.isArray(d.sb)) { ST.sbC = d.sb[0] ? 1 : 0; ST.sk = String(d.sb[1] || ''); ST.clr = Array.isArray(d.sb[2]) ? d.sb[2].map(v => v | 0) : []; }
   ST.sh = Array.isArray(d.sh) ? [String(d.sh[0]), String(d.sh[1])] : null;
   if (Array.isArray(d.rd)) { ST.rd = d.rd[0] ? 1 : 0; ST.rdn = d.rd[1] | 0; ST.fd = Array.isArray(d.rd[2]) ? d.rd[2].slice(0, 8).map(String) : []; }
-  applySnap5(d);
+  applySnap5(d); applySnap7(d);
 }
 
 /* ---------- Запити гравців (v3) ---------- */
@@ -1177,13 +1289,15 @@ function onReq3(d, k, h, who) {
   const p = posOf(k), nr = (o, r) => dist2(p.x, p.z, o.x, o.z) < r;
   if (d.k === 'mvote') {
     const M = ST.mt, i = d.i | 0; if (!M || M.ph === 'go' || k in M.v || (i !== -1 && !M.c[i])) return true;
-    M.v[k] = i; stat(k, 'v'); const vs = Object.values(M.v); M.cnt = M.c.map((_, j) => vs.filter(v => v === j).length); M.who = Object.keys(M.v); M.skip = vs.filter(v => v < 0).length;
+    M.v[k] = i; stat(k, 'v'); const vw = (j, f) => Object.keys(M.v).filter(q => f(M.v[q], j)).reduce((s, q) => s + (q === AU.boss ? 2 : 1), 0);   // 👔 голос боса — ×2
+    M.cnt = M.c.map((_, j) => vw(j, (v, x) => v === x)); M.who = Object.keys(M.v); M.skip = vw(0, v => v < 0);
     pushState(); return true;
   }
-  if (ST.mt) return ['meet', 'sab', 'plane', 'toss', 'molo', 'foam', 'arm', 'kick', 'zap', 'serve', 'clue', 'cam', 'mop', 'box', 'chk'].includes(d.k);   // під час наради — лише голосування
+  if (ST.mt) return ['meet', 'sab', 'plane', 'toss', 'molo', 'foam', 'arm', 'kick', 'zap', 'serve', 'clue', 'cam', 'mop', 'box', 'chk', 'yell', 'shv', 'asg', 'bfire', 'bcof', 'bpc', 'inc', 'router', 'arg', 'help', 'svc', 'toner', 'cable', 'pong', 'v4'].includes(d.k);   // під час наради — лише голосування
+  if (onReq7(d, k, h)) return true;
   if (onReq5(d, k, h)) return true;
   if (d.k === 'meet') {
-    if (AU.mc[k] || AU.mtCd > 0 || (AU.sab === k && !ST.sbC)) return true;
+    if ((AU.mc[k] && k !== AU.boss) || AU.mtCd > 0 || (AU.sab === k && !ST.sbC)) return true;
     AU.mc[k] = 1; startMeeting(k); return true;
   }
   if (d.k === 'plane') {
@@ -1239,7 +1353,9 @@ function onReq3(d, k, h, who) {
   if (d.k === 'sab') {
     // 🕵️ саботаж гравця-саботажника (сервер перевіряє, що це справді він і що він поруч)
     if (k !== AU.sab || ST.sbC || (AU.sbcd[k] || 0) > 0) return true;
-    const w = String(d.w || ''), spot = { fire: RACK.p, jam: PRINTER.p, boom: COFFEE.p, power: PANEL.p, rain: VALVE.p, hack: RACK.p }[w];
+    const w = String(d.w || ''), spot = { fire: RACK.p, jam: PRINTER.p, boom: COFFEE.p, power: PANEL.p, rain: VALVE.p, hack: RACK.p, router: itSpot() }[w] || (SPOT4[w] && IS4() ? SPOT4[w]() : null);
+    if (SPOT4[w] && (!IS4() || !spot)) return true;
+    if (w === 'balc' && h.it !== 'report') return true;
     if (spot && !nr(spot, 2.5)) return true;
     if ((w === 'burn' || w === 'shred') && !(ST.s5 && ST.s5.doc.some(q => nr(q, 2.6)))) return true;
     if (w === 'steal' && !(DESKS[d.i | 0] && nr(DESKS[d.i | 0].p, 2.5))) return true;
@@ -1247,7 +1363,7 @@ function onReq3(d, k, h, who) {
     if (!sabDo(w, w === 'steal' ? { i: d.i | 0 } : w === 'litter' ? p : null)) return true;
     AU.sbcd[k] = SAB_CD; const rm = roomAt(p.x, p.z); AU.sp += SABP[w] || 1; stat(k, 's'); clue5(k, w, { x: p.x, z: p.z });
     if (w === 'burn') emit({ k: 'alarm', room: rm ? rm.n : '', x: r2(p.x), z: r2(p.z) });
-    emit({ k: 'sabo', w, room: rm ? rm.n : '', hu: 1, q: w === 'shred' ? 1 : 0 }); pushState(); return true;
+    emit({ k: 'sabo', w, room: rm ? rm.n : '', hu: 1, q: w === 'shred' || w === 'forge' ? 1 : 0 }); pushState(); return true;
   }
   return false;
 }
@@ -1444,6 +1560,8 @@ function sabDo(w, o) {
   }
   else if (w === 'litter') { const p = o || pick(ZWP); for (let k = 0; k < 5; k++) addLit(p.x + rand(-1.6, 1.6), p.z + rand(-1.6, 1.6)); }
   else if (w === 'mine') { const R = ST.rb; if (!R || R.dead > 0 || R.arm) return false; R.arm = 2; R.t = 25; }
+  else if (w === 'router') { if (!rtDown('sab')) return false; }
+  else if (SPOT4[w]) { if (!sab4(w)) return false; }                               // v7: фішки Nest Office                    // v7: 📡 висмикнутий кабель роутера
   else if (w === 'hack') { ST.heat = 1; if (cur() === 'data' && ST.fed > 0) ST.fed--; else ST.rhp = Math.max(10, ST.rhp - 25); }   // 💻 злам: сервер гріється, частина даних «зникла»
   else if (w === 'burn' || w === 'shred') ST.t = Math.min(ST.dur - 5, ST.t + (w === 'burn' ? 15 : 12));                // 🗂️ документи доведеться відновлювати
   else return false;
@@ -1455,8 +1573,8 @@ function botSabotage() {
   const pool = ['litter'];
   if (ST.fire <= 0) pool.push('fire', 'fire'); if (!ST.jam) pool.push('jam'); if (ST.cm) pool.push('boom'); if (ST.pw) pool.push('power');
   if (cur() === 'data') pool.push('steal', 'steal'); if (ST.rb && !ST.rb.arm && !ST.rb.dead) pool.push('mine');
-  pool.push('hack'); if (ST.s5 && ST.s5.doc.length) pool.push('burn', 'shred');
-  const w = pick(pool), at = { fire: RACK.p, jam: PRINTER.p, boom: COFFEE.p, power: PANEL.p, rain: VALVE.p, mine: ST.rb, hack: RACK.p, burn: ST.s5 && ST.s5.doc[0], shred: ST.s5 && ST.s5.doc[ST.s5.doc.length - 1] }[w] || pick(ZWP);
+  pool.push('hack'); if (ST.s5 && ST.s5.doc.length) pool.push('burn', 'shred'); if (!ST.rt) pool.push('router'); if (IS4() && ST.v4) pool.push('sect', 'fish', 'robot', 'bug');
+  const w = pick(pool), at = { fire: RACK.p, jam: PRINTER.p, boom: COFFEE.p, power: PANEL.p, rain: VALVE.p, mine: ST.rb, hack: RACK.p, router: itSpot(), sect: IS4() && L.s4.SECT, fish: IS4() && L.s4.MICRO, robot: ST.v4 && ST.v4.rb, bug: IS4() && L.s4.DEPLOY, burn: ST.s5 && ST.s5.doc[0], shred: ST.s5 && ST.s5.doc[ST.s5.doc.length - 1] }[w] || pick(ZWP);
   if (!sabDo(w, w === 'litter' ? at : null)) return false;
   AU.sp += SABP[w] || 1; clue5(AU.sab, w, at); if (w === 'burn') { const r = roomAt(at.x, at.z); emit({ k: 'alarm', room: r ? r.n : '', x: r2(at.x), z: r2(at.z) }); }
   // свідки: двоє колег отримують алібі — коло підозрюваних звужується
@@ -1492,7 +1610,7 @@ function auth3(dt, c) {
     if (M.ph === 'go') { const mp = mpos(); if (M.t <= 0 || c.every(p => dist2(p.x, p.z, mp.x, mp.z) < 3.2)) { M.ph = 'vote'; M.t = MEET_T; pushState(); } return true; }
     if (M.t <= 0 || c.every(p => p.name in M.v)) endMeeting(); return !!ST.mt;
   }
-  auth5(dt, c);
+  auth5(dt, c); auth7(dt, c);
   AU.mtCd = Math.max(0, AU.mtCd - dt);
   for (const k in AU.sbcd) AU.sbcd[k] -= dt;
   if (AU.sab.startsWith('npc:') && !ST.sbC && ST.t > 20 && (AU.sbT -= dt) <= 0) { AU.sbT = rand(45, 65); botSabotage(); }
@@ -1830,7 +1948,7 @@ const nmOf = k => k && k !== 'me' && !isMe(k) ? escapeHTML(k) : 'Ти';
 function onEvent(e) {
   if (SIMSIDE || !e) return;
   const here = running && inOffice(pl.x, pl.z), me = isMe(e.who) || isMe(e.to), nm = nmOf(e.who);
-  if (onEvent5(e, here, nm) || onEvent3(e, here, nm)) return;
+  if (onEvent7(e, here, nm) || onEvent5(e, here, nm) || onEvent3(e, here, nm)) return;
   if (e.k === 'msg') { if (here) { if (e.big) banner(e.txt); else toast(e.txt); } }
   else if (e.k === 'go') {
     // ліфт: раунд починається на іншому поверсі — переносимо туди всіх, хто був на будь-якому поверсі «Дедлайну»
@@ -2001,11 +2119,12 @@ function coffeeDash() {
 // важкий звіт сповільнює, ривок пришвидшує
 if (!SIMSIDE && typeof funSpeedMul === 'function') {
   const _fsm = funSpeedMul;
-  funSpeedMul = function () { const m = _fsm.apply(this, arguments); if (!running || !inOffice(pl.x, pl.z)) return m; return m * (myHeld().it === 'report' ? .78 : 1) * (V.dashT > 0 ? 1.55 : 1) * (V.stunT > 0 ? .06 : 1) * (V.slowT > 0 ? .45 : 1) * (carrying(myKey()) ? .6 : 1); };
+  funSpeedMul = function () { const m = _fsm.apply(this, arguments); if (!running || !inOffice(pl.x, pl.z)) return m; return m * (myHeld().it === 'report' ? .78 : 1) * (V.dashT > 0 ? 1.55 : 1) * (V.stunT > 0 ? .06 : 1) * (V.slowT > 0 ? .45 : 1) * (carrying(myKey()) ? .6 : 1) * (V.bfT > 0 && !(V.stunT > 0) ? 1.35 : 1); };
 }
 function setBar() {
-  const on = running && !pl.dead && ST.on && inOffice(pl.x, pl.z), key = on ? (V.sab && !ST.sbC ? 'S' : 'T') : false;
+  const on = running && !pl.dead && ST.on && inOffice(pl.x, pl.z), key = on ? (V.sab && !ST.sbC ? 'S' : ST.bh && isMe(ST.bh) ? 'B' : ST.sy && isMe(ST.sy) ? 'Y' : 'T') : false;
   if (key === V.barOn || typeof modeBar !== 'function') return; V.barOn = key;
+  if (key === 'B' || key === 'Y') { modeBar({ slots: bar7(key) }); return; }
   modeBar(on ? { slots: [
     { id: 'plg', ic: '🪠', n: 'Вантуз', use: () => firePlunger() },
     // 📑 звіт у руках — кидаєш його напарнику; руки вільні — кидаєш 📘 книжку
@@ -2029,7 +2148,7 @@ function toLobby(msg) {
 function roomLbl(txt, m) { if (L && L.rooms.some(r => r.n === txt)) V.rl.push({ vi: L.vi, n: txt, m, o: m.material.opacity, k: 1 }); }
 function roomAt(x, z) {
   const f = floorOf(x, z); if (f < 0) return null; const Q = LAY[f], lx = x - Q.x, lz = z - Q.z;
-  const r = Q.rooms.find(r => lx > r.x0 && lx < r.x1 && lz > r.z0 && lz < r.z1); return r ? { vi: f, n: r.n } : null;
+  const r = Q.rooms.find(r => lx > r.x0 && lx < r.x1 && lz > r.z0 && lz < r.z1); return r ? { vi: f, n: r.n, id: r.id } : null;
 }
 function roomLabels(dt) {
   const here = running && !pl.dead ? roomAt(pl.x, pl.z) : null; V.inRoom = here;
@@ -2043,7 +2162,7 @@ function roomLabels(dt) {
 }
 
 /* ---------- Лобі: вікно з картами поверхів, голос і «✅ Я готовий» (ядро modeLobby) ---------- */
-const ABOUT = ['Класика: коридор, опенспейс, переговорна, кабінет начальника, кухня й копіцентр.', 'Сховище, операційний зал з касами, кільцева галерея та бек-офіс.', 'Атріум зі скляним мостом, мейл-рум, бариста-бар, серверна й гірка 🛝.'];
+const ABOUT = ['Класика: коридор, опенспейс, переговорна, кабінет начальника, кухня й копіцентр.', 'Сховище, операційний зал з касами, кільцева галерея та бек-офіс.', 'Атріум зі скляним мостом, мейл-рум, бариста-бар, серверна й гірка 🛝.', 'Офіс COO: 🌬️ балкон з дроном-кавою, 🤖 робот R&D, 🚀 деплой у п’ятницю, 🔐 сейф, 🐟 риба в мікрохвильовці, 🏓 пінг-понг.'];
 const nmLb = k => k === 'me' || isMe(k) ? 'Ти' : String(k);
 function lobbyMe() { const k = myKey(), e = ST.lp.find(a => a[0] === k || (k !== 'me' && isMe(a[0]))); return e || null; }
 function lobbyInfo() {
@@ -2142,7 +2261,7 @@ function clientTick(dt) {
     { const r = document.getElementById('dl-role'); if (r && r.style.display !== 'none') { r.style.display = 'none'; V.roleT = 0; } }
     const it = document.getElementById('dl-intro'); if (it && !it.dataset.f) it.remove();
   }
-  client3(dt); setBar(); updPlg(dt); roomLabels(dt);
+  client3(dt); client7(dt); setBar(); updPlg(dt); roomLabels(dt);
   // колеги з даними махають, над головою 📄; колега з Excel кличе на допомогу
   for (const [i, c] of V.cols.entries()) {
     if (!c) continue; const has = ST.on && ST.desk[i], xl = ST.on && ST.xl && ST.xl.i === i, gone = ST.on && !!pestOf(i);
@@ -2154,7 +2273,7 @@ function clientTick(dt) {
   // начальник
   if (V.boss) {
     const B = ST.boss, h = V.boss, mv = B.at === 'walk';
-    h.root.position.set(B.x, 0, B.z); h.root.rotation.y = lerpAng(h.root.rotation.y, B.f, Math.min(1, dt * 8));
+    h.root.position.set(B.x, ST.on && ST.bh ? -60 : 0, B.z); h.root.rotation.y = lerpAng(h.root.rotation.y, B.f, Math.min(1, dt * 8));
     const sw = mv ? Math.sin(t * 8) * .5 : 0; h.l1.rotation.x = sw; h.l2.rotation.x = -sw;
     V.boss.ent.x = B.x; V.boss.ent.z = B.z;
     if (ST.on && ST.steps.indexOf('sign', ST.si) >= 0 && !ST.coffee && Math.random() < dt * .12 && inOffice(pl.x, pl.z)) bubble(V.boss.ent, pick(['Хто бачив мою каву?!', 'Без кави нічого не підписую!', 'Звіт до шостої! І кави!']), true, 2.2);
@@ -2223,7 +2342,7 @@ function clientTick(dt) {
 function darkness() {
   // ⚡ блекаут: темрява, у кожного (і в ботів) — промінь ліхтарика туди, куди дивиться
   if (!V.dark) { V.dark = document.createElement('canvas'); V.dark.id = 'dl-dark'; V.dark.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;transition:opacity .4s;opacity:0'; document.body.appendChild(V.dark); }
-  const on = running && ST.on && !ST.pw && inOffice(pl.x, pl.z) && !panel;
+  const on = running && ST.on && (!ST.pw || V.secDark) && inOffice(pl.x, pl.z) && !panel;
   V.dark.style.opacity = on ? (Math.random() < .03 ? .7 : 1) : 0; if (!on) return;
   const c = V.dark, W_ = innerWidth | 0, H_ = innerHeight | 0; if (c.width !== W_ || c.height !== H_) { c.width = W_; c.height = H_; }
   const g = c.getContext && c.getContext('2d'); if (!g || !g.fillRect) return;
@@ -2275,6 +2394,7 @@ function goal() {
   const k = myKey(), h = myHeld(), s = cur(), near = o => dist2(pl.x, pl.z, o.x, o.z);
   const nearest = arr => arr.reduce((a, b) => !a || near(b) < near(a) ? b : a, null);
   if (ST.on) { const g5 = goal5(h); if (g5) return g5; }
+  if (ST.on && !ST.mt) { const g7 = goal7(h, s); if (g7) return g7; }
   if (ST.on && ST.mt) return { txt: '🚨 <b>Збори!</b> Голосуй у вікні: «Звільнити …» чи «⏭️ Продовжити роботу». Справа 🗂️ — там же.' };
   if (!ST.on) {
     const nx = LAY[ST.nx];
@@ -2386,6 +2506,10 @@ function intro(force) {
     <div>12. 🚨 <b>Збори</b>: клавіша 8 або червона кнопка 🚨 у кімнатах → усім «Негайно в переговорну!» (20 с, далі — телепорт). Там справа, голос «Звільнити …» чи «⏭️ Продовжити роботу» й живі стовпчики голосів.</div>
     <div>13. ⚡ <b>Щиток</b>: блекаут — темрява й ліхтарики, папери не працюють, поки двоє не потримають F біля щитка (або один — міні-гра «3 перемикачі»). 🔥 <b>АВРАЛ</b> останні 2 хв: начальник бігає, зомбі більше, принтер жує частіше.</div>
     <div>14. Таємні ролі: 🛡️ <b>безпековик</b> (раз за раунд таємно перевіряє колегу F) і 🧑‍🎓 <b>стажер</b> (×2 довше, першу нараду пробачать). Побічні справи: 📦 коробки з зони А в 🎯 Б (+25 с), 🧽 калюжі кави (F, +4 с; G — мити будь-де, стирає й сліди!), міні-ігри на ПК (кабелі принтера, набір слова). ☕ Біля кавоварки часом пліткують про саботажника. Фінал — статистика й досягнення.</div>
+    <div style="margin-top:6px;color:#FFB35C"><b>Нове — бос, сисадмін і Nest Office:</b></div>
+    <div>15. 👔 <b>Бос</b> (від 3 гравців — один з вас, усі бачать хто; менше — NPC): ☕ кава (без неї не підписує), 💻 затвердити звіти, 📞 інциденти. Бачить 💤 «херньою страждає» над ледарями: 🗣️ наорати (ступор 3 с, потім швидше), 😤 швирнути, 📋 доручити (+15 с за 60 с). Збори без ліміту, голос ×2, раз за раунд 🔥 звільнити без зборів (невинного — −30 с). Саботажника бос не знає.</div>
+    <div>16. 🧑‍💻 <b>Сисадмін</b> (від 4 гравців; інакше NPC Валера): 📡 роутер упав — друк, сканер і всі ПК стоять, сисадмін піднімає швидко (решта — утричі довше); 🆘 «допоможіть з ПК», 🧹 сервер, 🖨️ тонер, 🔌 кабелі. За своїм столом він «моніторить мережу»; 🗣️ «Я компілюю!» — відбиває крик боса.</div>
+    <div>17. 🏢 <b>Поверх 70 · Nest Office (COO)</b>: 🌬️ вітер на балконі й 🚁 дрон з кавою (саботажник може жбурнути звіт за поручні — 🪢 мотузка), 🤖 робот R&D (калібрування; перепрошитий — обіймає всіх), 🚀 деплой у п’ятницю / 💻 код-рев’ю / BSOD, 🗂️ досьє HR (хто де був), 🔐 сейф COO (цифри на 📝 стікерах, +30 с), ⚡ секційний блекаут, 🐟 риба в мікрохвильовці й 🥛 лате-арт, 🏓 пінг-понг.</div>
     <div style="margin-top:8px;color:#FFE066">Жовта стрілка й мітка завжди показують, куди йти зараз. Підказка — внизу екрана 👇</div>
     <button class="btn" style="margin-top:12px;width:100%">Зрозуміло, працюємо!</button></div>`;
   document.body.appendChild(el);
@@ -2411,7 +2535,7 @@ getInteract = function () {
     else {
       // доказ — пріоритетно, але не тоді, коли тут саме треба лагодити поломку
       const urgent = (ST.jam && near(PRINTER.p, 1.4)) || (!ST.pw && near(PANEL.p, 1.3)) || (ST.heat && near(RACK.p, 1.4)) || (!ST.cm && near(COFFEE.p, 1.4)) || (ST.rain && near(VALVE.p, 1.3));
-      { const r = interact3(true, near, h) || interact5s(near) || interact5a(near) || (urgent ? null : clueAct()); if (r) return r; }
+      { const r = interact3(true, near, h) || rt7(near) || note4(near) || bossPc7(near) || interact5s(near) || interact5a(near) || (urgent ? null : clueAct()) || interact7(near, h); if (r) return r; }
       if (ST.xl && near(DESKS[ST.xl.i].p, 1.4)) return { l: `📊 Допомогти ${NAMES[ST.xl.i]} з ВПР (набери формулу)`, fn: () => mini('type', () => req('fix', { w: 'excel' }), { w: 'ВПР', at: DESKS[ST.xl.i].p }) };
       if (near(PRINTER.p, 1.4)) {
         if (ST.jam) return { l: '🔧 Витягнути папір і переставити драйвер (міні-гра: кабелі)', fn: () => mini('cable', () => req('fix', { w: 'jam' }), { at: PRINTER.p }) };
@@ -2424,10 +2548,10 @@ getInteract = function () {
       if (near(VALVE.p, 1.3) && ST.rain) return { l: '🚿 Закрутити вентиль спринклерів (2 с)', fn: () => actFix('rain') };
       if (near(PANEL.p, 1.3) && !ST.pw) return Object.values(NET.players || {}).some(r => r && dist2(r.x, r.z, PANEL.p.x, PANEL.p.z) < 3) ? { l: '⚡ Тримай автомат РАЗОМ з колегою (2 с)', fn: () => actFix('power') } : { l: '⚡ Щиток: 3 перемикачі (міні-гра; удвох — просто тримайте F)', fn: () => mini('sw', () => req('fix', { w: 'power', mg: 1 }), { at: PANEL.p }) };
       if (near(RACK.p, 1.4) && ST.heat) return { l: '🌀 Полагодити вентилятор сервера (3 с)', fn: () => actFix('heat') };
-      if (near(bossPos(), 1.7)) {
+      if (!V.boss7 && near(bossPos(), 1.7)) {
         if (h.cup && !ST.coffee) return { l: '☕ Віддати каву начальнику', fn: () => req('give') };
         if (h.it === 'report' && s === 'sign') return ST.coffee ? { l: '✍️ Попросити підпис (1,5 с)', fn: () => actSub('sign') } : { l: '👔 «Спершу кава!»', fn: () => bubble(V.boss.ent, 'Без кави не підписую!', true, 2) };
-        return { l: '👔 Начальник', fn: () => bubble(V.boss.ent, pick(['Звіт до шостої!', 'Я в тебе вірю. Трохи.', 'А де кава?']), false, 2) };
+        if (!ST.bh) return { l: '👔 Начальник', fn: () => bubble(V.boss.ent, pick(['Звіт до шостої!', 'Я в тебе вірю. Трохи.', 'А де кава?']), false, 2) };
       }
       for (const w of ['staple', 'stamp', 'number', 'scan']) {
         const S = STEPS[w];
@@ -2436,7 +2560,7 @@ getInteract = function () {
         return { l: `${S.ic} ${S.n.replace(/ \(.*\)/, '')}${ST.steps.includes(w) ? '' : ' — сьогодні не треба'}`, fn: () => { } };
       }
       if (near(SEND.p, 1.5)) return h.it === 'report' && s === 'send' ? { l: '📤 Здати квартальний звіт!', fn: () => { req('send'); sfx('coin'); } } : { l: `📤 Відправка: ${s === 'send' ? 'потрібен звіт у руках' : 'звіт ще не готовий'}`, fn: () => { } };
-      { const r = pkInteract() || interact5b(near, h) || interact3(false, near, h); if (r) return r; }
+      { const r = pkInteract() || interact5b(near, h) || interact3(false, near, h) || yell7(); if (r) return r; }
     }
     // пневмопошта й короткий шлях — пневмопошта — під час аврала, короткий шлях — завжди
     for (let i = 0; i < 2; i++) if (ST.on && near(TUBE[i].p, 1.3)) return h.it ? { l: `📮 Відправити ${ITEM[h.it].ic} пневмопоштою (${TUBE_T} с)`, fn: () => req('tube', { i }) } : { l: '📮 Пневмопошта: поклади сюди папери чи звіт — вилетять в іншій колбі', fn: () => { } };
@@ -2520,7 +2644,7 @@ function goDeadline() {
   return true;
 }
 function leaveDeadline() { V.act = null; V.lobHide = false; closeLobby(); if (myHeld().it || myHeld().cup) req('drop'); V.barOn = false; if (typeof modeBar === 'function') modeBar(null); return true; }
-if (A.mode) A.mode({ id: 'deadline', ic: '⏰', n: 'Дедлайн о 18:00', sub: 'кооп до 5 (з ботами): три поверхи хмарочоса, звіт до 18:00', go: goDeadline, here: () => running && floorOf(pl.x, pl.z) >= 0, leave: leaveDeadline });
+if (A.mode) A.mode({ id: 'deadline', ic: '⏰', n: 'Дедлайн о 18:00', sub: 'кооп до 5 (з ботами): чотири поверхи хмарочоса, звіт до 18:00', go: goDeadline, here: () => running && floorOf(pl.x, pl.z) >= 0, leave: leaveDeadline });
 A.tab('deadline', '⏰ Дедлайн', () => {
   const d = A.data(), here = floorOf(pl.x, pl.z) >= 0, fl = d.floors || {};
   return `<h3>⏰ Дедлайн о 18:00</h3>
@@ -2616,7 +2740,7 @@ function throwMolotov() {
 }
 function callMeeting() {
   if (!can3()) return;
-  if (V.mc <= 0) { toast('🚨 Нараду можна скликати лише раз за раунд.'); return; }
+  if (V.mc <= 0 && !V.boss7) { toast('🚨 Нараду можна скликати лише раз за раунд.'); return; }
   req('meet');
 }
 /* 🕵️ саботаж (лише саботажник): найближча ціль у межах 2,2 м, 2,5 с «тихої роботи» */
@@ -2629,6 +2753,8 @@ function sabTarget() {
   if (!ST.rain) T.push({ w: 'rain', p: VALVE.p, l: 'Відкриваю спринклери' });
   for (const d of DESKS) if (ST.desk[d.i] && !pestOf(d.i)) T.push({ w: 'steal', i: d.i, p: d.p, l: `Перекладаю дані ${NAMES[d.i]} у чужу шухляду` });
   if (ST.rb && !ST.rb.arm && !ST.rb.dead) T.push({ w: 'mine', p: ST.rb, l: 'Примотую міну до Румби' });
+  if (!ST.rt) T.push({ w: 'router', p: itSpot(), l: 'Висмикую кабель з роутера' });
+  if (IS4() && ST.v4) { const Q = ST.v4, S4 = L.s4; T.push({ w: 'sect', p: S4.SECT, l: 'Вимикаю одну секцію' }); T.push({ w: 'fish', p: S4.MICRO, l: 'Ставлю рибу в мікрохвильовку' }, { w: 'robot', p: Q.rb, l: 'Перепрошиваю прототип' }, { w: 'bug', p: S4.DEPLOY, l: 'Пушу баг у прод' }, { w: 'forge', p: S4.DOS, l: 'Підробляю запис у досьє' }); if (myHeld().it === 'report') T.unshift({ w: 'balc', p: S4.ROPE, l: 'Жбурляю звіт за поручні' }); }
   return T.filter(t => dist2(pl.x, pl.z, t.p.x, t.p.z) < 2.2).sort((a, b) => dist2(pl.x, pl.z, a.p.x, a.p.z) - dist2(pl.x, pl.z, b.p.x, b.p.z))[0] || null;
 }
 function sabotage() {
@@ -2660,7 +2786,7 @@ function goal3(h, s) {
   if (h.cup) { const q = ST.pst.filter(o => o.want === h.cup).sort((a, b) => dist2(pl.x, pl.z, a.x, a.z) - dist2(pl.x, pl.z, b.x, b.z))[0]; if (q) return { id: 'pest', tg: q, txt: `${CUPS[h.cup].ic} Пригости <b>${NAMES[q.i]}</b> — він(вона) хоче саме ${CUPS[q.want].n} (F поруч).` }; }
   return null;
 }
-function hud3() { return [ST.fire > 0 ? `🔥 серверна ${Math.round(ST.fire)}%` : '', ST.pst.length ? `😤 зайобуючих: ${ST.pst.length}` : '', ST.pud ? (ST.pud.el ? '⚡ електропастка' : '💦 калюжа') : '', ST.rb && ST.rb.arm ? '🤖💣 Румба заряджена' : '', ST.mt ? '🚨 збори' : '', ST.on && ST.rd ? '📤 звіт готовий — шукаємо саботажника' : '', ST.sbC ? '🕵️ саботажника спіймано' : '', ST.av ? '🔥 АВРАЛ' : '', ST.cs.length ? `🗂️ у справі: ${ST.cs.length}` : '', ST.cl.length ? `🔎 доказів на підлозі: ${ST.cl.length}` : '', ST.bx && ST.bx.done < ST.bx.need ? `📦 ${ST.bx.done}/${ST.bx.need}` : '', ST.mp5.length ? `🧽 калюж: ${ST.mp5.length}` : '']; }
+function hud3() { return [ST.fire > 0 ? `🔥 серверна ${Math.round(ST.fire)}%` : '', ST.pst.length ? `😤 зайобуючих: ${ST.pst.length}` : '', ST.pud ? (ST.pud.el ? '⚡ електропастка' : '💦 калюжа') : '', ST.rb && ST.rb.arm ? '🤖💣 Румба заряджена' : '', ST.mt ? '🚨 збори' : '', ST.on && ST.rd ? '📤 звіт готовий — шукаємо саботажника' : '', ST.sbC ? '🕵️ саботажника спіймано' : '', ST.av ? '🔥 АВРАЛ' : '', ST.cs.length ? `🗂️ у справі: ${ST.cs.length}` : '', ST.cl.length ? `🔎 доказів на підлозі: ${ST.cl.length}` : '', ST.bx && ST.bx.done < ST.bx.need ? `📦 ${ST.bx.done}/${ST.bx.need}` : '', ST.mp5.length ? `🧽 калюж: ${ST.mp5.length}` : '', ...hud7()]; }
 
 /* ---------- Події v3 ---------- */
 const PEST_TALK = { talk: ['А ти бачив мій мем у загальному чаті?', 'Слухай, а в мене відпустка в серпні…', 'Давай швиденько обговоримо KPI?', 'Хто знову забрав мою чашку?!'], block: ['Маєш хвилинку? Одну!', 'Стоп! А ти підписав мою службову?'], trip: ['Ой, вибач, нога сама!', 'Обережно, тут слизько 😈'], steal: ['Це я позичу!', 'О, папірці! Мої тепер.'] };
@@ -2715,7 +2841,7 @@ function onEvent3(e, here, nm) {
     const d = dist2(pl.x, pl.z, +e.x, +e.z); if (running && !pl.dead && d < 4) { knockMe(Math.atan2(pl.x - e.x, pl.z - e.z), 16, 'БАБАХ! 🤖'); pl.hp = Math.max(1, pl.hp - (e.kind === 2 ? 8 : 4)); }
   }
   else if (k === 'clean') { if (here) burst(+e.x, .2, +e.z, '#FFFFFF', 3, 1, .3, 1); }
-  else if (k === 'meet') { V.act = null; if (me) V.mc = 0; if (V.mg) miniDone(false, 1); if (here) { banner(`🚨 Негайно в переговорну! Збори скликав(ла) ${nm} — 20 с, щоб дійти.`); sfx('warn'); } }
+  else if (k === 'meet') { V.act = null; if (me && !V.boss7) V.mc = 0; if (V.mg) miniDone(false, 1); if (here) { banner(`🚨 Негайно в переговорну! Збори скликав(ла) ${nm} — 20 с, щоб дійти.`); sfx('warn'); } }
   else if (k === 'rep') {   // v6: звіт готовий — раунд триває до 18:00
     if (here) { banner(`📤 Звіт готовий — тепер знайдіть саботажника!${e.n > 1 ? ' (додаток здано)' : ''}`); toast('📋 Начальник докинув <b>додаток до звіту</b> — роботу не кидаємо. Раунд іде до <b>18:00</b> або доки не спіймаєте 🕵️ саботажника на нараді (8). Саботажник ще може зіпсувати звіт!'); sfx('level'); }
   }
@@ -2743,6 +2869,7 @@ function roleCard(sab) {
   el.style.background = sab ? 'linear-gradient(160deg,#7A1F3D,#2E2346)' : 'linear-gradient(160deg,#2F8F7A,#2E2346)';
   el.innerHTML = sab ? `<div style="font:900 22px system-ui">🕵️ Ти — САБОТАЖНИК</div><div>Тихо зривай дедлайн: клавіша <b>8</b> біля сервера 🔥, принтера 🖨️, кавоварки ☕, щитка ⚡, вентиля 🚿, столу з даними 📄 чи Румби 💣 (2,5 с, перезарядка ${SAB_CD} с). Біля сервера F — 💻 злам (міні-гра), біля архівних шаф 🗂️ — знищити документи (🔥 швидко й гучно чи 🗜️ тихо). Кожен саботаж лишає 👣 сліди, 📹 камери й 🪪 бейджі — 🧽 мийка (G) стирає сліди. Не попадись на зборах!</div><div style="opacity:.7;font-size:12px;margin-top:6px">🤫 цю картку бачиш лише ти · клікни, щоб сховати</div>`
     : `<div style="font:900 20px system-ui">👔 Ти — сумлінний працівник</div><div>Серед ${ST.sk === 'p' ? '<b>гравців</b>' : '<b>колег</b>'} ховається 🕵️ саботажник. Збирай 🔎 докази (F) у 🗂️ справу й скликай 🚨 <b>збори</b> (клавіша 8 або червона кнопка, раз за раунд).</div>${V.role === 'sec' ? '<div style="margin-top:6px;color:#6BE7FF"><b>🛡️ Ти ще й БЕЗПЕКОВИК:</b> раз за раунд F біля колеги — таємна перевірка (результат бачиш лише ти).</div>' : V.role === 'int' ? '<div style="margin-top:6px;color:#FFD27A"><b>🧑‍🎓 Ти СТАЖЕР:</b> завдання робиш удвічі довше, зате перше звинувачення на зборах тобі пробачать.</div>' : ''}<div style="opacity:.7;font-size:12px;margin-top:6px">клікни, щоб сховати</div>`;
+  if (!sab) roleCard7(el);                                                        // v7: 👔 бос / 🧑‍💻 сисадмін
   el.style.display = ''; V.roleT = 6;
 }
 
@@ -3024,17 +3151,17 @@ function client3(dt) {
    Як і v3: усе рахує автор раунду (сервер світу або сам гравець), гравцям — знімок і події. */
 const CLUE_T = 90, GO_T = 20, AVRAL = 120, BOX_N = 3, MOP_MAX = 3;
 const SHIRT = [['🟥', 'червона', '#E0484E'], ['🟦', 'синя', '#4F7CE0'], ['🟩', 'зелена', '#4FB866'], ['🟨', 'жовта', '#E8C440'], ['🟪', 'фіолетова', '#9A5CE0'], ['🟧', 'помаранчева', '#E8883A']];
-const MEETN = ['ПЕРЕГОВОРНА', 'КІМНАТА ПЕРСОНАЛУ', 'ЧИЛ-ЗОНА'];                  // куди кличуть на збори (по поверхах)
-const LOCKR = /СЕРВЕРН|СХОВИЩ|МЕЙЛ|КАБІНЕТ/;                                          // двері з зчитувачем бейджів
-const SABP = { fire: 2, jam: 1, boom: 1, power: 2, rain: 1, steal: 2, litter: 1, mine: 2, hack: 3, burn: 2, shred: 3, chair: 5 };   // очки саботажу
-Object.assign(SABW, { hack: '💻 зламаний сервер', burn: '🔥 спалені документи', shred: '🗜️ знищені документи' });
+const MEETN = ['ПЕРЕГОВОРНА', 'КІМНАТА ПЕРСОНАЛУ', 'ЧИЛ-ЗОНА', 'ПЕРЕГОВОРНА А'];                  // куди кличуть на збори (по поверхах)
+const LOCKR = /СЕРВЕРН|СХОВИЩ|МЕЙЛ|КАБІНЕТ|ЩИТОВА/;                                          // двері з зчитувачем бейджів
+const SABP = { fire: 2, jam: 1, boom: 1, power: 2, rain: 1, steal: 2, litter: 1, mine: 2, hack: 3, burn: 2, shred: 3, chair: 5, router: 2 };   // очки саботажу
+Object.assign(SABW, { router: '📡 впалий роутер', hack: '💻 зламаний сервер', burn: '🔥 спалені документи', shred: '🗜️ знищені документи' });
 const CLUEI = { foot: { ic: '👣', n: 'кавові сліди' }, badge: { ic: '🪪', n: 'журнал бейджів' }, ash: { ic: '⚱️', n: 'попіл від документів' }, strip: { ic: '🗜️', n: 'паперова локшина' } };
 const BOSSV = ['Колеги, нагадую: звіт — до 18:00. Хто не встигне — працює в суботу.', 'Я чую, хтось шкодить. Я все бачу. Ну, камери все бачать.', 'Хто випив мою каву?! Неважливо. ЗВІТ!', 'АВРАЛ! Дві хвилини! Біжимо, а не ходимо!'];
 const WORDS = ['ЗВІТ', 'КАВА', 'ВПР', 'ДЕДЛАЙН', 'ПЕЧАТКА', 'КВАРТАЛ', 'ПРИНТЕР'];
 Object.assign(ST, { cl: [], cam: [], cs: [], s5: null, mp5: [], bx: null, rh: null, co: 0, av: 0, shc: [] });
 Object.assign(AU, { st: {}, sp: 0, sec: '', int: '', trail: null, badge: {}, pwH: {}, mopT: 45, av: 0, bv: 0, chkU: 0, intOk: 0, camSeen: {}, bdT: 0 });
 Object.assign(V, { role: '', mg: null, m5: { cl: new Map(), mp: new Map(), lay: null, laySig: '', sh: new Map(), box: new Map() }, chM: 0, chSent: 0, rideSit: 0, mtIn: 0, avR: -1, chkR: -1, finEl: null });
-const stat = (k, f, n = 1) => { if (!k) return; const s = AU.st[k] || (AU.st[k] = { t: 0, f: 0, c: 0, s: 0, v: 0, m: 0, b: 0 }); s[f] += n; };
+const stat = (k, f, n = 1) => { if (!k) return; if (f === 't') work7(k); const s = AU.st[k] || (AU.st[k] = { t: 0, f: 0, c: 0, s: 0, v: 0, m: 0, b: 0 }); s[f] += n; };
 const pkOn = s => !ST.on || !ST.s5 || !Array.isArray(ST.s5.pka) || ST.s5.pka.includes(s.id);
 const mpos = () => ST.s5 && ST.s5.mp ? ST.s5.mp : START.p;
 const shirtOf = k => { const e = ST.shc.find(a => a[0] === k); return e ? e[1] : 0; };
@@ -3045,6 +3172,7 @@ function cands() {
   if (L.c5) return L.c5;
   const out = [];
   for (const r of L.rooms) {
+    if (r.id === 'balc') continue;                                                 // на балконі розклад не ставимо (вітер)
     const p = freeSpot(OX + (r.x0 + r.x1) / 2, OZ + (r.z0 + r.z1) / 2);
     if (p.x === SEND.p.x && p.z === SEND.p.z) continue;
     out.push({ x: r2(p.x), z: r2(p.z), n: r.n });
@@ -3054,7 +3182,7 @@ function cands() {
 // точка біля центру кімнати, але не впритул до робочих місць, місць видачі й уже розставленого
 let PLACED = [];
 function offs(c, dx, dz) {
-  const key = [...(L.pk || []).map(q => q.o), ...[START, SEND, PRINTER, STAPLER, COFFEE, VALVE, PANEL, ARCHIVE, RACK, SCANNER, STAMP, COOLER].filter(Boolean).map(o => o.p), ...DESKS.map(d => d.p), ...TUBE.map(t => t.p), ...PLACED];
+  const key = [...(L.pk || []).map(q => q.o), ...[START, SEND, PRINTER, STAPLER, COFFEE, VALVE, PANEL, ARCHIVE, RACK, SCANNER, STAMP, COOLER].filter(Boolean).map(o => o.p), ...DESKS.map(d => d.p), ...TUBE.map(t => t.p), ...PLACED, ...(L.s4 ? Object.values(L.s4).flat() : []), itSpot()];
   let best = null;
   for (let k = 0; k < 30; k++) {
     const a = k * 2.4, d = k * .22, p = freeSpot(c.x + dx + Math.cos(a) * d, c.z + dz + Math.sin(a) * d), m = Math.min(9, ...key.map(q => dist2(q.x, q.z, p.x, p.z)));
@@ -3079,11 +3207,11 @@ function start5() {
   Object.assign(ST, { cl: [], cam: [], cs: [], av: 0, co: 0 });
   Object.assign(AU, { st: {}, sp: 0, trail: null, badge: {}, pwH: {}, mopT: 45, av: 0, bv: 0, chkU: 0, intOk: 0, camSeen: {} });
   // 👕 кольори сорочок: у кожного гравця й колеги-NPC свій (повторюються — камера лише звужує коло)
-  const hum = crew().map(p => p.name);
+  const hum = AU.hum0 && AU.hum0.length ? AU.hum0 : crew().map(p => p.name);
   ST.shc = [...hum, ...DESKS.map(d => 'npc:' + d.i)].map((k, i) => [k, (i + (Math.random() * 6 | 0)) % SHIRT.length]);
   // 🛡️ безпековик і 🧑‍🎓 стажер — таємні, як і саботажник
-  const pool = shuffle(hum.filter(k => k !== AU.sab)); let sec = '', int = '';
-  if (SIMSIDE) { if (pool.length >= 2) sec = pool[0]; if (pool[1] && Math.random() < .6) int = pool[1]; }
+  const pool = shuffle(hum.filter(k => k !== AU.sab && k !== AU.boss && k !== AU.sys)); let sec = '', int = '';
+  if (SIMSIDE) { if (pool.length >= (AU.boss ? 1 : 2)) sec = pool[0]; if (pool[1] && Math.random() < .6) int = pool[1]; }
   else if (pool[0]) { const r = Math.random(); if (r < .4) sec = pool[0]; else if (r < .7) int = pool[0]; }
   setRoles(sec, int);
   // 🪑 рідкісне таємне завдання саботажника (~10% раундів): накатати 5 м на кріслі
@@ -3335,11 +3463,13 @@ function secretCard() {
 
 /* ---------- 🎮 Міні-ігри (маленькі вікна ~10 с): кабелі, набір слова, злам, перемикачі, шредер ---------- */
 const MGT = { cable: ['🖨️ Драйвер принтера', 'Зʼєднай кабелі за кольором: тисни гнізда в показаному порядку'], type: ['⌨️ Набери слово', 'Набери показане слово й натисни Enter'], seq: ['💻 Злам сервера', 'Натискай стрілки (або кнопки) у показаному порядку'],
-  sw: ['⚡ Щиток', 'Перемкни 3 автомати в показаному порядку'], shred: ['🗜️ Шредер', 'Тисни ← і → по черзі, поки папір не стане локшиною'], docs: ['🗂️ Знищити документи', 'Як позбутись доказів?'] };
+  sw: ['⚡ Щиток', 'Перемкни 3 автомати в показаному порядку'], rev: ['💻 Код-рев’ю', 'Клікни рядок з багом'], rope: ['🪢 Мотузка', 'Тягни звіт: стрілки в показаному порядку'], latte: ['🥛 Лате-арт', 'Малюй серце на піні: стрілки по черзі'], pong: ['🏓 Пінг-понг', 'Відбивай: ← і → по черзі'], shred: ['🗜️ Шредер', 'Тисни ← і → по черзі, поки папір не стане локшиною'], docs: ['🗂️ Знищити документи', 'Як позбутись доказів?'] };
 function mini(kind, win, opt) {
   if (V.mg || SIMSIDE || typeof document === 'undefined') return;
   const o = opt || {}, C = shuffle([0, 1, 2, 3, 4, 5]).slice(0, 3), AR = ['↑', '↓', '←', '→'];
-  V.mg = { kind, win, t: kind === 'docs' ? 15 : 12, at: o.at || { x: pl.x, z: pl.z }, i: 0, seq: kind === 'cable' ? shuffle(C.slice()) : kind === 'seq' ? Array.from({ length: 5 }, () => pick(AR)) : kind === 'sw' ? shuffle(['А', 'Б', 'В']) : kind === 'shred' ? Array.from({ length: 10 }, (_, i) => i % 2 ? '→' : '←') : [], word: o.w || pick(WORDS), C };
+  V.mg = { kind, win, t: kind === 'docs' ? 15 : 12, at: o.at || { x: pl.x, z: pl.z }, i: 0, seq: kind === 'cable' ? shuffle(C.slice()) : kind === 'seq' ? Array.from({ length: 5 }, () => pick(AR)) : kind === 'sw' ? shuffle(['А', 'Б', 'В']) : kind === 'shred' || kind === 'pong' ? Array.from({ length: kind === 'pong' ? 8 : 10 }, (_, i) => i % 2 ? '→' : '←') : kind === 'rope' || kind === 'latte' ? Array.from({ length: 5 }, () => pick(AR)) : kind === 'rev' ? [0] : [], word: o.w || pick(WORDS), C };
+  V.mg.title = o.title || '';
+  if (kind === 'rev') { const r = pick(REVS); V.mg.lines = r[0]; V.mg.bug = r[1]; }
   V.act = null; drawMini();
 }
 function drawMini() {
@@ -3355,10 +3485,11 @@ function drawMini() {
   let body = '';
   if (M.kind === 'cable') body = `<div>Наступний кабель: <b style="font-size:22px">${M.seq[M.i] != null ? SHIRT[M.seq[M.i]][0] : '✅'}</b> (${M.i}/3)</div><div>${M.C.map(c => `<button data-mg="c${c}" style="${bs}background:${SHIRT[c][2]};color:#fff">🔌</button>`).join('')}</div>`;
   else if (M.kind === 'type') body = `<div style="font:900 26px monospace;letter-spacing:3px;margin:4px 0">${escapeHTML(M.word)}</div><input id="dl-mg-in" autocomplete="off" style="font:700 18px monospace;width:80%;padding:6px;border-radius:8px;border:0;text-align:center;text-transform:uppercase">`;
-  else if (M.kind === 'seq' || M.kind === 'shred') body = `<div style="font:900 24px monospace;margin:4px 0">${M.seq.map((a, i) => `<span style="opacity:${i < M.i ? .3 : 1};color:${i === M.i ? '#FFE066' : '#fff'}">${a}</span>`).join(' ')}</div><div>${['←', '↑', '↓', '→'].map(a => `<button data-mg="${a}" style="${bs}background:#FFE066;color:#2E2346">${a}</button>`).join('')}</div>`;
+  else if (M.kind === 'rev') body = `<div style="text-align:left">${M.lines.map((l, i) => `<button data-mg="r${i}" style="${bs}display:block;width:96%;text-align:left;font:700 13px monospace;background:#1C1830;color:#7FE08A">${i + 1}  ${escapeHTML(l)}</button>`).join('')}</div>`;
+  else if (['seq', 'shred', 'rope', 'latte', 'pong'].includes(M.kind)) body = `<div style="font:900 24px monospace;margin:4px 0">${M.seq.map((a, i) => `<span style="opacity:${i < M.i ? .3 : 1};color:${i === M.i ? '#FFE066' : '#fff'}">${a}</span>`).join(' ')}</div><div>${['←', '↑', '↓', '→'].map(a => `<button data-mg="${a}" style="${bs}background:#FFE066;color:#2E2346">${a}</button>`).join('')}</div>`;
   else if (M.kind === 'sw') body = `<div>Порядок: <b>${M.seq.map((a, i) => i < M.i ? '✅' : a).join(' → ')}</b></div><div>${['А', 'Б', 'В'].map(a => `<button data-mg="${a}" style="${bs}background:${M.seq.indexOf(a) < M.i ? '#7FE08A' : '#8E86B0'};color:#2E2346">🎚️ ${a}</button>`).join('')}</div>`;
   else if (M.kind === 'docs') body = `<div><button data-mg="burn" style="${bs}background:#FF8A3C;color:#2E2346">🔥 Спалити — швидко, але дим, попіл і пожежна тривога</button><button data-mg="shred" style="${bs}background:#C9CDD9;color:#2E2346">🗜️ Шредер — тихо, але довше (міні-гра), лишається локшина</button></div>`;
-  el.innerHTML = `<div style="font:900 18px system-ui">${MGT[M.kind][0]} <span id="dl-mg-t" style="float:right;font-size:14px;opacity:.8">${Math.ceil(M.t)} с</span></div><div style="opacity:.8;font-size:12px;margin-bottom:6px">${MGT[M.kind][1]}</div>${body}<div style="margin-top:8px"><button data-mg="x" style="${bs}font-size:12px;background:#4E4A6E;color:#fff">✖ Закрити</button></div>`;
+  el.innerHTML = `<div style="font:900 18px system-ui">${M.title || MGT[M.kind][0]} <span id="dl-mg-t" style="float:right;font-size:14px;opacity:.8">${Math.ceil(M.t)} с</span></div><div style="opacity:.8;font-size:12px;margin-bottom:6px">${MGT[M.kind][1]}</div>${body}<div style="margin-top:8px"><button data-mg="x" style="${bs}font-size:12px;background:#4E4A6E;color:#fff">✖ Закрити</button></div>`;
   el.style.display = '';
   const inp = document.getElementById('dl-mg-in');
   if (inp) { inp.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Enter') miniKey('enter'); }); inp.addEventListener('keyup', ev => ev.stopPropagation()); inp.addEventListener('input', () => { if (inp.value.trim().toUpperCase() === M.word.toUpperCase()) miniKey('enter'); }); try { inp.focus(); } catch (e) { } }
@@ -3368,7 +3499,7 @@ function miniKey(k) {
   if (k === 'x') { miniDone(false, 1); return; }
   if (M.kind === 'docs') { if (k === 'burn' || k === 'shred') miniDone(true, 0, k); return; }
   if (M.kind === 'type') { const inp = document.getElementById('dl-mg-in'); if (k === 'enter') { if (inp && inp.value.trim().toUpperCase() === M.word.toUpperCase()) miniDone(true); else { M.t -= 2; toast('❌ Не те слово!'); } } return; }
-  const want = M.kind === 'cable' ? 'c' + M.seq[M.i] : M.seq[M.i];
+  const want = M.kind === 'cable' ? 'c' + M.seq[M.i] : M.kind === 'rev' ? 'r' + M.bug : M.seq[M.i];
   if (k === want) { M.i++; sfx('tick'); if (M.i >= M.seq.length) { miniDone(true); return; } }
   else { M.t -= 1.5; sfx('hurt'); if (M.kind === 'sw') M.i = 0; }
   drawMini();
@@ -3503,8 +3634,546 @@ function onEvent5(e, here, nm) {
   return true;
 }
 
+
+/* ======================= v7: 👔 БОС і 🧑‍💻 СИСАДМІН — публічні ролі гравців =======================
+   Онлайн від 3 людей один з них — бос (усі бачать), від 4 — ще й сисадмін; менше — їх грають NPC (начальник і сисадмін Валера).
+   Бос не знає саботажника й виграє/програє разом з командою. Усе рахує автор раунду. */
+const IDLE_T = 40, ASG_T = 60, FU_PEN = 30, SYSN = 'Валера';
+const INC = { quarrel: ['🗯️', 'Сварка колег'], smoke: ['🚬', 'Задимілась урна'], call: ['📞', 'Дзвінок злого клієнта'], leak: ['💧', 'Протікає кондиціонер'] };
+const EXCUSE = ['Я компілюю!', 'Оновлюю драйвери!', 'Пінгую сервер!', 'Це не баг, а фіча!', 'Індексація ще 5 хвилин…', 'Перезбираю ядро!', 'Чекаю відповіді від DNS!'];
+const BCD = { yell: 8, shv: 12, asg: 20, cof: 60, pc: 40, arg: 30, svc: 45, cbl: 30 };
+Object.assign(ST, { bh: '', sy: '', rt: 0, idl: [], inc: [], hlp: [], asg: null, tn: 100, cbl: null, fu: 0 });
+Object.assign(AU, { boss: '', sys: '', lw: {}, pg: {}, bcd: {}, rtp: {}, rtT: 0, rtA: 0, incT: 0, hlpT: 0, shd: {}, fu: 0, idSig: '', bAway: 0, yAway: 0 });
+Object.assign(V, { boss7: false, sys7: false, cd7: {}, rid7: -1, bfT: 0, tumT: 0, rtp: 0, l7: new Map(), s7: new Map(), it7: null });
+const fRole = () => !SIMSIDE && typeof window !== 'undefined' && window.__deadlineRole;   // тестовий гачок офлайн: 'boss' | 'sys'
+function start7(hum, sab) {
+  const rest = shuffle(hum.filter(k => k !== sab)), fr = fRole();
+  const boss = SIMSIDE ? (hum.length >= 3 ? rest[0] || '' : '') : fr === 'boss' ? 'me' : '';
+  const sys = SIMSIDE ? (hum.length >= 4 ? rest[1] || '' : '') : fr === 'sys' ? 'me' : '';
+  Object.assign(AU, { boss, sys, lw: {}, pg: {}, bcd: {}, rtp: {}, rtT: 0, rtA: rand(70, 110), incT: rand(20, 32), hlpT: rand(25, 40), shd: {}, fu: 0, idSig: '', bAway: 0, yAway: 0 });
+  Object.assign(ST, { bh: boss, sy: sys, rt: 0, idl: [], inc: [], hlp: [], asg: null, tn: 100, cbl: null, fu: 0 });
+  start4();
+}
+function end7() { Object.assign(AU, { boss: '', sys: '' }); Object.assign(ST, { bh: '', sy: '', rt: 0, idl: [], inc: [], hlp: [], asg: null, cbl: null, fu: 0, tn: 100 }); }
+function snap7() {
+  return { b7: [ST.bh, ST.sy, ST.fu], rt: ST.rt, idl: ST.idl, inc: ST.inc.map(q => [q.id, q.w, q.x, q.z, Math.ceil(q.t)]), hl: ST.hlp.map(q => [q.id, q.i, q.x, q.z, Math.ceil(q.t)]),
+    asg: ST.asg ? [ST.asg.n, Math.ceil(ST.asg.t), ST.asg.tx] : 0, tn: Math.round(ST.tn), cbl: ST.cbl ? [ST.cbl.k, ST.cbl.b.x, ST.cbl.b.z, Math.ceil(ST.cbl.t)] : 0, ...snap4() };
+}
+function applySnap7(d) {
+  if (Array.isArray(d.b7)) { ST.bh = String(d.b7[0] || ''); ST.sy = String(d.b7[1] || ''); ST.fu = d.b7[2] ? 1 : 0; }
+  ST.rt = d.rt ? 1 : 0; ST.tn = d.tn == null ? 100 : clamp(+d.tn, 0, 100);
+  ST.idl = Array.isArray(d.idl) ? d.idl.slice(0, 12).map(a => [String(a[0]), String(a[1] || 'i')]) : [];
+  ST.inc = Array.isArray(d.inc) ? d.inc.slice(0, 6).map(a => ({ id: a[0], w: INC[a[1]] ? a[1] : 'call', x: +a[2], z: +a[3], t: +a[4] })) : [];
+  ST.hlp = Array.isArray(d.hl) ? d.hl.slice(0, 6).filter(a => DESKS[a[1] | 0]).map(a => ({ id: a[0], i: a[1] | 0, x: +a[2], z: +a[3], t: +a[4] })) : [];
+  ST.asg = Array.isArray(d.asg) ? { n: String(d.asg[0]), t: +d.asg[1], tx: String(d.asg[2] || '') } : null;
+  ST.cbl = Array.isArray(d.cbl) ? { k: String(d.cbl[0]), b: { x: +d.cbl[1], z: +d.cbl[2] }, t: +d.cbl[3] } : null;
+  applySnap4(d);
+}
+/* 🧑‍💻 ІТ-куток: на Nest Office — «Щитова та тех кімната», на інших поверхах — куток серверної біля стійок */
+function itSpot() {
+  if (L.it) return L.it;
+  if (L.s.IT) return (L.it = { x: L.s.IT.x, z: L.s.IT.z });
+  const rm = roomAt(RACK.p.x, RACK.p.z); let best = null;
+  for (let d = 1.6; d < 4.6 && !best; d += .3) for (let k = 0; k < 20; k++) {
+    const a = k / 20 * Math.PI * 2, x = RACK.p.x + Math.sin(a) * d, z = RACK.p.z + Math.cos(a) * d;
+    if (blocked(x, z, .45) || !reachable(x, z) || (rm && (roomAt(x, z) || {}).n !== rm.n)) continue; best = { x: r2(x), z: r2(z) }; break;
+  }
+  return (L.it = best || { x: RACK.p.x, z: RACK.p.z });
+}
+// хто «працює»: будь-яке завдання скидає лічильник «херньою страждає»
+function work7(k) { AU.lw[k] = ST.t; if (ST.asg && ST.asg.n === k && !ST.asg.bot) asgOk(); }
+function asgOk() { const A_ = ST.asg; ST.asg = null; ST.dur += 15; emit({ k: 'asgok', to: A_.n }); pushState(); }
+const ASGT = { data: '📄 Збери дані колег', print: '🖨️ Надрукуй звіт', staple: '📎 Скріпи звіт', stamp: '🔏 Постав печатку', number: '🗂️ Пронумеруй', scan: '📠 Відскануй', sign: '✍️ Принеси звіт на підпис', send: '📤 Відправ звіт' };
+const asgTxt = () => ASGT[cur()] || pick(['🧽 Помий калюжі', '📦 Перенеси коробки', '🔎 Збери докази']);
+function rtDown(why) { if (ST.rt) return false; ST.rt = 1; AU.rtT = 0; AU.rtp = {}; emit({ k: 'rt', why: why || '' }); pushState(); return true; }
+function rtFix(by) { if (!ST.rt) return; ST.rt = 0; AU.rtp = {}; ST.fixes++; if (by && !by.startsWith('🤖') && !by.startsWith('🧑‍💻')) stat(by, 't'); emit({ k: 'rtok', who: by }); pushState(); }
+// ціль боса за ключем: гравець, 🤖 бот чи колега-NPC
+function tgt7(n) {
+  if (n.startsWith('🤖 ')) { const b = ST.bt.find(q => botWho(q) === n); return b ? { key: n, nm: n, x: b.x, z: b.z, bot: b } : null; }
+  if (n.startsWith('npc:')) { const i = +n.slice(4); return DESKS[i] && !pestOf(i) ? Object.assign({ key: n, nm: NAMES[i], npc: i }, colPos(i)) : null; }
+  const p = crew().find(q => q.name === n); return p ? { key: n, nm: n, x: p.x, z: p.z } : null;
+}
+function onReq7(d, k, h) {
+  const p = posOf(k), nr = (o, r) => o && dist2(p.x, p.z, o.x, o.z) < r, B = k === AU.boss, S = k === AU.sys;
+  const cd = w => { if ((AU.bcd[k + w] || 0) > ST.t) return false; AU.bcd[k + w] = ST.t + BCD[w]; return true; };
+  if (['take', 'feed', 'print', 'sub', 'send', 'fix', 'brew', 'give', 'pick', 'tube', 'mop', 'box', 'clue', 'serve'].includes(d.k)) AU.lw[k] = ST.t;
+  if (d.k === 'plane' || d.k === 'toss') AU.pg[k] = ST.t + 6;                         // кидатись папірцями — «херньою страждає»
+  // 📡 роутер лежить — усі завдання на ПК стоять (друк, сканер, Excel, ПК боса, код)
+  if (ST.rt && (d.k === 'print' || (d.k === 'sub' && d.w === 'scan') || (d.k === 'fix' && d.w === 'excel') || d.k === 'bpc' || (d.k === 'v4' && /^(rev|roll|dep)$/.test(d.w)))) { emit({ k: 'rtblk', to: k }); return true; }
+  if (d.k === 'print' && ST.tn <= 0 && cur() === 'print') { emit({ k: 'toner', to: k }); return true; }
+  if (d.k === 'router') {
+    // 📡 сисадміну — одна міні-гра; решті — три (утричі довше)
+    if (!ST.rt || !nr(itSpot(), 2.6)) return true;
+    AU.rtp[k] = (AU.rtp[k] || 0) + 1; if (!S && AU.rtp[k] < 3) { emit({ k: 'rtp', to: k, n: AU.rtp[k] }); return true; }
+    rtFix(k); return true;
+  }
+  if (d.k === 'bcof') { if (!B || !ST.cm || !nr(COFFEE.p, 2.6) || !cd('cof')) return true; ST.coffee = 1; stat(k, 't'); emit({ k: 'bcof', who: k }); pushState(); return true; }
+  if (d.k === 'bpc') { if (!B || !nr(BOSS_DESK, 3.2) || !cd('pc')) return true; ST.dur += 8; stat(k, 't'); emit({ k: 'bpc', who: k }); pushState(); return true; }
+  if (d.k === 'inc') { const i = ST.inc.findIndex(q => q.id === d.id); if (!B || i < 0 || !nr(ST.inc[i], 2.6)) return true; const q = ST.inc.splice(i, 1)[0]; ST.dur += 5; stat(k, 't'); emit({ k: 'inc', ok: 1, w: q.w, who: k }); pushState(); return true; }
+  if (['yell', 'shv', 'asg', 'bfire'].includes(d.k)) {
+    if (!B) return true;
+    const t = tgt7(String(d.n || '')); if (!t || t.key === k || !nr(t, d.k === 'asg' ? 3.4 : 3)) return true;
+    if (d.k === 'yell' || d.k === 'shv') {
+      if (t.npc != null || !cd(d.k)) return true;
+      if (t.key === AU.sys && (AU.shd[t.key] || 0) > ST.t) { AU.shd[t.key] = 0; emit({ k: 'argued', who: t.key, w: d.k }); return true; }   // 🧑‍💻 «Я компілюю!»
+      const a = Math.atan2(t.x - p.x, t.z - p.z);
+      if (t.bot) { const b = t.bot; b.sl = 0; b.slT = rand(45, 75); b.st7 = d.k === 'yell' ? 3 : 1.5; b.bf = 15; b.J = null; if (d.k === 'shv') shove(b, a, 3.5); }
+      else AU.lw[t.key] = ST.t;
+      emit({ k: d.k, who: k, to: t.key, a: r2(a), x: r2(t.x), z: r2(t.z) }); pushState(); return true;
+    }
+    if (d.k === 'asg') {
+      if (t.npc != null || !cd('asg')) return true;
+      ST.asg = { n: t.key, t: ASG_T, tx: asgTxt(), bot: !!t.bot, bt: t.bot ? rand(8, 16) : 0 };
+      emit({ k: 'asg', who: k, to: t.key, tx: ST.asg.tx }); pushState(); return true;
+    }
+    // 🔥 звільнити без зборів — раз за раунд; невинного — команда втрачає 30 с
+    if (AU.fu) return true; AU.fu = ST.fu = 1;
+    if (t.key === AU.sab) { ST.sbC = 1; emit({ k: 'bfire', who: k, to: t.key, nm: t.nm, ok: 1 }); endRound(true, `👔 Бос звільнив саботажника без зборів: ${t.nm}!`, k); return true; }
+    ST.t = Math.min(ST.dur - 5, ST.t + FU_PEN);
+    if (t.bot) ST.bt.splice(ST.bt.indexOf(t.bot), 1);
+    else if (t.npc != null) { ST.ag[t.npc] = 100; turnPest(t.npc, 'fired'); }
+    else { ST.fd = (ST.fd || []).concat(t.key); setHeld(t.key, '', 0, 0); }
+    emit({ k: 'bfire', who: k, to: t.key, nm: t.nm, ok: 0, fired: t.bot || t.npc != null ? 0 : 1 }); pushState(); return true;
+  }
+  if (d.k === 'arg') { if (!S || !nr(ST.boss, 3.5) || !cd('arg')) return true; AU.shd[k] = ST.t + 15; emit({ k: 'arg', who: k, i: Math.random() * EXCUSE.length | 0 }); return true; }
+  if (d.k === 'help') { const i = ST.hlp.findIndex(q => q.id === d.id); if (!S || i < 0 || !nr(ST.hlp[i], 2.6)) return true; const q = ST.hlp.splice(i, 1)[0]; ST.ag[q.i] = Math.max(0, (ST.ag[q.i] || 0) - 30); ST.dur += 8; stat(k, 't'); emit({ k: 'help', ok: 1, i: q.i, who: k }); pushState(); return true; }
+  if (d.k === 'svc') { if (!S || !nr(RACK.p, 2.6) || ST.fire > 0 || !cd('svc')) return true; ST.dur += 6; ST.heat = 0; stat(k, 't'); emit({ k: 'svc', who: k }); pushState(); return true; }
+  if (d.k === 'toner') { if (!S || !nr(PRINTER.p, 2.6) || ST.tn >= 100) return true; ST.tn = 100; stat(k, 't'); emit({ k: 'tonerok', who: k }); pushState(); return true; }
+  if (d.k === 'cable') {
+    // 🔌 протягнути провід від ІТ-кутка до робочого місця (40 с)
+    const C = ST.cbl; if (!S) return true;
+    if (!C) {
+      const A0 = itSpot(), far = DESKS.filter(q => dist2(q.p.x, q.p.z, A0.x, A0.z) > 7), g = pick(far.length ? far : DESKS);
+      if (!g || !nr(A0, 2.6) || !cd('cbl')) return true; ST.cbl = { k, b: { x: r2(g.p.x), z: r2(g.p.z) }, t: 40 }; emit({ k: 'cbl', who: k });
+    } else if (C.k === k && nr(C.b, 2.2)) { ST.cbl = null; ST.dur += 10; stat(k, 't'); emit({ k: 'cblok', who: k }); }
+    pushState(); return true;
+  }
+  if (onReq4(d, k, h, p, nr)) return true;
+  return false;
+}
+function auth7(dt, c) {
+  auth4(dt, c);
+  // 👔/🧑‍💻 гравця звільнили чи він пішов — роль знову грає NPC
+  if (AU.boss) { AU.bAway = c.some(q => q.name === AU.boss) ? 0 : AU.bAway + dt; if (AU.bAway > 5 || (ST.fd || []).includes(AU.boss)) { AU.boss = ST.bh = ''; ST.inc = []; ST.asg = null; Object.assign(ST.boss, { x: BPATH[0].x, z: BPATH[0].z, i: 0, dir: 1, wait: 4, at: 'desk' }); emit({ k: 'msg', txt: '👔 Боса більше нема на поверсі — керує знову NPC-начальник.' }); pushState(); } }
+  if (AU.sys) { AU.yAway = c.some(q => q.name === AU.sys) ? 0 : AU.yAway + dt; if (AU.yAway > 5 || (ST.fd || []).includes(AU.sys)) { AU.sys = ST.sy = ''; ST.hlp = []; ST.cbl = null; ST.tn = 100; emit({ k: 'msg', txt: `🧑‍💻 Сисадміна нема — мережу знову тримає NPC ${SYSN}.` }); pushState(); } }
+  // 📡 роутер: падає сам (коли є сисадмін-гравець); без нього NPC-сисадмін піднімає за 30 с
+  if (AU.sys && ST.t > 30 && (AU.rtA -= dt) <= 0) { AU.rtA = rand(90, 140); rtDown('chaos'); }
+  if (ST.rt && !AU.sys && (AU.rtT += dt) >= 30) rtFix('🧑‍💻 ' + SYSN);
+  // 🆘 «допоможіть з ПК» — лише коли є сисадмін-гравець
+  if (AU.sys && (AU.hlpT -= dt) <= 0) {
+    AU.hlpT = rand(30, 50); const free = DESKS.filter(q => !pestOf(q.i) && !ST.hlp.some(o => o.i === q.i));
+    if (free.length && ST.hlp.length < 2) { const q = pick(free), cp = colPos(q.i); ST.hlp.push({ id: ++AU.fid, i: q.i, x: r2(cp.x), z: r2(cp.z), t: 50 }); emit({ k: 'hlp', i: q.i }); pushState(); }
+  }
+  for (let i = ST.hlp.length - 1; i >= 0; i--) if ((ST.hlp[i].t -= dt) <= 0) { const q = ST.hlp.splice(i, 1)[0]; anger(q.i, 30); emit({ k: 'help', ok: 0, i: q.i }); pushState(); }
+  if (ST.cbl && (ST.cbl.t -= dt) <= 0) { ST.cbl = null; emit({ k: 'cblx' }); pushState(); }
+  if (!AU.boss) return;
+  // 📞 інциденти для боса: не вирішив за 40 с — команда втрачає 8 с
+  if ((AU.incT -= dt) <= 0) {
+    AU.incT = rand(35, 55); const cs = cands();
+    if (cs.length && ST.inc.length < 2) { const w = pick(Object.keys(INC)), q = offs(pick(cs), rand(-1, 1), rand(-1, 1)); ST.inc.push({ id: ++AU.fid, w, x: q.x, z: q.z, t: 40, n: q.n }); emit({ k: 'incn', w, room: q.n }); pushState(); }
+  }
+  for (let i = ST.inc.length - 1; i >= 0; i--) if ((ST.inc[i].t -= dt) <= 0) { const q = ST.inc.splice(i, 1)[0]; ST.t = Math.min(ST.dur - 5, ST.t + 8); emit({ k: 'inc', ok: 0, w: q.w }); pushState(); }
+  // 📋 доручення: 60 с на будь-яке завдання (бот — сам іде виконувати)
+  if (ST.asg) { const A_ = ST.asg; A_.t -= dt; if (A_.bot && (A_.bt -= dt) <= 0) asgOk(); else if (A_.t <= 0) { ST.asg = null; emit({ k: 'asgx', to: A_.n }); pushState(); } }
+  // 💤 хто «херньою страждає» (бачить бос): без завдань 40 с, пінг-понг/папірці/крісло; сисадмін за своїм столом — «моніторить мережу»
+  const it = itSpot(), idl = [];
+  for (const q of c) {
+    if (q.name === AU.boss) continue;
+    if (q.name === AU.sys && dist2(q.x, q.z, it.x, it.z) < 2.6) idl.push([q.name, 'n']);
+    else if ((AU.pg[q.name] || 0) > ST.t) idl.push([q.name, 'p']);
+    else if (ST.t - (AU.lw[q.name] || 0) > IDLE_T) idl.push([q.name, 'i']);
+  }
+  const sig = JSON.stringify(idl); if (sig !== AU.idSig) { AU.idSig = sig; ST.idl = idl; pushState(); }
+}
+// 🤖 боти при босі-гравцеві іноді ледарюють; наорав — біжать працювати швидше
+function bot7(b, dt) {
+  if (b.bf > 0) b.bf -= dt;
+  if (b.st7 > 0) { b.st7 -= dt; b.ic = '😵'; b.J = null; return true; }
+  if (!AU.boss) { b.sl = 0; return false; }
+  if (b.sl > 0) { b.sl -= dt; b.ic = '💤'; b.J = null; if (b.sl <= 0) b.slT = rand(45, 75); return true; }
+  if ((b.slT = (b.slT == null ? rand(20, 40) : b.slT) - dt) <= 0) { b.sl = rand(18, 28); emit({ k: 'slack', n: b.n }); }
+  return false;
+}
+
+/* ======================= v7: клієнт ======================= */
+function near7(r, npc) {
+  const out = [], idl = new Map(ST.idl);
+  for (const id in NET.players) { const q = NET.players[id]; if (q && q.name && !isMe(q.name) && !(ST.fd || []).includes(q.name)) out.push({ key: q.name, nm: escapeHTML(q.name), x: q.x, z: q.z, idle: idl.get(q.name) === 'i' || idl.get(q.name) === 'p' }); }
+  for (const b of ST.bt) out.push({ key: botWho(b), nm: botWho(b), x: b.x, z: b.z, idle: b.ic === '💤' });
+  if (npc) for (const d of DESKS) if (!pestOf(d.i)) { const cp = colPos(d.i); out.push({ key: 'npc:' + d.i, nm: NAMES[d.i], x: cp.x, z: cp.z }); }
+  return out.filter(o => dist2(pl.x, pl.z, o.x, o.z) < r).sort((a, b) => dist2(pl.x, pl.z, a.x, a.z) - dist2(pl.x, pl.z, b.x, b.z))[0] || null;
+}
+function bossAct(kind, w) {
+  if (!can3() || !V.boss7) return;
+  if (V.cd7[kind] > 0) { toast(`⏳ Ще ${Math.ceil(V.cd7[kind])} с`); return; }
+  if (kind === 'bfire' && ST.fu) { toast('🔥 «Звільнити без зборів» — лише раз за раунд.'); return; }
+  const t = w || near7(kind === 'asg' ? 3.2 : 2.8, kind === 'bfire');
+  if (!t) { toast(kind === 'bfire' ? '🔥 Підійди впритул до працівника (чи колеги), якого звільняєш.' : '👔 Підійди ближче до працівника.'); return; }
+  req(kind, { n: t.key }); if (BCD[kind]) V.cd7[kind] = BCD[kind]; sfx(kind === 'yell' ? 'warn' : 'hit');
+}
+function bar7(key) {
+  const B = key === 'B';
+  const base = [{ id: 'plg', ic: '🪠', n: 'Вантуз', use: () => firePlunger() }];
+  const ext = { id: 'ext', ic: '🧯', n: 'Вогнегасник', count: () => Math.max(0, Math.round(V.ext)), use: () => spray() };
+  const meet = { id: 'meet', ic: '🚨', n: B ? 'Збори (без ліміту)' : 'Нарада', count: () => B ? 1 : V.mc, use: callMeeting };
+  if (B) return [...base,
+    { id: 'bcof', ic: '☕', n: 'Кава боса', count: () => V.cd7.cof > 0 ? 0 : 1, use: () => { if (dist2(pl.x, pl.z, COFFEE.p.x, COFFEE.p.z) < 1.6) { const r = interact7((o, r) => dist2(pl.x, pl.z, o.x, o.z) < r, myHeld()); if (r) r.fn(); } else toast('☕ Кава боса — біля кавоварки (F). Без кави ти не підписуєш звіт!'); } },
+    { id: 'yell', ic: '🗣️', n: 'Наорати', count: () => V.cd7.yell > 0 ? 0 : 1, use: () => bossAct('yell') },
+    { id: 'shv', ic: '😤', n: 'Швирнути', count: () => V.cd7.shv > 0 ? 0 : 1, use: () => bossAct('shv') },
+    { id: 'asg', ic: '📋', n: 'Доручити', count: () => V.cd7.asg > 0 ? 0 : 1, use: () => bossAct('asg') },
+    { id: 'bfire', ic: '🔥', n: 'Звільнити без зборів', count: () => ST.fu ? 0 : 1, use: () => bossAct('bfire') },
+    ext, meet];
+  return [...base,
+    { id: 'bk', get ic() { return myHeld().it === 'report' ? '📑' : '📘'; }, get n() { return myHeld().it === 'report' ? 'Кинути звіт' : 'Книжка'; }, count: () => myHeld().it === 'report' ? (ST.fly ? 0 : 1) : V.bk, use: () => myHeld().it === 'report' ? throwReport() : toss('bk') },
+    { id: 'cof', ic: '☕', n: 'Кава-ривок', count: () => V.cof, use: coffeeDash },
+    { id: 'arg', ic: '🗣️', n: 'Аргументувати', count: () => V.cd7.arg > 0 ? 0 : 1, use: () => { if (V.cd7.arg > 0) return; if (dist2(pl.x, pl.z, ST.boss.x, ST.boss.z) < 3.2) { req('arg'); V.cd7.arg = BCD.arg; } else toast('🗣️ Підійди до боса — і він почує твоє «Я компілюю!»'); } },
+    { id: 'rt', ic: '📡', get n() { return ST.rt ? 'Роутер УПАВ!' : 'Мережа ок'; }, count: () => ST.rt ? 1 : 0, use: () => toast(ST.rt ? '📡 Роутер упав — біжи в ІТ-куток (жовта стрілка), F — кабелі й перезавантаження.' : `📡 Мережа працює. 🆘 запитів: ${ST.hlp.length} · 🖨️ тонер ${Math.round(ST.tn)}%`) },
+    { id: 'pb', ic: '🧻', n: 'Мʼятий папір', count: () => V.pb, use: () => toss('pb') },
+    ext, meet];
+}
+// 💻 ПК боса — пріоритетно (поруч може опинитись пост охорони чи кнопка зборів)
+function bossPc7(near) {
+  if (!V.boss7 || !ST.on || ST.mt) return null;
+  for (const q of ST.inc) if (near(q, 1.7)) return { l: `${INC[q.w][0]} Вирішити: ${INC[q.w][1]} (2 с, +5 с)`, fn: () => startAct(() => req('inc', { id: q.id }), 2, () => q, INC[q.w][0], 'Вирішую проблему', () => '') };
+  if (!near(BOSS_DESK, 2.4)) return null;
+  return ST.rt ? { l: '💻 Роутер упав — ПК без мережі', fn: () => { } } : V.cd7.pc > 0 ? { l: `💻 Звіти затверджено — нові за ${Math.ceil(V.cd7.pc)} с`, fn: () => { } } : { l: '💻 Затвердити звіт / підписати рахунки (міні-гра, +8 с)', fn: () => mini('type', () => { req('bpc'); V.cd7.pc = BCD.pc; }, { w: 'ЗАТВЕРДЖУЮ', at: BOSS_DESK }) };
+}
+// 📡 роутер — пріоритетно (поки лежить, стоїть увесь офіс)
+function rt7(near) {
+  if (!ST.on || ST.mt || !ST.rt) return null; const S = itSpot();
+  if (near(S, 1.7)) return { l: V.sys7 ? '📡 Підняти роутер: кабелі + перезавантаження (міні-гра)' : `📡 Роутер упав — без сисадміна втричі довше (${V.rtp}/3 міні-ігор)`, fn: () => mini('cable', () => mini('seq', () => req('router'), { at: S, title: '📡 Перезавантаження роутера' }), { at: S, title: '📡 Роутер: перепідключи кабелі' }) };
+  return null;
+}
+function interact7(near, h) {
+  if (!ST.on || ST.mt) return null;
+  const S = itSpot();
+  if (V.boss7) {
+    for (const q of ST.inc) if (near(q, 1.7)) return { l: `${INC[q.w][0]} Вирішити: ${INC[q.w][1]} (2 с, +5 с)`, fn: () => startAct(() => req('inc', { id: q.id }), 2, () => q, INC[q.w][0], 'Вирішую проблему', () => '') };
+    if (h.it === 'report' && cur() === 'sign') return ST.coffee ? { l: '✍️ Підписати звіт самому (1,5 с)', fn: () => actSub('sign') } : { l: '☕ Спершу випий кави (кавоварка, F) — тоді підпишеш', fn: () => { } };
+    if (near(COFFEE.p, 1.4) && ST.cm) return V.cd7.cof > 0 ? { l: `☕ Кава ще діє (${Math.ceil(V.cd7.cof)} с)`, fn: () => { } } : { l: '☕ Випити кави боса (2 с) — тепер можна підписувати', fn: () => startAct(() => { req('bcof'); V.cd7.cof = BCD.cof; V.bfT = 10; }, 2, P_(COFFEE), '☕', 'П’ю каву', () => '') };
+  }
+  if (V.sys7) {
+    for (const q of ST.hlp) if (near(q, 1.7)) return ST.rt ? { l: '🆘 Спершу підніми роутер 📡', fn: () => { } } : { l: `🆘 Полагодити ПК ${NAMES[q.i]} (міні-гра, +8 с)`, fn: () => mini('type', () => req('help', { id: q.id }), { w: pick(['РЕБУТ', 'ДРАЙВЕР', 'ПАТЧ', 'ПІНГ']), at: q }) };
+    if (ST.cbl && isMe(ST.cbl.k) && near(ST.cbl.b, 1.7)) return { l: '🔌 Підключити протягнутий провід (міні-гра, +10 с)', fn: () => mini('cable', () => req('cable'), { at: ST.cbl.b }) };
+    if (near(PRINTER.p, 1.4) && ST.tn < 100 && !ST.jam) return { l: `🖨️ Заправити принтер тонером (${Math.round(ST.tn)}%, 2 с)`, fn: () => startAct(() => req('toner'), 2, P_(PRINTER), '🖨️', 'Заправляю тонер', () => '') };
+    if (near(RACK.p, 1.4) && ST.fire <= 0 && !(V.cd7.svc > 0)) return { l: '🧹 Обслужити сервер: пил, оновлення, кабелі (міні-гра, +6 с)', fn: () => mini('seq', () => { req('svc'); V.cd7.svc = BCD.svc; }, { at: RACK.p }) };
+    if (!ST.cbl && near(S, 1.7) && !(V.cd7.cbl > 0)) return { l: '🔌 Узяти бухту кабелю — протягнути до робочого місця (40 с)', fn: () => { req('cable'); V.cd7.cbl = BCD.cbl; } };
+    if (near(ST.boss, 2.4) && !(V.cd7.arg > 0)) return { l: '🗣️ Аргументувати босу («Я компілюю!») — наступний крик/кидок не подіє', fn: () => { req('arg'); V.cd7.arg = BCD.arg; } };
+  }
+  return interact4(near, h);
+}
+// 🗣️ F біля ледаря — наорати (найнижчий пріоритет, щоб не заважати роботі поруч)
+function yell7() { if (!V.boss7 || V.cd7.yell > 0) return null; const w = near7(2.2); return w && w.idle ? { l: `🗣️ Наорати на ${w.nm} — херньою страждає!`, fn: () => bossAct('yell', w) } : null; }
+function goal7(h, s) {
+  const S = itSpot();
+  if (ST.rt && (V.sys7 || s === 'print' || s === 'scan')) return { id: 'rt', tg: S, txt: V.sys7 ? '📡 <b>Роутер упав!</b> Весь офіс стоїть — біжи в ІТ-куток і підніми мережу (F).' : `📡 <b>Роутер упав</b> — ${s === 'print' ? 'принтер' : 'сканер'} без мережі. ${ST.sy ? 'Клич сисадміна' : `${SYSN} підніме за ~30 с`} або сам у ІТ-кутку (утричі довше).` };
+  if (V.boss7) {
+    const q = ST.inc.slice().sort((a, b) => a.t - b.t)[0];
+    if (q) return { id: 'inc', tg: q, txt: `${INC[q.w][0]} <b>${INC[q.w][1]}</b> — бос, розберись (F)! ${Math.ceil(q.t)} с` };
+    if (ST.steps.indexOf('sign', ST.si) >= 0 && !ST.coffee) return { id: 'bcof', tg: COFFEE.p, txt: '☕ Бос без кави не підписує — <b>випий кави</b> на кавоварці (F).' };
+    if (ST.idl.some(a => a[1] !== 'n') || ST.bt.some(b => b.ic === '💤')) { const n = ST.idl.find(a => a[1] !== 'n'), r = n && Object.values(NET.players).find(o => o.name === n[0]), b = ST.bt.find(o => o.ic === '💤'); const tg = r ? { x: r.x, z: r.z } : b ? { x: b.x, z: b.z } : null; if (tg) return { id: 'yell', tg, txt: `💤 <b>${escapeHTML(r ? r.name : botWho(b))}</b> херньою страждає — 🗣️ наори (F / 2) чи 📋 доручи завдання (4).` }; }
+    if (!(V.cd7.pc > 0)) return { id: 'bpc', tg: BOSS_DESK, txt: '💻 Бос: <b>затверди звіти й рахунки</b> на своєму ПК (F, +8 с). Стеж за 💤 ледарями — 🗣️ наорати / 📋 доручити.' };
+    return null;
+  }
+  if (V.sys7) {
+    const q = ST.hlp.slice().sort((a, b) => a.t - b.t)[0];
+    if (q) return { id: 'help', tg: q, txt: `🆘 <b>${NAMES[q.i]}</b>: «Допоможіть з ПК!» — полагодь (F, +8 с), поки не розізлився. ${Math.ceil(q.t)} с` };
+    if (ST.cbl && isMe(ST.cbl.k)) return { id: 'cbl', tg: ST.cbl.b, txt: `🔌 Тягни провід до <b>робочого місця</b> (жовта мітка) — ${Math.ceil(ST.cbl.t)} с` };
+    if (ST.tn < 50) return { id: 'toner', tg: PRINTER.p, txt: `🖨️ У принтері ${Math.round(ST.tn)}% тонера — <b>заправ</b> (F).` };
+    if (!(V.cd7.svc > 0) && ST.fire <= 0) return { id: 'svc', tg: RACK.p, txt: '🧹 <b>Обслужи сервер</b> (F біля стійки: пил, оновлення, кабелі — +6 с). За своїм столом ти «моніторить мережу» — бос не причепиться.' };
+    return null;
+  }
+  if (ST.asg && isMe(ST.asg.n)) return null;
+  return null;
+}
+function hud7() {
+  const me = myKey();
+  return [ST.bh ? `👔 бос: ${ST.bh === me ? 'ти' : escapeHTML(ST.bh)}` : '', ST.sy ? `🧑‍💻 сисадмін: ${ST.sy === me ? 'ти' : escapeHTML(ST.sy)}` : '', ST.rt ? '📡 РОУТЕР УПАВ — ПК стоять' : '',
+    ST.inc.length && V.boss7 ? `📞 інцидентів: ${ST.inc.length}` : '', ST.hlp.length ? `🆘 ПК: ${ST.hlp.length}` : '', ST.asg ? `📋 ${isMe(ST.asg.n) ? 'тобі' : escapeHTML(ST.asg.n)}: ${escapeHTML(ST.asg.tx)} · ${Math.max(0, Math.ceil(ST.asg.t))} с` : '', ST.sy && ST.tn < 100 ? `🖨️ тонер ${Math.round(ST.tn)}%` : '', ...hud4()];
+}
+function roleCard7(el) {
+  if (ST.bh && isMe(ST.bh)) {
+    el.dataset.role = 'boss'; el.style.background = 'linear-gradient(160deg,#B8862E,#2E2346)';
+    el.innerHTML = `<div style="font:900 22px system-ui">👔 Ти — БОС</div><div>Усі знають, що ти бос, але <b>ти не знаєш саботажника</b> — виграєш чи програєш разом з командою. Твоя робота: ☕ <b>кава</b> (без неї не підписуєш звіт), 💻 <b>затвердити звіти</b> на ПК (+8 с), 📞 <b>інциденти</b> (F, +5 с). Над ледарями — 💤 «херньою страждає»: 🗣️ <b>Наорати</b> (F/2: 3 с ступор, потім прискорення), 😤 <b>Швирнути</b> (3), 📋 <b>Доручити</b> (4: +15 с, якщо зробить за 60 с). 🚨 Збори — без ліміту, твій голос ×2. 🔥 Раз за раунд — <b>звільнити без зборів</b> (невинного — −30 с).</div>`;
+  } else if (ST.sy && isMe(ST.sy)) {
+    el.dataset.role = 'sys'; el.style.background = 'linear-gradient(160deg,#2F6FB8,#2E2346)';
+    el.innerHTML = `<div style="font:900 22px system-ui">🧑‍💻 Ти — СИСАДМІН</div><div>Твій ІТ-куток — ${L.s.IT ? 'Щитова та тех кімната' : 'біля стійок серверної'}. 📡 <b>Роутер упав</b> — увесь офіс стоїть, лише ти піднімаєш його швидко (інші — утричі довше). 🆘 <b>«Допоможіть з ПК»</b> над колегами — міні-гра, +8 с. 🧹 Обслуговуй сервер, 🖨️ заправляй тонер, 🔌 тягни кабелі. Сидиш за своїм столом — для боса ти «моніторить мережу». 🗣️ <b>Аргументувати</b> біля боса — його наступний крик чи кидок не подіє.</div>`;
+  }
+}
+function entOf(n) { if (isMe(n)) return pl; const r = Object.values(NET.players).find(o => o.name === n); if (r) return r; const b = V.bm && [...V.bm.entries()].find(([k]) => '🤖 ' + k === n); return b ? b[1].ent : null; }
+function onEvent7(e, here, nm) {
+  const k = e.k, me = isMe(e.who), to = isMe(e.to), tn = e.to ? (to ? 'тебе' : escapeHTML(String(e.to))) : '';
+  if (k === 'yell' || k === 'shv') {
+    if (here) { const en = entOf(String(e.to)); if (en) bubble(en, k === 'yell' ? pick(['Так, шефе!', 'Вже біжу!', 'Я працюю, працюю!']) : 'Аааа!', true, 2); ftext(+e.x, 2.8, +e.z, k === 'yell' ? '🗣️ ПРАЦЮВАТИ!' : '😤 ШВИРК!', 'bad'); sfx(k === 'yell' ? 'warn' : 'hit', +e.x, +e.z); }
+    if (to && running && !pl.dead) {
+      if (k === 'yell') { V.stunT = 3; V.bfT = 15; V.act = null; banner('🗣️ Бос НАОРАВ на тебе! 3 с ступору — а потім працюєш швидше.'); }
+      else { V.stunT = 1.3; V.tumT = 1.3; V.bfT = 8; V.act = null; knockMe(+e.a || 0, 26, '😤 Бос швирнув!'); shake = Math.max(shake, .4); }
+    }
+    return true;
+  }
+  if (k === 'argued') { if (here) { banner('🧑‍💻 Сисадмін відбився аргументом — бос лише махнув рукою.'); const en = entOf(String(e.who)); if (en) bubble(en, 'Я ж казав — компілюю!', false, 2.4); } return true; }
+  if (k === 'arg') { const en = entOf(String(e.who)); if (here && en) bubble(en, EXCUSE[e.i | 0] || EXCUSE[0], false, 3); if (me) toast('🗣️ Аргумент прийнято: наступний крик чи кидок боса не подіє (15 с).'); return true; }
+  if (k === 'asg') { if (here) toast(`📋 Бос доручив ${tn}: <b>${escapeHTML(e.tx || '')}</b> — 60 с, бонус +15 с`); if (to) { banner(`📋 Доручення від боса: ${e.tx} — 60 с!`); sfx('warn'); } return true; }
+  if (k === 'asgok') { if (here) { toast(`📋✅ Доручення виконано (${tn}) — +15 с до дедлайну!`); sfx('level'); } return true; }
+  if (k === 'asgx') { if (here) toast(`📋❌ ${tn} не встиг(ла) з дорученням.`); return true; }
+  if (k === 'bfire') {
+    if (e.fired && to) { fired(e); return true; }
+    if (here) { banner(e.ok ? `🔥 Бос звільнив ${escapeHTML(e.nm)} без зборів — і це САБОТАЖНИК!` : `🔥 Бос звільнив ${escapeHTML(e.nm)} без зборів… невинного! Команда втратила 30 с.`); sfx(e.ok ? 'level' : 'hurt'); }
+    return true;
+  }
+  if (k === 'bcof') { if (here) { ftext(pl.x, 2.6, pl.z, me ? '☕ Бос підзарядився' : '', 'gold'); if (!me) toast('☕ Бос випив кави — тепер підписує.'); sfx('drink'); } return true; }
+  if (k === 'bpc') { if (here) toast(`💻 ${nm} затвердив звіти й рахунки — +8 с`); return true; }
+  if (k === 'incn') { if (here && V.boss7) { banner(`${INC[e.w][0]} Інцидент: ${INC[e.w][1]}${e.room ? ' · ' + e.room : ''} — розберись!`); sfx('warn'); } return true; }
+  if (k === 'inc') { if (here) toast(e.ok ? `${INC[e.w][0]} Бос вирішив: ${INC[e.w][1]} — +5 с` : `${INC[e.w][0]} ${INC[e.w][1]} — ніхто не вирішив, −8 с`); return true; }
+  if (k === 'slack') { if (here && V.boss7) toast(`💤 🤖 ${escapeHTML(e.n)} херньою страждає… 🗣️ наори!`); return true; }
+  if (k === 'rt') { if (here) { banner(`📡 РОУТЕР УПАВ${e.why === 'sab' ? ' (саботаж!)' : ''}! Друк, сканер і всі ПК стоять — ${ST.sy ? 'кличте сисадміна 🧑‍💻' : `NPC ${SYSN} уже біжить`}.`); sfx('warn'); } V.rtp = 0; return true; }
+  if (k === 'rtok') { if (here) { toast(`📡✅ Мережа є! Роутер підняв ${String(e.who).startsWith('🤖') || String(e.who).startsWith('🧑‍💻') ? escapeHTML(e.who) : nm}.`); sfx('level'); } V.rtp = 0; return true; }
+  if (k === 'rtp') { if (to) { V.rtp = e.n | 0; toast(`📡 ${e.n}/3 — без сисадміна втричі довше, ще раз F!`); } return true; }
+  if (k === 'rtblk') { if (to) toast('📡 Роутер упав — ПК без мережі. Спершу підніміть роутер!'); return true; }
+  if (k === 'toner') { if (to) toast('🖨️ Тонер скінчився — клич 🧑‍💻 сисадміна заправити принтер!'); return true; }
+  if (k === 'tonerok') { if (here) toast('🖨️ Тонер заправлено — друкуємо!'); return true; }
+  if (k === 'hlp') { if (here && V.sys7) { banner(`🆘 ${NAMES[e.i]}: «Допоможіть з ПК!»`); sfx('warn'); } return true; }
+  if (k === 'help') { if (here) toast(e.ok ? `🆘✅ Сисадмін полагодив ПК ${NAMES[e.i]} — +8 с` : `🆘 ${NAMES[e.i]} так і не дочекався(лась) сисадміна — злиться 😠`); return true; }
+  if (k === 'svc') { if (here) toast('🧹 Сервер обслужено — +6 с'); return true; }
+  if (k === 'cbl') { if (me) toast('🔌 Тягни провід до жовтої мітки — 40 с!'); return true; }
+  if (k === 'cblok') { if (here) toast('🔌✅ Новий кабель прокладено — +10 с'); return true; }
+  if (k === 'cblx') { if (V.sys7) toast('🔌 Кабель не дотягнув — спробуй ще раз.'); return true; }
+  return onEvent4(e, here, nm);
+}
+// мітки над головами: 👔 БОС / 🧑‍💻 СИСАДМІН (бачать усі); для боса — 💤 «херньою страждає» над ледарями
+function client7(dt) {
+  if (ST.rid !== V.rid7) { V.rid7 = ST.rid; V.cd7 = {}; V.rtp = 0; }
+  for (const q in V.cd7) if (V.cd7[q] > 0) V.cd7[q] -= dt;
+  if (V.bfT > 0) V.bfT -= dt;
+  V.boss7 = !!(ST.on && ST.bh && isMe(ST.bh)); V.sys7 = !!(ST.on && ST.sy && isMe(ST.sy));
+  if (typeof hero !== 'undefined' && hero) { if (V.tumT > 0) { V.tumT -= dt; hero.body.rotation.z = Math.sin(V.tumT * 14) * .9 * Math.min(1, V.tumT); } else if (hero.body.rotation.z) hero.body.rotation.z = 0; }
+  const vis = running && !panel && inOffice(pl.x, pl.z) && ST.on, idl = new Map(ST.idl), want = new Map();
+  if (vis) {
+    if (ST.bh && !isMe(ST.bh)) want.set(ST.bh, '👔 БОС');
+    if (ST.sy && !isMe(ST.sy)) want.set(ST.sy, '🧑‍💻 СИСАДМІН' + (V.boss7 && idl.get(ST.sy) === 'n' ? ' · моніторить мережу' : ''));
+    if (V.boss7) for (const [n, w] of idl) if (w !== 'n') want.set(n, (want.get(n) ? want.get(n) + ' · ' : '') + (w === 'p' ? '🏓 херньою страждає' : '💤 херньою страждає'));
+    if (ST.asg && !isMe(ST.asg.n)) want.set(ST.asg.n, (want.get(ST.asg.n) ? want.get(ST.asg.n) + ' · ' : '') + `📋 ${Math.max(0, Math.ceil(ST.asg.t))} с`);
+  }
+  for (const [n, txt] of want) {
+    let el = V.l7.get(n); if (!el) { el = document.createElement('div'); el.className = 'dl-lbl dl-l7'; el.style.background = 'rgba(120,70,20,.88)'; V.l7.set(n, el); }
+    if (V.lbl && !el.parentNode) V.lbl.appendChild(el);
+    const r = Object.values(NET.players).find(o => o.name === n), q = r ? screenPos(r.x, 2.95, r.z) : null;
+    el.style.display = q && q.vis && !(r.h && r.h.root && !r.h.root.visible) && !(r.tag && r.tag.style.opacity === '0') ? '' : 'none'; if (el.textContent !== txt) el.textContent = txt;
+    if (q) el.style.transform = `translate(${Math.round(q.x)}px,${Math.round(q.y)}px) translate(-50%,-100%)`;
+  }
+  for (const [n, el] of V.l7) if (!want.has(n)) { el.remove(); V.l7.delete(n); }
+  // 🧑‍💻 ІТ-куток: роутер на тумбі й NPC-сисадмін (коли сисадмін не гравець)
+  if (V.it7 && V.it7.L !== L) { scene.remove(V.it7.g); V.it7 = null; }
+  if (!V.it7 && L && RACK) {
+    const g = new THREE.Group(), S = itSpot(), a = Math.atan2(RACK.p.x - S.x, RACK.p.z - S.z), rx = S.x + Math.sin(a) * .55, rz = S.z + Math.cos(a) * .55;
+    const bx = (x, y, z, w, h, d, c) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c)); m.position.set(x, y, z); g.add(m); return m; };
+    bx(rx, .45, rz, .5, .9, .4, '#3E4A7C'); const rt = bx(rx, .97, rz, .44, .1, .28, '#2E2346'); bx(rx - .12, 1.15, rz, .02, .3, .02, '#C9CDD9'); bx(rx + .12, 1.15, rz, .02, .3, .02, '#C9CDD9');
+    const led = bx(rx, 1.03, rz + .15, .3, .04, .02, '#7FE08A');
+    const h = humanoid({ skin: '#E6C9B0', shirt: '#2F6FB8', pants: '#3E3A5C' }); h.root.position.set(S.x - Math.sin(a) * .5, 0, S.z - Math.cos(a) * .5); h.root.rotation.y = a; g.add(h.root);
+    const ic = sprite('📡', .7); ic.position.set(rx, 1.8, rz); g.add(ic);
+    scene.add(A.dynamic(g)); V.it7 = { L, g, led, h, ic, rt };
+  }
+  if (V.it7) {
+    const I = V.it7, t = gameTime; I.h.root.visible = !(ST.on && ST.sy); I.ic.visible = !!ST.rt; I.ic.position.y = 1.8 + Math.sin(t * 6) * .1;
+    I.led.material = mat(ST.rt ? (Math.sin(t * 12) > 0 ? '#FF5C7A' : '#2E2346') : '#7FE08A');
+    if (ST.rt && !ST.sy) I.h.aR.rotation.x = -1.6 + Math.sin(t * 10) * .4; else I.h.aR.rotation.x = 0;
+  }
+  // 🆘 / 📞 / 🔌 мітки
+  const sp = new Map();
+  if (vis) {
+    for (const q of ST.hlp) sp.set('h' + q.id, ['🆘', q.x, 2.6, q.z]);
+    for (const q of ST.inc) sp.set('i' + q.id, [INC[q.w][0], q.x, 1.6, q.z]);
+    if (ST.cbl) sp.set('c', ['🔌', ST.cbl.b.x, 1.7, ST.cbl.b.z]);
+  }
+  for (const [id, [ic, x, y, z]] of sp) { let s = V.s7.get(id); if (!s) { s = sprite(ic, .9); scene.add(A.dynamic(s)); V.s7.set(id, s); } s.position.set(x, y + Math.sin(gameTime * 5) * .1, z); }
+  for (const [id, s] of V.s7) if (!sp.has(id)) { scene.remove(s); V.s7.delete(id); }
+  client4(dt);
+}
+/* ======================= v7: унікальні фішки «Nest Office (COO)» =======================
+   🌬️ балкон (вітер, дрон з кавою, звіт за поручнями) · 🤖 прототип R&D · 💻 деплой/код-рев'ю/BSOD · 🗂️ досьє HR · 🔐 сейф COO · ⚡ секційний блекаут · 🐟 риба в мікрохвильовці · 🏓 пінг-понг */
+const IS4 = () => !!(L && L.id === 'deadline4');
+const REVS = [[['let total = 0;', 'for (i = 0; i <= arr.length; i++)', '  total += arr[i];', 'return total;'], 1], [['if (user = admin) {', '  grantAccess();', '}', 'log("ok");'], 0],
+  [['const sum = (a, b) => {', '  return a - b;', '};', 'sum(2, 2); // 4'], 1], [['const t = "18:00";', 'if (now > t) {', '  sendReport()', '}'], 3]];
+const SPOT4 = { sect: () => L.s4.SECT, fish: () => L.s4.MICRO, robot: () => ST.v4 && ST.v4.rb, bug: () => L.s4.DEPLOY, forge: () => L.s4.DOS, balc: () => L.s4.ROPE };
+Object.assign(SABW, { sect: '⚡ вимкнена секція', fish: '🐟 риба в мікрохвильовці', robot: '🤖 перепрошитий робот', bug: '💻 баг у проді', forge: '🗂️ підроблене досьє', balc: '🪂 звіт за поручнями балкона' });
+Object.assign(SABP, { sect: 2, fish: 1, robot: 3, bug: 3, forge: 2, balc: 4 });
+Object.assign(ST, { v4: null }); Object.assign(V, { m4: null, rtp4: 0 });
+function start4() {
+  if (!IS4()) { ST.v4 = null; return; }
+  const S = L.s4, code = Array.from({ length: 3 }, () => Math.random() * 10 | 0);
+  ST.v4 = { dr: null, rope: null, rb: { x: S.ROBOT.x, z: S.ROBOT.z, f: 0, mad: 0 }, bsod: 0, notes: shuffle(S.NOTES.slice()).slice(0, 3).map((p, i) => ({ id: i, x: r2(p.x), z: r2(p.z), d: code[i] })), nf: [], safe: 0, off: '', fish: 0, gust: 0, ga: 0, forged: 0 };
+  AU.v4 = { drT: rand(25, 40), gT: rand(12, 20), fT: rand(60, 90), offT: 0, hugCd: {}, vis: [], lastRm: {}, cd: {}, visT: 0 };
+}
+const code4 = (Q, full) => Q.notes.slice().sort((a, b) => a.id - b.id).map(n => full || Q.nf.includes(n.id) ? n.d : '?').join('');
+function snap4() {
+  const Q = ST.v4; if (!Q || !ST.on) return { v4: 0 };
+  return { v4: { dr: Q.dr ? [r2(Q.dr.x), r2(Q.dr.z), Math.ceil(Q.dr.t)] : 0, rope: Q.rope ? [Q.rope.x, Q.rope.z] : 0, rb: [r2(Q.rb.x), r2(Q.rb.z), r2(Q.rb.f), Math.ceil(Q.rb.mad)], bsod: Q.bsod, safe: Q.safe, off: Q.off, fish: Math.ceil(Q.fish), gust: Q.gust > 0 ? 1 : 0, ga: Q.ga,
+    nt: Q.notes.map(n => [n.id, n.x, n.z, Q.nf.includes(n.id) ? n.d : -1]) } };
+}
+function applySnap4(d) {
+  const a = d.v4; if (!a || typeof a !== 'object') { ST.v4 = null; return; }
+  const o = ST.v4 || {}, rb = Array.isArray(a.rb) ? { tx: +a.rb[0], tz: +a.rb[1], f: +a.rb[2], mad: +a.rb[3] || 0 } : { tx: 0, tz: 0, f: 0, mad: 0 };
+  ST.v4 = { dr: Array.isArray(a.dr) ? { x: +a.dr[0], z: +a.dr[1], t: +a.dr[2] } : null, rope: Array.isArray(a.rope) ? { x: +a.rope[0], z: +a.rope[1] } : null, rb: Object.assign(o.rb || { x: rb.tx, z: rb.tz }, rb),
+    bsod: a.bsod ? 1 : 0, safe: a.safe ? 1 : 0, off: String(a.off || ''), fish: +a.fish || 0, gust: a.gust ? 1 : 0, ga: +a.ga || 0, notes: (a.nt || []).slice(0, 3).map(n => ({ id: n[0] | 0, x: +n[1], z: +n[2], d: n[3] | 0 })) };
+  ST.v4.nf = ST.v4.notes.filter(n => n.d >= 0).map(n => n.id);
+  if (ST.v4.rb.x == null) { ST.v4.rb.x = rb.tx; ST.v4.rb.z = rb.tz; }
+}
+function sab4(w) {
+  const Q = ST.v4; if (!Q || !IS4()) return false; const S = L.s4;
+  if (w === 'sect') { const rs = L.rooms.filter(r => r.id !== 'balc' && r.n !== Q.off && r.n !== 'КОРИДОР'); if (!rs.length) return false; Q.off = pick(rs).n; AU.v4.offT = 45; emit({ k: 'secoff', r: Q.off }); return true; }
+  if (w === 'fish') { if (Q.fish > 0) return false; Q.fish = 35; emit({ k: 'fish', sab: 1 }); return true; }
+  if (w === 'robot') { if (Q.rb.mad > 0) return false; Q.rb.mad = 30; emit({ k: 'robot' }); return true; }
+  if (w === 'bug') { if (Q.bsod) return false; Q.bsod = 1; emit({ k: 'bsod', sab: 1 }); return true; }
+  if (w === 'forge') { const ns = [...crew().map(p => p.name), ...ST.bt.map(botWho), ...DESKS.map(d => NAMES[d.i])].filter(n => n !== AU.sab && n !== sabName(AU.sab)); if (!ns.length) return false; AU.v4.vis.push({ n: pick(ns), r: 'ЩИТОВА ТА ТЕХ КІМНАТА', t: ST.t - rand(5, 40), fk: 1 }); Q.forged = 1; return true; }
+  if (w === 'balc') {
+    let ok = 0; for (const [k2, v] of Object.entries(ST.held)) if (v.it === 'report') { setHeld(k2, '', 0, v.cup); ok = 1; }
+    const fi = ST.floor.findIndex(f => f.it === 'report'); if (fi >= 0) { ST.floor.splice(fi, 1); ok = 1; }
+    if (!ok) return false; Q.rope = { x: r2(S.ROPE.x), z: r2(S.ROPE.z) }; emit({ k: 'balc' }); return true;
+  }
+  return false;
+}
+function auth4(dt, c) {
+  const Q = ST.v4; if (!Q || !IS4()) return; const A4 = AU.v4, S = L.s4;
+  // 🌬️ пориви вітру на балконі
+  if (Q.gust > 0) { if ((Q.gust -= dt) <= 0) { Q.gust = 0; pushState(); } }
+  else if ((A4.gT -= dt) <= 0) { A4.gT = rand(16, 26); Q.gust = 4; Q.ga = r2(rand(0, 6.28)); emit({ k: 'gust' }); pushState(); }
+  // 🚁 дрон з кавою
+  if (Q.dr) { if ((Q.dr.t -= dt) <= 0) { Q.dr = null; pushState(); } }
+  else if ((A4.drT -= dt) <= 0) { A4.drT = rand(45, 70); Q.dr = { x: S.DRONE.x, z: S.DRONE.z, t: 25 }; emit({ k: 'drone' }); pushState(); }
+  // 🤖 прототип: схиблений — женеться й обіймає (блокує) найближчого
+  const R = Q.rb;
+  if (R.mad > 0) {
+    R.mad -= dt; let tg = null, bd = 14; for (const p of c) { const d = dist2(p.x, p.z, R.x, R.z); if (d < bd) { bd = d; tg = p; } }
+    if (tg) { if (bd > .9) zMove(R, tg.x, tg.z, 2.3, dt); R.f = Math.atan2(tg.x - R.x, tg.z - R.z); if (bd < 1.2 && (A4.hugCd[tg.name] || 0) <= ST.t) { A4.hugCd[tg.name] = ST.t + 4; emit({ k: 'hug', to: tg.name, x: r2(R.x), z: r2(R.z) }); } }
+    if (R.mad <= 0) { R.mad = 0; emit({ k: 'msg', txt: '🤖 Прототип розрядився й поплентався на стенд.' }); pushState(); }
+  } else if (dist2(R.x, R.z, S.ROBOT.x, S.ROBOT.z) > .3) zMove(R, S.ROBOT.x, S.ROBOT.z, 1.5, dt);
+  // 🐟 риба в мікрохвильовці
+  if (Q.fish > 0) { if ((Q.fish -= dt) <= 0) { Q.fish = 0; emit({ k: 'msg', txt: '🐟 Рибний дух вивітрився з кухні.' }); pushState(); } }
+  else if ((A4.fT -= dt) <= 0) { A4.fT = rand(80, 120); Q.fish = 35; emit({ k: 'fish' }); pushState(); }
+  // ⚡ секція вмикається сама за 45 с
+  if (Q.off && (A4.offT -= dt) <= 0) { Q.off = ''; emit({ k: 'secon' }); pushState(); }
+  // 🗂️ досьє: хто в яку кімнату заходив (останні 2 хв)
+  if ((A4.visT -= dt) <= 0) {
+    A4.visT = 1;
+    for (const q of [...c.map(p => ({ n: p.name, x: p.x, z: p.z })), ...ST.bt.map(b => ({ n: botWho(b), x: b.x, z: b.z }))]) { const rm = roomAt(q.x, q.z), rn = rm ? rm.n : ''; if (rn && A4.lastRm[q.n] !== rn) { A4.lastRm[q.n] = rn; A4.vis.push({ n: q.n, r: rn, t: ST.t }); } }
+    A4.vis = A4.vis.filter(v => ST.t - v.t < 120).slice(-80);
+  }
+}
+function onReq4(d, k, h, p, nr) {
+  const Q = ST.v4;
+  if (Q && d.k === 'print' && Q.off) { const rm = roomAt(PRINTER.p.x, PRINTER.p.z); if (rm && rm.n === Q.off) { emit({ k: 'dark', to: k }); return true; } }
+  if (Q && Q.bsod && ((d.k === 'sub' && d.w === 'scan') || (d.k === 'fix' && d.w === 'excel') || d.k === 'bpc')) { emit({ k: 'bsodblk', to: k }); return true; }
+  if (d.k !== 'v4') return false; if (!Q || !IS4()) return true;
+  const S = L.s4, A4 = AU.v4, w = String(d.w || ''), cd = (q, s) => { if ((A4.cd[k + q] || 0) > ST.t) return false; A4.cd[k + q] = ST.t + s; return true; };
+  if (Q.bsod && (w === 'rev' || w === 'dep')) { emit({ k: 'bsodblk', to: k }); return true; }
+  if (w === 'drone') { if (!Q.dr || !nr(Q.dr, 2.5)) return true; Q.dr = null; AU.lw[k] = ST.t; emit({ k: 'dronec', who: k }); pushState(); return true; }
+  if (w === 'rope') { if (!Q.rope || !nr(Q.rope, 2.6) || h.it) return true; Q.rope = null; setHeld(k, 'report', 1, h.cup); stat(k, 't'); emit({ k: 'ropeok', who: k }); pushState(); return true; }
+  if (w === 'cal') { const R = Q.rb; if (!nr(R, 2.6)) return true; if (R.mad > 0) { R.mad = 0; stat(k, 't'); emit({ k: 'robotok', who: k }); } else { if (!cd('cal', 40)) return true; ST.dur += 8; stat(k, 't'); emit({ k: 'cal', who: k }); } pushState(); return true; }
+  if (w === 'rev') { if (!nr(S.REV, 2.6) || !cd('rev', 30)) return true; ST.dur += 8; stat(k, 't'); emit({ k: 'rev', who: k }); pushState(); return true; }
+  if (w === 'dep') { if (!nr(S.DEPLOY, 2.6) || !cd('dep', 60)) return true; if (Math.random() < .6) { ST.dur += 12; stat(k, 't'); emit({ k: 'dep', ok: 1, who: k }); } else { Q.bsod = 1; emit({ k: 'bsod', who: k }); } pushState(); return true; }
+  if (w === 'roll') { if (!Q.bsod || !(nr(S.DEPLOY, 2.6) || nr(S.REV, 2.6))) return true; Q.bsod = 0; stat(k, 't'); emit({ k: 'bsodok', who: k }); pushState(); return true; }
+  if (w === 'dos') {
+    if (!nr(S.DOS, 2.6)) return true; const by = {};
+    for (const v of A4.vis) (by[v.n] || (by[v.n] = [])).includes(v.r) || by[v.n].push(v.r);
+    emit({ k: 'dos', to: k, l: Object.entries(by).slice(0, 10).map(([n, rs]) => `${n}: ${rs.slice(-4).join(' → ')}`) }); return true;
+  }
+  if (w === 'note') { const n = Q.notes.find(q => q.id === (d.id | 0)); if (!n || Q.nf.includes(n.id) || !nr(n, 2)) return true; Q.nf.push(n.id); emit({ k: 'note', who: k, d: n.d, n: Q.nf.length }); pushState(); return true; }
+  if (w === 'safe') { if (Q.safe || Q.nf.length < 3 || !nr(S.SAFE, 2.6) || String(d.c) !== code4(Q, 1)) return true; Q.safe = 1; ST.dur += 30; stat(k, 't'); emit({ k: 'safe', who: k }); pushState(); return true; }
+  if (w === 'secon') { if (!Q.off || !nr(S.SECT, 2.6)) return true; Q.off = ''; stat(k, 't'); emit({ k: 'secon', who: k }); pushState(); return true; }
+  if (w === 'fishx') { if (!Q.fish || !nr(S.MICRO, 2.6)) return true; Q.fish = 0; stat(k, 't'); emit({ k: 'fishx', who: k }); pushState(); return true; }
+  if (w === 'latte') { if (!nr(S.LATTE, 2.6) || !cd('latte', 40)) return true; emit({ k: 'latte', to: k }); return true; }
+  if (w === 'pong') { if (!nr(S.PONG, 3) || !cd('pong', 30)) return true; AU.pg[k] = ST.t + 20; emit({ k: 'pong', to: k }); return true; }
+  return true;
+}
+/* ---------- клієнт ---------- */
+// 📝 стікери — пріоритетно (можуть опинитись біля кнопки зборів)
+function note4(near) { const Q = ST.v4, h = myHeld(); if (!Q || !IS4() || !ST.on || ST.mt) return null;
+  if (Q.rope && near(Q.rope, 1.9)) return h.it ? { l: '🪢 Руки зайняті — спершу віддай папери', fn: () => { } } : { l: '🪢 Витягнути звіт мотузкою з-за поручнів (міні-гра)', fn: () => mini('rope', () => req('v4', { w: 'rope' }), { at: Q.rope }) };
+  if (Q.dr && near(Q.dr, 1.9)) return { l: '🚁 Зловити каву з дрона (кава-бафф)', fn: () => req('v4', { w: 'drone' }) };
+  for (const n of Q.notes) if (!Q.nf.includes(n.id) && near(n, 1.5)) return { l: '📝 Стікер з цифрою коду сейфа COO', fn: () => req('v4', { w: 'note', id: n.id }) }; return null; }
+function interact4(near, h) {
+  const Q = ST.v4; if (!Q || !IS4() || !ST.on || ST.mt) return null; const S = L.s4;
+  if (near(Q.rb, 1.9)) return { l: Q.rb.mad > 0 ? '🤖 Перекалібрувати схибленого робота (міні-гра)' : '🤖 Калібрування прототипу (міні-гра, +8 с)', fn: () => mini('seq', () => req('v4', { w: 'cal' }), { at: Q.rb }) };
+  if (near(S.DEPLOY, 1.6)) return Q.bsod ? { l: '⏪ Відкотити реліз — прибрати BSOD (міні-гра)', fn: () => mini('seq', () => req('v4', { w: 'roll' }), { at: S.DEPLOY }) } : { l: '🚀 «Деплой у п’ятницю» (60% — +12 с, 40% — BSOD на весь поверх)', fn: () => req('v4', { w: 'dep' }) };
+  if (near(S.REV, 1.5)) return Q.bsod ? { l: '⏪ Відкотити реліз — прибрати BSOD (міні-гра)', fn: () => mini('seq', () => req('v4', { w: 'roll' }), { at: S.REV }) } : { l: '💻 Код-рев’ю: знайди баг у 4 рядках (+8 с)', fn: () => mini('rev', () => req('v4', { w: 'rev' }), { at: S.REV }) };
+  if (near(S.DOS, 1.6)) return { l: '🗂️ Досьє HR: хто куди заходив за 2 хв', fn: () => req('v4', { w: 'dos' }) };
+  if (near(S.SAFE, 1.7) && !Q.safe) { const c = code4(Q); return c.includes('?') ? { l: `🔐 Сейф COO: цифр знайдено ${Q.nf.length}/3 — шукай стікери 📝`, fn: () => { } } : { l: `🔐 Відкрити сейф COO кодом ${c} (+30 с)`, fn: () => mini('type', () => req('v4', { w: 'safe', c }), { w: c, at: S.SAFE }) }; }
+  if (Q.off && near(S.SECT, 1.5)) return { l: `⚡ Увімкнути секцію «${Q.off}» (2 с)`, fn: () => startAct(() => req('v4', { w: 'secon' }), 2, () => S.SECT, '⚡', 'Вмикаю секцію', () => '') };
+  if (Q.fish > 0 && near(S.MICRO, 1.6)) return { l: '🐟 Викинути рибу з мікрохвильовки (2 с)', fn: () => startAct(() => req('v4', { w: 'fishx' }), 2, () => S.MICRO, '🐟', 'Затискаю носа й викидаю', () => '') };
+  if (near(S.LATTE, 1.5)) return { l: '🥛 Лате-арт (міні-гра → прискорення)', fn: () => mini('latte', () => req('v4', { w: 'latte' }), { at: S.LATTE }) };
+  if (near(S.PONG, 2)) return { l: '🏓 Пінг-понг (міні-гра → прискорення; бос бачить «херньою страждає»)', fn: () => mini('pong', () => req('v4', { w: 'pong' }), { at: S.PONG }) };
+  return null;
+}
+function hud4() {
+  const Q = ST.v4; if (!Q || !IS4()) return [];
+  return [Q.off ? `⚡ без світла: ${Q.off}` : '', Q.bsod ? '💻 BSOD — ПК стоять' : '', Q.fish > 0 ? '🐟 сморід на кухні' : '', Q.rb.mad > 0 ? '🤖 робот схибнувся' : '', Q.dr ? '🚁 дрон з кавою' : '', Q.rope ? '🪢 звіт за балконом!' : '', Q.safe ? '🔐 сейф відкрито' : `🔐 код ${code4(Q)}`];
+}
+function onEvent4(e, here, nm) {
+  const k = e.k, me = isMe(e.who), to = isMe(e.to); if (!here && !to) return ['gust', 'drone', 'dronec', 'hug', 'robot', 'robotok', 'cal', 'rev', 'dep', 'bsod', 'bsodok', 'bsodblk', 'dos', 'note', 'safe', 'secoff', 'secon', 'fish', 'fishx', 'latte', 'pong', 'balc', 'ropeok'].includes(k);
+  if (k === 'gust') { const rm = roomAt(pl.x, pl.z); if (rm && rm.id === 'balc') banner('🌬️ Порив вітру! Тримайся за поручні!'); }
+  else if (k === 'drone') { banner('🚁 Дрон приніс каву на балкон — хто перший зловить?'); sfx('whoosh'); }
+  else if (k === 'dronec') { if (me) { V.dashT = 8; V.cof = (V.cof | 0) + 1; toast('🚁☕ Спіймав каву з дрона — прискорення й +1 кава-ривок!'); sfx('drink'); } else toast(`🚁 ${nm} перехопив каву з дрона.`); }
+  else if (k === 'hug') { if (to && running && !pl.dead) { V.stunT = 1.6; V.act = null; banner('🤖 Робот-прототип ОБІЙМАЄ тебе й не пускає! 🤗'); sfx('hurt'); } else ftext(+e.x, 2.4, +e.z, '🤗', 'bad'); }
+  else if (k === 'robot') { banner('🤖 Прототип R&D перепрошили — він женеться за всіма й обіймає! Перекалібруй його (F).'); sfx('warn'); }
+  else if (k === 'robotok') toast(`🤖 ${nm} перекалібрував робота — заспокоївся.`);
+  else if (k === 'cal') toast(`🤖 ${nm} відкалібрував прототип — +8 с`);
+  else if (k === 'rev') toast(`💻 ${nm}: код-рев’ю — баг знайдено, +8 с`);
+  else if (k === 'dep') { toast(`🚀 ${nm} задеплоїв у п’ятницю — і пронесло! +12 с`); sfx('level'); }
+  else if (k === 'bsod') { banner(e.sab ? '💻 Хтось запушив баг — на всіх моніторах BSOD! ПК стоять, відкотіть реліз у програмістів.' : `💻 ${nm} задеплоїв у п’ятницю… BSOD на весь поверх! Відкотіть реліз.`); sfx('hurt'); }
+  else if (k === 'bsodok') { toast(`⏪ ${nm} відкотив реліз — монітори ожили.`); sfx('level'); }
+  else if (k === 'bsodblk') { if (to) toast('💻 BSOD — ПК не працюють. Спершу відкотіть реліз у програмістів!'); }
+  else if (k === 'dos') { if (to) toast(`🗂️ <b>Досьє HR (2 хв):</b><br>${(e.l || []).slice(0, 8).map(escapeHTML).join('<br>') || 'нікого не було'}`); }
+  else if (k === 'note') toast(`📝 ${nm} знайшов стікер: цифра <b>${e.d}</b> (${e.n}/3) — код сейфа COO`);
+  else if (k === 'safe') { banner(`🔐 ${nm} відкрив сейф COO — бонусний документ! +30 с`); sfx('level'); }
+  else if (k === 'secoff') { banner(`⚡ Секційний блекаут: «${e.r}» без світла! Щитова — увімкни секцію.`); sfx('warn'); }
+  else if (k === 'secon') toast('💡 Секцію увімкнули — світло є.');
+  else if (k === 'fish') { banner('🐟 Хтось розігрів рибу в мікрохвильовці! Кухнею неможливо дихати…'); sfx('warn'); }
+  else if (k === 'fishx') toast(`🐟 ${nm} героїчно викинув рибу.`);
+  else if (k === 'latte') { if (to) { V.dashT = 10; toast('🥛 Серце на піні вийшло! Прискорення 10 с.'); sfx('drink'); } }
+  else if (k === 'pong') { if (to) { V.dashT = 8; toast('🏓 Перемога в пінг-понг! Прискорення 8 с (бос бачить, що ти «херньою страждаєш» 😏).'); } }
+  else if (k === 'balc') { banner('🪂 Саботажник жбурнув звіт за поручні балкона! Витягніть мотузкою (F на балконі).'); sfx('hurt'); }
+  else if (k === 'ropeok') { toast(`🪢 ${nm} витягнув звіт з-за поручнів!`); sfx('level'); }
+  else return false;
+  return true;
+}
+function client4(dt) {
+  const Q = ST.v4, on = IS4() && Q && ST.on && running && inOffice(pl.x, pl.z) && !panel, t = gameTime;
+  // 🤖 модель прототипу
+  if (V.m4 && (V.m4.L !== L || !on)) { scene.remove(V.m4.g); for (const s of V.m4.sp) scene.remove(s); V.m4 = null; }
+  if (!on) return;
+  if (!V.m4) {
+    const g = new THREE.Group(), bx = (x, y, z, w, h, d, c, gl) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), gl ? bulb(c) : mat(c)); m.position.set(x, y, z); g.add(m); return m; };
+    bx(0, .45, 0, .7, .6, .5, '#C9CDD9'); bx(0, 1, 0, .5, .4, .4, '#E8E3F0'); const e1 = bx(-.12, 1.05, .21, .1, .06, .02, '#6BE7FF', 1), e2 = bx(.12, 1.05, .21, .1, .06, .02, '#6BE7FF', 1);
+    bx(-.45, .55, 0, .12, .5, .12, '#8E86B0'); bx(.45, .55, 0, .12, .5, .12, '#8E86B0'); bx(0, .1, 0, .6, .2, .5, '#4E4A6E');
+    scene.add(A.dynamic(g)); V.m4 = { L, g, e1, e2, sp: [], mad: -1 };
+  }
+  const M = V.m4, R = Q.rb; R.x = R.tx != null ? lerp(R.x, R.tx, Math.min(1, dt * 8)) : R.x; R.z = R.tz != null ? lerp(R.z, R.tz, Math.min(1, dt * 8)) : R.z;
+  M.g.position.set(R.x, R.mad > 0 ? Math.abs(Math.sin(t * 12)) * .08 : 0, R.z); M.g.rotation.y = lerpAng(M.g.rotation.y, R.f || 0, Math.min(1, dt * 6));
+  if (M.mad !== (R.mad > 0)) { M.mad = R.mad > 0; M.e1.material = M.e2.material = bulb(M.mad ? '#FF3B5C' : '#6BE7FF'); }
+  // мітки: 🚁 дрон, 🪢 мотузка, 📝 стікери, 🟦 BSOD над ПК програмістів, 🔐 сейф
+  const want = [];
+  if (Q.dr) want.push(['🚁', Q.dr.x, 2.4 + Math.sin(t * 4) * .15, Q.dr.z, 1.1]);
+  if (Q.rope) want.push(['🪢', Q.rope.x, 1.5, Q.rope.z, .9]);
+  for (const n of Q.notes) if (!Q.nf.includes(n.id)) want.push(['📝', n.x, 1.2, n.z, .55]);
+  if (Q.bsod) { for (const d of DESKS) if (d.lz < -6) want.push(['🟦', d.x, 1.7, d.z, .6]); want.push(['💀', L.s4.REV.x, 1.9, L.s4.REV.z, .7]); }
+  if (!Q.safe) want.push(['🔐', L.s4.SAFE.x, 1.6, L.s4.SAFE.z, .6]);
+  if (Q.fish > 0) want.push(['🐟', L.s4.MICRO.x, 1.9 + Math.sin(t * 3) * .1, L.s4.MICRO.z, .8]);
+  while (M.sp.length > want.length) scene.remove(M.sp.pop());
+  want.forEach(([ic, x, y, z, s], i) => { let sp = M.sp[i]; if (!sp || sp.userData.ic !== ic) { if (sp) scene.remove(sp); sp = sprite(ic, s); sp.userData.ic = ic; scene.add(A.dynamic(sp)); M.sp[i] = sp; } sp.position.set(x, y, z); });
+  if (!ST.on || pl.dead) return;
+  const rm = roomAt(pl.x, pl.z);
+  // 🌬️ вітер штовхає на балконі
+  if (Q.gust && rm && rm.id === 'balc' && (V.gT = (V.gT || 0) - dt) <= 0) { V.gT = .35; knockMe(Q.ga, 5, Math.random() < .2 ? '🌬️ Ух!' : ''); }
+  // 🐟 сморід: на кухні повільніше, кашель, виштовхує
+  if (Q.fish > 0 && rm && rm.id === 'kit') { V.slowT = Math.max(V.slowT || 0, .4); if ((V.fT = (V.fT || 0) - dt) <= 0) { V.fT = 1.6; knockMe(Math.atan2(pl.x - (OX + 4), pl.z - (OZ - 7)), 7, pick(['🤢 Кхе-кхе!', '🐟 Фу-у-у!', '🤮'])); } }
+  // ⚡ секційний блекаут — темно лише в одній кімнаті
+  V.secDark = !!(Q.off && rm && rm.n === Q.off);
+}
+
 if (window.__ADDON_TEST) window.__deadline = { sabDo, wallGuard, seeThrough, ST, AU, V, LAY, get L() { return L; }, get DESKS() { return DESKS; }, get START() { return START; }, get SEND() { return SEND; }, get PRINTER() { return PRINTER; }, get COFFEE() { return COFFEE; }, get TUBE() { return TUBE; }, get STAIRS() { return STAIRS; }, get LIFTS() { return LIFTS; }, get OBS() { return OBS; }, get WALLS() { return WALLS; },
   STEPS, goal, intro, chaos, req, myHeld, myKey, blocked, navPath, clockStr, cur, useVar, floorOf, inOffice, firePlunger, throwReport, coffeeDash, reachable, roomAt, roomLabels, lobbyDef, openLobby,
   get COOLER() { return COOLER; }, get RACK() { return RACK; }, get VALVE() { return VALVE; }, get NAMES() { return NAMES; }, CUPS, hashS, pestOf, colPos, fireC, fireR, dock, throwPlane, spray, throwMolotov, callMeeting, sabotage, sabTarget, turnPest, startFire, botSabotage, startMeeting, endMeeting, onReq };
 if (window.__ADDON_TEST) Object.assign(window.__deadline, { mini, miniKey, miniWin: arg => { if (V.mg) miniDone(true, 0, arg); }, mpos, cands, setRoles, clue5, stat, finalScreen, interact5, chairPose, pkOn, CLUEI, SHIRT });
+if (window.__ADDON_TEST) Object.assign(window.__deadline, { IS4, sab4, code4, bot7, itSpot, rtDown, rtFix, near7, bossAct, interact7, goal7, tgt7, bar7, INC, EXCUSE, work7 });
+if (window.__ADDON_TEST) Object.defineProperties(window.__deadline, { BOSS_DESK: { get: () => BOSS_DESK }, bossV: { get: () => V.boss } });
 if (window.__ADDON_TEST) Object.defineProperties(window.__deadline, { PANEL: { get: () => PANEL }, ARCHIVE: { get: () => ARCHIVE } });

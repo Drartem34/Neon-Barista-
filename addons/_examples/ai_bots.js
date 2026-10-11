@@ -15,7 +15,7 @@ const LS = 'nb_ai_bots_v1';
 const PER_BOT = 6, PER_MIN = 12, TIMEOUT = 10, MAXW = 20;                      // ≤1 запит на бота за 6 с, ≤12 на хвилину, 10 с на відповідь
 const PROV = {
   mock: { n: '🧪 Мок (без ключа, фейкові відповіді)' },
-  gemini: { n: 'Google Gemini (безкоштовно)', model: 'gemini-2.0-flash' },
+  gemini: { n: 'Google Gemini (безкоштовно)', model: 'gemini-flash-latest' },
   openai: { n: 'OpenAI-сумісний (Groq / OpenRouter / Ollama)', model: 'llama-3.1-8b-instant', url: 'https://api.groq.com/openai/v1' }
 };
 const PRESETS = [['Groq', 'https://api.groq.com/openai/v1', 'llama-3.1-8b-instant'], ['OpenRouter', 'https://openrouter.ai/api/v1', 'meta-llama/llama-3.3-70b-instruct:free'], ['Ollama', 'http://localhost:11434/v1', 'llama3.2']];
@@ -66,10 +66,19 @@ function llm(sys, user, snap, fresh) {
   let pr;
   if (p === 'gemini') {
     // ключ — у заголовку, не в URL (щоб не потрапив у журнали проксі)
-    pr = fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, Object.assign(opt, {
+    const G = 'https://generativelanguage.googleapis.com/v1beta/models';
+    const gen = m => fetch(`${G}/${encodeURIComponent(m)}:generateContent`, Object.assign({}, opt, {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': CFG.key },
       body: JSON.stringify({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { temperature: .8, maxOutputTokens: 200, responseMimeType: 'application/json' } })
     })).then(done).then(j => ({ text: (((j.candidates || [])[0] || {}).content || { parts: [] }).parts.map(q => q.text || '').join(''), tok: (j.usageMetadata || {}).totalTokenCount || 0 }));
+    // модель зняли з підтримки (404) → питаємо в Google список і беремо найсвіжішу доступну Flash
+    const pickModel = () => fetch(G + '?pageSize=200', { headers: { 'x-goog-api-key': CFG.key } }).then(done).then(j => {
+      const ok = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => String(m.name || '').replace(/^models\//, ''));
+      const fl = ok.filter(n => /flash/.test(n) && !/image|tts|audio|live|thinking|exp|preview/.test(n)).sort().reverse();
+      const m = fl.find(n => /latest/.test(n)) || fl[0] || ok[0]; if (!m) throw new Error('Google не віддав жодної моделі');
+      CFG.model = m; save(); log(`🔁 Модель «${model}» більше не доступна — перемкнув на «${m}»`); return m;
+    });
+    pr = gen(model).catch(e => { if (e && e.status === 404) return pickModel().then(gen); throw e; });
   } else {
     const base = String(CFG.url || PROV.openai.url).replace(/\/+$/, ''), h = { 'Content-Type': 'application/json' }; if (CFG.key) h.Authorization = 'Bearer ' + CFG.key;
     pr = fetch(base + '/chat/completions', Object.assign(opt, { headers: h, body: JSON.stringify({ model, temperature: .8, max_tokens: 200, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }) }))

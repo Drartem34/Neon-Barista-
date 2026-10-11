@@ -157,7 +157,7 @@ const bot = n => F.ST.bt.find(b => b.n === n);
   w.fetch = (url, opt) => { calls.push({ url, opt }); return Promise.reject(new Error('мережа лежить')); };
   Object.assign(G.S, { win: [], last: {}, back: 0 }); const e0 = G.S.errs; await run(14);
   assert(G.S.errs > e0 && G.S.log.some(l => /за скриптом/.test(l)), `помилка LLM — лог «бот працює за скриптом» (помилок ${G.S.errs - e0})`);
-  assert(calls.length && calls.every(c => /generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-2\.0-flash:generateContent$/.test(c.url) && c.opt.headers['x-goog-api-key'] === 'TESTKEY-SECRET-123'), 'Gemini: ключ у заголовку x-goog-api-key, не в URL');
+  assert(calls.length && calls.every(c => /generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-flash-latest:generateContent$/.test(c.url) && c.opt.headers['x-goog-api-key'] === 'TESTKEY-SECRET-123'), 'Gemini: ключ у заголовку x-goog-api-key, не в URL');
   await run(25);
   assert(F.ST.bt.every(b => !b.ai) && F.ST.bt.every(b => !b.aic), 'без відповідей ШІ 40 с — усі боти знову скриптові (без 🧠)');
   assert(F.ST.bt.some(b => b.job && b.job !== 'ai'), 'скриптові боти працюють: ' + F.ST.bt.map(b => b.job).join(','));

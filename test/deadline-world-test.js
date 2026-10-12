@@ -16,7 +16,7 @@ fs.symlinkSync(path.join(root, 'node_modules'), path.join(tmpRoot, 'node_modules
 for (const id of process.env.ALL_ADDONS ? fs.readdirSync(path.join(root, 'addons/_examples')) : ['deadline']) fs.cpSync(path.join(root, 'addons/_examples', id), path.join(tmpRoot, 'addons', id), { recursive: true });
 // тестовий гачок сервера: від 3 людей ролі спершу отримують люди (саботажник, бос, безпековик — гравці); удвох — спершу 🤖 боти
 // (бот-саботажник, гравці — працівники). У грі без гачка — усе навмання між людьми й ботами.
-fs.writeFileSync(path.join(tmpRoot, 'addons', 'zz_dltest.js'), "window.__deadlineCastTest = 'sab,boss,sec';\n");
+fs.writeFileSync(path.join(tmpRoot, 'addons', 'zz_dltest.js'), "window.__deadlineCastTest = 'sab,boss,sec';\nwindow.__deadlineSvTest = 'lift';\n");   // v10: без випадкових сюрпризів, на старті першого раунду — «ліфт застряг»
 const srv = spawn('python3', [path.join(tmpRoot, 'start.py'), '--no-ui', '--tunnel', 'none', '--port', String(PORT)], { stdio: 'ignore' });
 function cleanup(code) { try { srv.kill(); } catch (e) { } try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (e) { } process.exit(code); }
 const assert = (c, m) => { if (!c) { console.error('FAIL:', m); cleanup(1); } console.log('ok -', m); };
@@ -94,6 +94,22 @@ async function follow(T, D, Ts) {
     const rp = Object.values(a.NET.players).find(p => p.name === 'Стажер'), hm = D.V.hm.get('Стажер');
     assert(rp && hm && hm.g.parent === rp.h.root, 'Бухгалтер бачить стос паперів у руках Стажера');
     assert(D.ST.desk.filter(Boolean).length === 2, 'стіл колеги спорожнів і в Бухгалтера');
+  }
+  // v9/v10: 🪑 свій стіл у кожного; 🛗 «ліфт застряг» — двоє гравців тягнуть двері разом (рахує сервер); 💻 ОфісOS — робота через сервер
+  {
+    const ks = ['Бухгалтер', 'Стажер', ...E.ST.bt.map(q => '🤖 ' + q.n)];
+    assert(ks.every(k => D.myDesk9(k) && E.myDesk9(k)) && D.ST.dk9.length === ks.length, `🪑 свій стіл у кожного (2 людини + ${ks.length - 2} ботів) — бачать обоє`);
+    for (let i = 0; i < 40 && !(D.ST.sv && E.ST.sv && /Ліфт застряг/.test(a.w.document.getElementById('deadline-hud').textContent)); i++) await tick(Ts, .2);
+    const S = E.ST.sv; assert(S && S.w === 'lift' && D.ST.sv && D.ST.sv.w === 'lift' && /Ліфт застряг/.test(a.w.document.getElementById('deadline-hud').textContent), '🛗 сюрприз «Ліфт застряг з колегою» — в обох (банер і HUD)' + (S && D.ST.sv ? '' : ' sv=' + JSON.stringify(D.ST.sv) + ' t=' + D.ST.t));
+    const d0 = E.ST.dur;
+    for (let r = 0; r < 10 && E.ST.sv; r++) { at(a, { x: S.x + .4, z: S.z }); at(b, { x: S.x - .4, z: S.z }); await tick(Ts, .5); for (const T of Ts) { const it2 = T.getInteract(); if (it2 && /ліфта РАЗОМ/.test(it2.l)) it2.fn(); } await tick(Ts, .4); }
+    assert(!D.ST.sv && !E.ST.sv && E.ST.dur >= d0 + 15, '🛗 удвох розсунули двері ліфта — колега вільний, +15 с (бачать обоє)');
+    const q = E.myDesk9('Стажер'); at(b, E.chair9(q)); await tick(Ts, .3); at(b, E.chair9(q)); const it3 = b.getInteract();
+    assert(it3 && /Сісти за свій стіл/.test(it3.l), `💻 Стажер біля свого столу — «${it3 && it3.l}»`); it3.fn(); for (let i = 0; i < 15 && !D.ST.st9.includes('Стажер'); i++) { at(b, E.chair9(q)); await tick(Ts, .2); }
+    assert(E.V.os9 && D.ST.st9.includes('Стажер') && b.w.document.querySelector('#dl-os .dlos'), '💻 Стажер сів — ОфісOS; Бухгалтер бачить, що він за столом');
+    const d1 = E.ST.dur; for (const f of E.V.os9.files) if (!f.at) E.osDrop(f, f.t === 'meme' ? 'bin' : f.t); await tick(Ts, .6);
+    assert(E.V.osDone9.files && D.ST.dur === d1 + 8, '💻 файли розкладено — сервер перевірив і дав +8 с');
+    E.osClose(); E.stand9(); await tick(Ts, .4); assert(!D.ST.st9.includes('Стажер'), '🚶 Стажер встав — бачить і Бухгалтер');
   }
   // далі — разом, слухаючись підказок, поки звіт не здано; щойно звіт надруковано — кидаємо його напарнику
   const c0a = a.P.coins, c0b = b.P.coins; let maxSi = 0, sameSeen = 0, thrown = 0;
@@ -209,10 +225,12 @@ async function follow(T, D, Ts) {
     // 💻 онлайн-бос затверджує звіти на ПК: міні-гра «ЗАТВЕРДЖУЮ» справжніми натисканнями (англ. розкладка) → +8 с у всіх
     { const fn = p => { for (const d of [1.3, 1.6, 1.9, 2.2]) for (let k = 0; k < 12; k++) { const x = p.x + Math.sin(k / 12 * 6.28) * d, z = p.z + Math.cos(k / 12 * 6.28) * d; if (!BX.blocked(x, z, .35) && BX.reachable(x, z)) return { x, z }; } return p; };
       const bp = fn(BX.BOSS_DESK), d0 = BX.ST.dur; at(BS, bp); await tick(T3, .5); at(BS, bp); const it = BS.getInteract();
-      assert(it && /Затвердити звіт/.test(it.l), `👔 онлайн-бос біля ПК — «${it && it.l}»`); it.fn(); assert(BX.V.mg && BX.V.mg.kind === 'type', '💻 міні-гра набору');
+      assert(it && /Сісти за свій ПК/.test(it.l), `👔 онлайн-бос біля ПК — «${it && it.l}»`); it.fn(); await tick(T3, .2);
+      const oq = q => BS.w.document.querySelector('#dl-os ' + q); assert(oq('.dlos') && !oq('.dlos-lock'), '👔 бос сів за свій ПК — ОфісOS без пароля');
+      oq('[data-open="srv"]').click(); oq('[data-os="bpc"]').click(); assert(BX.V.mg && BX.V.mg.kind === 'type', '💻 «Затвердити рахунки» — міні-гра набору');
       for (const [key, code] of [['p', 'KeyP'], ['f', 'KeyF'], ['n', 'KeyN'], ['d', 'KeyD'], ['t', 'KeyT'], ['h', 'KeyH'], ['l', 'KeyL'], [';', 'Semicolon'], ['e', 'KeyE'], ['.', 'Period']]) BS.w.document.body.dispatchEvent(new BS.w.KeyboardEvent('keydown', { key, code, bubbles: true }));
       for (let i = 0; i < 20 && !(BX.V.cd7.pc > 0); i++) { at(BS, bp); await tick(T3, .1); }
-      assert(!BX.V.mg && BX.V.cd7.pc > 0 && Dx.every(X => X.ST.dur >= d0 + 8), `💻 онлайн-бос затвердив звіти — +8 с у всіх (${d0} → ${Dx.map(X => X.ST.dur).join('/')})`); }
+      assert(!BX.V.mg && BX.V.cd7.pc > 0 && Dx.every(X => X.ST.dur >= d0 + 8), `💻 онлайн-бос затвердив звіти — +8 с у всіх (${d0} → ${Dx.map(X => X.ST.dur).join('/')})`); BX.stand9(); await tick(T3, .2); }
     assert(Dx.every(X => !JSON.stringify(X.ST.sh).includes(S.w.__deadline.myKey())), 'у знімку немає імені саботажника — лише хеш');
     assert(/🕵️/.test(S.w.document.querySelector('#modebar [data-ms="7"]').textContent) && crewT.every(T => /🚨/.test(T.w.document.querySelector('#modebar [data-ms="7"]').textContent)), 'у саботажника 8-й слот — 🕵️, у решти — 🚨 Нарада');
     // 🕵️ саботажник підпалює серверну — бачать усі
@@ -293,7 +311,7 @@ async function follow(T, D, Ts) {
       mt(OT).querySelector(`[data-mv="${si}"]`).click(); await tick(T3, .8);
       assert(Dx.every(X => !X.ST.on || (X.ST.mt && X.ST.mt.cnt[si] === 2)), '👔 голос боса рахується ×2');
       for (let i = 0; i < 30 && Dx.some(X => X.ST.on); i++) await tick(T3, 1);
-      assert(Dx.every(X => !X.ST.on && X.ST.sbC === 1) && T3.every(T => !mt(T) || mt(T).style.display === 'none'), `🕵️ спіймали саботажника (${sk}) — раунд скінчився в усіх`);
+      assert(Dx.every(X => !X.ST.on && X.ST.sbC === 1) && T3.every(T => !mt(T) || mt(T).style.display === 'none'), `🕵️ спіймали саботажника (${sk}) — раунд скінчився в усіх` + ' ' + JSON.stringify(T3.map(T => [mt(T) && mt(T).style.display, (T.w.__dlErr || []).slice(0, 2)])) + (Dx.every(X => !X.ST.on && X.ST.sbC === 1) ? '' : ' · ' + JSON.stringify(Dx.map(X => [X.ST.on, X.ST.sbC, X.ST.mt && X.ST.mt.ph, X.ST.mt && X.ST.mt.cnt, X.ST.mt && Math.round(X.ST.mt.t)]))));
       assert([OT, S].every(T => /Звільнено/.test(T.w.document.getElementById('dl-verdict').textContent) && /БУВ/.test(T.w.document.getElementById('dl-verdict').textContent)), '🗂️ драматичний вердикт: «Звільнено: … — БУВ саботажником!»');
       await tick(T3, .3);
       assert(!S.MODEBAR && !OT.MODEBAR, 'після раунду — звичайний хотбар');

@@ -8,7 +8,7 @@ const dom = new JSDOM(fs.readFileSync(path.join(root, 'src/00_shell.html'), 'utf
 const w = dom.window;
 class FakeRenderer { constructor() { this.shadowMap = {}; } setPixelRatio() { } setSize() { } render() { } }
 w.THREE = Object.assign({}, THREE, { WebGLRenderer: FakeRenderer });
-w.matchMedia = () => ({ matches: false }); w.requestAnimationFrame = () => 0; w.console.warn = () => { }; w.__NO_NET = true; w.__ADDON_TEST = true; w.__hidebossFastLobby = 1;
+w.matchMedia = () => ({ matches: false }); w.requestAnimationFrame = () => 0; w.console.warn = () => { }; w.__NO_NET = true; w.__ADDON_TEST = true; w.__hidebossFastLobby = 1; w.__hidebossCalm = 1;
 const IV = []; w.setInterval = (f, ms) => { if (ms <= 100) IV.push(f); return 0; };
 w.setTimeout = f => { f(); return 0; };
 w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (o, k) => k in o ? o[k] : () => { }, set: (o, k, v) => { o[k] = v; return true; } });
@@ -77,7 +77,8 @@ assert(H.FURN.length > 60 && ['chair', 'cooler', 'ficus', 'copier', 'cabinet', '
 T.pl.x = F0.x + 15.5; T.pl.z = F0.z + 10.5; step(.05); for (let k = 0; k < 40; k++) { T.pl.z += .1; step(.02); } assert(T.pl.z < F0.z + 12.8, 'з поверху не вийдеш крізь скляний фасад');
 
 const nearPk = (x, z) => H.FL.some((F, v) => H.picks(v).some(sp => Math.hypot(sp.x - x, sp.z - z) < 2.4));
-const hideAt = t => { const h = H.hideSpots().find(s => s.f.t === t && !H.DESKS.some(d => Math.hypot(d.x - s.x, d.z - s.z) < 2.6) && !nearPk(s.x, s.z)); T.pl.x = h.x; T.pl.z = h.z; step(.05); return h; };
+// меблі щораунду переставлені 🔀 — шукаємо схованку, де найближчий предмет саме цього типу (F покаже його)
+const hideAt = t => { T.input.aimOk = false; let last = null; for (const h of H.hideSpots().filter(s => s.f.t === t && !H.DESKS.some(d => Math.hypot(d.x - s.x, d.z - s.z) < 2.6) && !nearPk(s.x, s.z))) { last = h; T.pl.x = h.x; T.pl.z = h.z; step(.05); const it = T.getInteract(); if (it && it.l.includes(H.FT[t].n)) return h; } return last; };
 const tall = T.STATICS.filter(o => o.h >= 2.4);
 const segD = (px, pz, x0, z0, x1, z1) => { const dx = x1 - x0, dz = z1 - z0, L = dx * dx + dz * dz || 1, u = Math.max(0, Math.min(1, ((px - x0) * dx + (pz - z0) * dz) / L)); return Math.hypot(px - x0 - dx * u, pz - z0 - dz * u); };
 const clear = (x0, z0, x1, z1) => !tall.some(o => segD(o.x, o.z, x0, z0, x1, z1) < o.r + .12) && ST.ro.every(e => !e.bot || e.c || segD(e.x, e.z, x0, z0, x1, z1) > 1.1 || Math.hypot(e.x - x1, e.z - z1) < .5);
@@ -109,7 +110,7 @@ assert(!lob(), 'раунд почався — вікно лобі закрило
 let it;
 assert(H.bossE().bot && H.alive().length === 4 && ST.ro.length === 5, `5 учасників: бот-бос «${H.bossE().n}» і ще три боти-офісники`);
 assert(ST.v === 0, 'ніхто не голосував — граємо на поверсі, де стоїш (42)');
-step(.1); assert(T.MODEBAR && T.MODEBAR.slots.map(q => q.id).join() === 'mask,decoy,ram,smoke,pl,pp,bk,ex' && !w.document.getElementById('modebar').hidden && w.document.getElementById('weapon').hidden, 'панель офісника замість напоїв: 🎭 📄 🛞 🚬 ✈️ 🧻 📘 🧯');
+step(.1); assert(T.MODEBAR && T.MODEBAR.slots.map(q => q.id).join() === 'mask,decoy,ram,taunt,pl,pp,bk,ex' && !w.document.getElementById('modebar').hidden && w.document.getElementById('weapon').hidden, 'панель офісника замість напоїв: 🎭 📄 🚬/🛞 🔊 ✈️ 🧻 📘 🧯');
 H.AU.freeze = true;   // боти стоять — тест передбачуваний
 let spot = hideAt('ficus');
 it = T.getInteract(); assert(it && /Замаскуватись/.test(it.l) && /Фікус/.test(it.l), 'біля фікуса F — «Замаскуватись: 🪴 Фікус»'); it.fn(); step(.2);
@@ -137,8 +138,10 @@ for (let k = 0; k < 40 && !mine.c; k++) { T.pl.x = spot.x; T.pl.z = spot.z; step
 H.AU.freeze = true;
 assert(mine.c, 'бот-бос побачив блимаючу коробку — «Попався!»');
 step(.2); assert(H.inOffice(T.pl.x, T.pl.z), 'спійманий стоїть на килимі в кабінеті боса');
-assert(!T.MODEBAR, 'спійманому панель режиму не потрібна — звичайний хотбар');
-T.pl.x = F0.x; T.pl.z = F0.z; step(.1); assert(H.inOffice(T.pl.x, T.pl.z), 'спійманий не виходить з кабінету до кінця раунду');
+assert(!T.MODEBAR && H.me().hl > 0, 'спійманий на інструктажі — панелі режиму нема');
+T.pl.x = F0.x; T.pl.z = F0.z; step(.1); assert(H.inOffice(T.pl.x, T.pl.z), 'на інструктажі з кабінету не вийти');
+step(3.2); assert(H.me().c && !(H.me().hl > 0) && H.me().am === H.AMMO_H && T.MODEBAR && T.MODEBAR.slots.map(q => q.id).join() === 'catch', `🧟 «зараження»: після інструктажу я — помічник боса зі степлером (${H.me().am} скоб)`);
+T.pl.x = F0.x; T.pl.z = F0.z; step(.1); assert(!H.inOffice(T.pl.x, T.pl.z) && /помічник/.test(H.goal().txt), 'помічник ходить офісом і шукає');
 { const c0 = T.P.coins; ST.t = H.DUR; step(.3); assert(!ST.on && T.P.addons.hideboss.caught === 1 && T.P.coins > c0, `раунд скінчився, мене спіймали: +${T.P.coins - c0} 🪙`); }
 assert(!H.inOffice(T.pl.x, T.pl.z), 'після раунду — з кабінету на волю');
 
@@ -147,8 +150,9 @@ step(.1); assert(lob() && /Я готовий/.test(lob().querySelector('.rdy').t
 ready(); step(.1); H.AU.freeze = true;
 assert(ST.on && ST.rn === 2 && !H.me().boss, 'новий раунд офісником');
 hideAt('chair'); it = T.getInteract(); assert(it && /крісло/i.test(it.l), 'біля крісла F — «Замаскуватись: 🪑 Офісне крісло»'); it.fn(); step(.1);
-T.keydown('KeyR'); step(.1); assert(ST.dec.length === 1 && H.me().dc, 'R — фейковий звіт лишився на підлозі');
-T.keydown('KeyR'); step(.1); assert(ST.dec.length === 1, 'другий звіт за раунд не можна');
+T.keydown('KeyR'); step(.1); assert(ST.dec.length === 1 && H.me().dn === 1 && ST.dec[0].t === 'chair', 'R — приманка у формі крісла лишилась на підлозі');
+T.keydown('KeyR'); step(.1); assert(ST.dec.length === 2 && H.me().dc, 'друга приманка');
+T.keydown('KeyR'); step(.1); assert(ST.dec.length === 2, 'третьої за раунд нема');
 /* 🛞 Фізичний тролінг: кріслом у ноги босові */
 ST.ph = 'hunt'; ST.t = 0;
 {
@@ -172,7 +176,7 @@ assert(lob() && /бос<\/b> проти ботів/.test(lob().querySelector('.r
 ready(); step(.2);
 assert(ST.on && H.me().boss && H.alive().length === 4 && H.alive().every(e => e.bot), 'я — бос, проти чотирьох ботів-офісників');
 { const r = w.document.getElementById('hb-role'); assert(r && r.style.display !== 'none' && /Ти — БОС!/.test(r.textContent) && r.dataset.role === 'boss', 'на старті велика картка «👔 Ти — БОС!»'); }
-step(.1); assert(T.MODEBAR && T.MODEBAR.slots.map(q => q.id).join() === 'catch,check,bell,bk', 'панель боса: 👉 🔍 🔔 📘');
+step(.1); assert(T.MODEBAR && T.MODEBAR.slots.map(q => q.id).join() === 'catch,check,bell,bk,sniff,freeze', 'панель боса: 🔫 🔍 🔔 📘 🐕 📢');
 assert(H.inOffice(T.pl.x, T.pl.z) && w.document.getElementById('hb-blind').style.display === 'flex', 'нарада: бос у скляному кабінеті й нічого не бачить');
 T.pl.x = F0.x; T.pl.z = F0.z; step(.1); assert(H.inOffice(T.pl.x, T.pl.z), 'під час наради з кабінету не вийти');
 H.AU.freeze = false;
@@ -268,8 +272,9 @@ lob().querySelector('[data-lv="0"]').click(); step(.2); ready(); step(.1);
 assert(ST.on && ST.v === 0 && !H.me().boss && H.bossE().bot && ST.ro.length === 5, 'раунд офісником на 42-му (5 учасників)');
 H.AU.freeze = true;
 {
+  H.shuffleFloor(ST.v, 0, true);   // кидалки тестуємо на базовій розстановці (перестановку 🔀 — окремо, розділ 6)
   const me = () => H.me(), toastTxt = [];
-  const p0 = H.picks(0).find(s => s.t === 'pl'), sp = standOff(p0.x, p0.z, 1.15);
+  const p0 = H.picks(0).find(s => s.t === 'pl' && standOff(s.x, s.z, 1.15) && H.picks(0).every(o => o === s || Math.hypot(o.x - s.x, o.z - s.z) > 2.6)) || H.picks(0).find(s => s.t === 'pl'), sp = standOff(p0.x, p0.z, 1.15);   // 🔀 меблі переставлені — беремо ксерокс без сусідів-кидалок
   T.pl.x = sp.x; T.pl.z = sp.z; step(.2);
   assert(H.V.pks && H.V.pks.length === H.FL.reduce((n, F, v) => n + H.picks(v).length, 0) && H.V.pks.some(o => o.sp === p0 && o.g.visible), 'місця підбору — 3D: кільце, стос паперу на ксероксі, вогнегасники');
   assert([...w.document.querySelectorAll('.hb-lbl.pick')].some(e => e.textContent === '✈️ Папір для літачків' && e.style.display !== 'none' && e.style.opacity !== '0'), 'над ксероксом підпис «✈️ Папір для літачків»');
@@ -280,7 +285,7 @@ H.AU.freeze = true;
   assert(me().inv.pl === 3 && T.MODEBAR.slots[4].count() === 3 && T.MODEBAR.slots[4].n === 'Літачок', '✈️×3 у слоті 5');
   it = T.getInteract(); assert(!it || !/скласти/.test(it.l), 'одразу вдруге з того самого ксерокса не можна (поповнюється)');
   for (const t of ['pp', 'bk', 'ex']) {
-    const s0 = H.picks(0).find(s => s.t === t && standOff(s.x, s.z, 1.15)), q = standOff(s0.x, s0.z, 1.15);
+    const s0 = H.picks(0).find(s => s.t === t && standOff(s.x, s.z, 1.15) && H.picks(0).every(o => o === s || Math.hypot(o.x - s.x, o.z - s.z) > 2.6)) || H.picks(0).find(s => s.t === t && standOff(s.x, s.z, 1.15)), q = standOff(s0.x, s0.z, 1.15);
     T.pl.x = q.x; T.pl.z = q.z; step(.1);
     it = T.getInteract(); assert(it && new RegExp(t === 'pp' ? 'нам.яти паперу' : t === 'bk' ? 'взяти книжку' : 'взяти вогнегасник').test(it.l), `біля «${H.PK[t].lbl}» F — «${it && it.l}»`); it.fn(); step(.1);
   }
@@ -319,5 +324,104 @@ H.AU.freeze = true;
   const c0 = T.P.coins; aimKey(shot.f.x, shot.f.z, 'Digit6'); step(1.5);
   assert(T.P.addons.hideboss.bins === 1 && T.P.coins > c0 + 4 && me().inv.pp === 4, `6 — 🧻 у смітник з ${Math.hypot(shot.q.x - shot.f.x, shot.q.z - shot.f.z).toFixed(1)} м: +${T.P.coins - c0} 🪙`);
   ST.t = H.DUR; step(.3); assert(!ST.on, 'раунд скінчився');
+}
+
+/* ===== 6. v3: 🔀 меблі, 🔊 звук, ⚡ блекаут, 🧹 / ☕ події, 🔫 степлер, 🐕 нюх, 📢 нарада, 🧟 помічники, підсумки ===== */
+{
+  const el = w.document.getElementById('hb-end');
+  assert(el && /ОфісOS/.test(el.textContent) && /MVP/.test(el.textContent) && el.querySelectorAll('tr').length === 5, 'після раунду — вікно підсумків «ОфісOS»: MVP, табличка очок (5 рядків)');
+  // 🔀 перестановка: щораунду предмети міняються місцями (статики й навігація — слідом)
+  T.pl.x = F0.spawn.x; T.pl.z = F0.spawn.z; H.V.pref = 'hider'; step(.2);
+  const mv = H.FL[0].furn.filter(H.movable), pos = () => mv.map(f => f.x.toFixed(2) + ',' + f.z.toFixed(2)).join(';');
+  const p0 = pos(); ready(); H.AU.freeze = true;
+  assert(ST.on && ST.v === 0 && !H.me().boss, 'новий раунд офісником на 42-му');
+  const moved = mv.filter((f, i) => p0.split(';')[i] !== f.x.toFixed(2) + ',' + f.z.toFixed(2));
+  assert(mv.length > 25 && moved.length > mv.length * .4, `🔀 меблі переставлено: ${moved.length} з ${mv.length} переставних предметів на нових місцях`);
+  assert(mv.every(f => !H.inOffice(f.x, f.z) && f.st.every((o, k) => { const c = H.fdist(f, o.x, o.z); return c < -o.r + .02; })), 'статики їдуть разом із меблями, у кабінет боса нічого не заїхало');
+  const F = H.FL[0], hs = H.hideSpots(0);
+  assert(hs.length > 40 && [hs[0], hs[hs.length >> 1], hs[hs.length - 1]].every(h => { const rt = H.route(F.spawn.x, F.spawn.z, h.x, h.z); return rt.length > 2 && rt.every(q => H.navFree(q.x, q.z)); }), `навігація перебудована: ${hs.length} сховків, маршрути від ліфта є`);
+  assert(F.walls.every(wl => (wl.doors || []).every(d => { const hz = wl.z1 === wl.z2, x = hz ? d : wl.x1, z = hz ? wl.z1 : d; return H.navFree(x, z); })), 'жодні двері не заставлені');
+  assert(H.picks(0).every(sp => !sp.f || (sp.x === sp.f.x && sp.z === sp.f.z)), 'місця підбору кидалок переїхали разом із меблями');
+  // 🎭 маскування під предмет під курсором (не найближчий)
+  let pair = null;
+  for (const h of hs.filter(h => !H.DESKS.some(d => H.fdist(d, h.x, h.z) < 1.6) && !nearPk(h.x, h.z))) { const near = F.furn.filter(f => H.FT[f.t].dis && H.fdist(f, h.x, h.z) < 2.1 && !H.inOffice(f.x, f.z)); const a = near.sort((p, q) => H.fdist(p, h.x, h.z) - H.fdist(q, h.x, h.z))[0], b2 = near.find(f => f.t !== a.t && H.fdist(f, h.x, h.z) > H.fdist(a, h.x, h.z) + .3); if (a && b2) { pair = { h, a, b: b2 }; break; } }
+  T.pl.x = pair.h.x; T.pl.z = pair.h.z; T.input.aimOk = true; T.input.ax = pair.b.x; T.input.az = pair.b.z; step(.05);
+  it = T.getInteract(); assert(it && it.l.includes(H.FT[pair.b.t].n), `курсор на «${H.FT[pair.b.t].n}» (а найближче — «${H.FT[pair.a.t].n}») — F маскує саме під нього`); it.fn(); step(.1);
+  assert(H.me().p === pair.b.t, `я — ${H.FT[pair.b.t].ic} ${H.FT[pair.b.t].n}`);
+  T.input.aimOk = false;
+  const r0 = H.me().r; T.keydown('KeyT'); T.keyup('KeyT'); step(.1); assert(Math.abs(H.me().r - r0 - Math.PI / 4) < .02, 'T — предмет повернувся на 45°');
+  // 🔊 подати звук
+  ST.ph = 'hunt'; ST.t = 0; step(.1);
+  const B = H.bossE(), c0 = T.P.coins, rp0 = H.V.ripples.length;
+  T.keydown('KeyG'); T.keyup('KeyG'); step(.1);
+  assert(H.me().tn === 1 && H.me().pt >= 1 && T.P.coins >= c0 + 3 && H.me().tc > 4, `G — 🔊 звук: +очко, +${T.P.coins - c0} 🪙, перезарядка ${H.me().tc.toFixed(1)} с`);
+  const ns = H.AU.sus.find(u => u.n);
+  assert(ns && Math.hypot(ns.x - T.pl.x, ns.z - T.pl.z) <= H.TAUNTS.length && Math.hypot(ns.x - T.pl.x, ns.z - T.pl.z) <= 3.01 && H.V.ripples.length > rp0 && H.V.noise.taunt, `бос-бот чує звук (±3 м: ${Math.hypot(ns.x - T.pl.x, ns.z - T.pl.z).toFixed(1)} м), у гравця — рожеві кола`);
+  T.keydown('KeyG'); T.keyup('KeyG'); step(.1); assert(H.me().tn === 1, 'одразу вдруге — ні (перезарядка)');
+  assert(T.MODEBAR.slots[3].id === 'taunt' && T.MODEBAR.slots[3].count() > 0, 'слот 4 — 🔊 з перезарядкою');
+  // примусовий звук для того, хто мовчав найдовше
+  w.__hidebossCalm = 0; H.AU.evT = 999; H.AU.ftT = H.TAUNT_FORCE - .05; const tn0 = H.alive().map(e => e.tn | 0);
+  step(.1); w.__hidebossCalm = 1;
+  const forced = H.alive().filter((e, i) => (e.tn | 0) > tn0[i]);
+  assert(forced.length === 1 && forced[0].k !== 'me' && tn0[H.alive().indexOf(forced[0])] === 0, `раз на ${H.TAUNT_FORCE} с — примусовий звук у того, хто мовчав: ${forced[0] && forced[0].n}`);
+  // ⚡ блекаут: темрява, ліхтарик боса, стіни закривають світло
+  H.startEvent('dark'); step(.1);
+  assert(ST.bo > 14 && ST.bo <= 25 && ST.ev === 'dark' && H.V.dark.dataset.on === '1' && H.V.litN === 1, `⚡ блекаут ${ST.bo.toFixed(0)} с: екран темний, світить 1 ліхтарик (бос)`);
+  const sg = H.wallSegs(F).find(q => Math.hypot(q[2] - q[0], q[3] - q[1]) > 3 && Math.abs(q[0] - F.x) < F.hx - 1 && Math.abs(q[1] - F.z) < F.hz - 1 && Math.abs(q[3] - F.z) < F.hz - 1);
+  const mx = (sg[0] + sg[2]) / 2, mz = (sg[1] + sg[3]) / 2, hz = sg[1] === sg[3], A1 = { x: mx + (hz ? 0 : -2), z: mz + (hz ? -2 : 0) }, B1 = { x: mx + (hz ? 0 : 2), z: mz + (hz ? 2 : 0) };
+  const ang = Math.atan2(B1.x - A1.x, B1.z - A1.z);
+  assert(!H.losClear(F, A1.x, A1.z, B1.x, B1.z) && H.rayLen(F, A1.x, A1.z, ang, 7.5) < 2.1 && H.rayLen(F, A1.x, A1.z, ang + Math.PI, 7.5) > 2.1, `промінь ліхтарика обрізає стіна (${H.rayLen(F, A1.x, A1.z, ang, 7.5).toFixed(2)} м замість 7,5)`);
+  assert(!H.inCone({ x: A1.x, z: A1.z, f: ang }, B1.x, B1.z) && H.inCone({ x: A1.x, z: A1.z, f: ang + Math.PI }, A1.x - Math.sin(ang) * 3, A1.z - Math.cos(ang) * 3), 'бос-бот у темряві бачить лише в промені й не крізь стіни');
+  ST.bo = .05; step(.3); assert(!ST.bo && !ST.ev && H.V.dark.dataset.on !== '1', '💡 світло повернулось');
+  // 🧹 прибиральниця розмасковує, кого зачепить
+  { const q = H.alive().find(e => e.bot); q.p = q.p || 'box'; H.startEvent('clean'); step(.05); ST.cl.x = q.x; ST.cl.z = q.z; step(.1);
+    assert(!q.p && ST.ev === 'clean', `🧹 пилосос зачепив ${q.n} — маскування злетіло`); ST.cl.t = .05; step(.2); assert(!ST.cl && !ST.ev, 'прибиральниця пішла'); }
+  // ☕ кава-брейк: бос 5 с п’є каву
+  H.startEvent('coffee'); step(.1); assert(ST.stun > 4.5 && ST.ev === 'coffee' && /☕/.test(w.document.getElementById('hideboss-hud').textContent + ''), '☕ кава-брейк: бос стоїть і п’є каву 5 с');
+  step(5.2); assert(ST.stun === 0 && !ST.ev, 'бос допив каву');
+  // 🔀 посеред раунду
+  { const p1 = pos(), s0 = ST.fs[0]; H.startEvent('shuf'); step(.1); assert(ST.fs[0] !== s0 && pos() !== p1, '🔀 «Переставили меблі!» посеред раунду'); }
+  ST.t = H.DUR; step(.3); assert(!ST.on, 'раунд скінчився');
+}
+/* ===== 7. Бос: 🔫 степлер зі скобами, 📎 шафа, 🐕 нюх, 📢 нарада, 🧟 бот-помічник ===== */
+{
+  step(.1); H.V.pref = 'boss'; T.pl.x = F0.spawn.x; T.pl.z = F0.spawn.z; step(.1); ready(); H.AU.freeze = true;
+  assert(ST.on && H.me().boss && H.me().am === H.AMMO, `я — бос зі степлером (${H.me().am} скоб)`);
+  ST.ph = 'hunt'; ST.t = 0;
+  const far = H.hideSpots().filter(h => !H.inOffice(h.x, h.z)); H.alive().forEach((e, i) => { const h = far[(i * 7 + 3) % far.length]; e.x = h.x; e.z = h.z; e.p = h.f.t; });
+  step(.2);
+  // 🐕 нюх
+  T.pl.x = F0.spawn.x; T.pl.z = F0.spawn.z; step(.1);
+  T.keydown('KeyG'); T.keyup('KeyG'); step(.1);
+  const nr = H.alive().slice().sort((a, b) => Math.hypot(a.x - T.pl.x, a.z - T.pl.z) - Math.hypot(b.x - T.pl.x, b.z - T.pl.z))[0], na = Math.atan2(nr.x - T.pl.x, nr.z - T.pl.z);
+  assert(H.V.sniff && Math.abs(Math.atan2(Math.sin(H.V.sniff.a - na), Math.cos(H.V.sniff.a - na))) < .3 && ST.nc > 18, `G — 🐕 нюх показує напрям до найближчого (${nr.n}, ~${H.V.sniff.d} м)`);
+  // 📢 «Всім на нараду!» — хто ворухнувся, той з прапорцем
+  T.keydown('KeyT'); T.keyup('KeyT'); step(.1);
+  const mvr = H.alive()[1]; assert(ST.fz > 2.5 && ST.fc > 25, 'T — 📢 нарада: 3 с не рухатись');
+  mvr.x += 1; step(.2);
+  assert(mvr.fl > 0 && H.alive().filter(e => e.fl > 0).length === 1, `ворухнувся ${mvr.n} — 🚩 підсвічений (інші стоять)`);
+  step(3); assert(ST.fz === 0, 'нарада скінчилась');
+  // 🔫 степлер здалеку (4 м): скоба влучає — спійманий
+  const q = H.alive()[0], s4 = standOff(q.x, q.z, 4);
+  T.pl.x = s4.x; T.pl.z = s4.z; step(.05); aim(q.x, q.z);
+  assert(q.c && H.me().am === H.AMMO - 1, `🔫 з 4 м — скоба в «${q.n}»: попався (скоб ${H.me().am})`);
+  // промах здалеку по меблях: −скоба і −5 с
+  { const f = F0.furn.filter(f => H.FT[f.t].r && !H.inOffice(f.x, f.z) && H.alive().every(e => Math.hypot(e.x - f.x, e.z - f.z) > 4)).map(f => ({ f, s: standOff(f.x, f.z, 3.3) })).find(o => o.s);
+    T.pl.x = f.s.x; T.pl.z = f.s.z; step(.05); const t0 = ST.t, a0 = H.me().am; aim(f.f.x, f.f.z);
+    assert(ST.t >= t0 + 4.9 && H.me().am === a0 - 1, `промах здалеку по «${H.FT[f.f.t].n}»: −1 скоба, −5 с`); }
+  // скоби скінчились — здалеку не ловиш
+  { const q2 = H.alive()[0], s2 = standOff(q2.x, q2.z, 4); H.me().am = 0; T.pl.x = s2.x; T.pl.z = s2.z; step(.05); aim(q2.x, q2.z);
+    assert(!q2.c && /Скоби скінчились/.test(H.goal().txt) && H.goal().id === 'sup', 'без скоб здалеку не влучиш — підказка веде до шафи 📎'); }
+  // 📎 шафа зі скобами
+  { const S = H.supSpot(F0), sp = standOff(S.x, S.z, 1.2); T.pl.x = sp.x; T.pl.z = sp.z; step(.1);
+    it = T.getInteract(); assert(it && /Взяти скоби/.test(it.l), `біля шафи «📎 СКОБИ»: «${it && it.l}»`); it.fn(); step(.1);
+    assert(H.me().am === 6 && H.me().rc > 29, '📎 +6 скоб, наступна пачка — за 30 с');
+    it = T.getInteract(); assert(it && /буде за/.test(it.l), 'одразу вдруге — ні'); }
+  // 🧟 спійманий бот стає помічником: інструктаж, потім шукає сам
+  step(3.3); assert(q.c && !(q.hl > 0) && q.am === H.AMMO_H && H.seeker(q), `🧟 ${q.n} — помічник боса (${q.am} скоб)`);
+  { const x0 = q.x, z0 = q.z; H.AU.freeze = false; step(1.5); H.AU.freeze = true; assert(Math.hypot(q.x - x0, q.z - z0) > .5 && H.AU.bot[q.k], 'помічник-бот вийшов з кабінету шукати'); }
+  ST.t = H.DUR; step(.3); assert(!ST.on, 'час вийшов');
+  const el = w.document.getElementById('hb-end');
+  assert(el && /MVP/.test(el.textContent) && /найдовше/.test(el.textContent) && /🧟/.test(el.innerHTML), 'підсумки: MVP, хто протримався найдовше, помічники 🧟 у табличці');
 }
 console.log('ALL OK'); process.exit(0);

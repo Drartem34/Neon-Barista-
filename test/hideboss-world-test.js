@@ -77,9 +77,11 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
   assert(F.inOffice(a.pl.x, a.pl.z) && a.w.document.getElementById('hb-blind').style.display === 'flex', 'бос — у скляному кабінеті на нараді');
   // Ледар ховається
   const nearPk = (v, x, z) => G.picks(v).some(sp => Math.hypot(sp.x - x, sp.z - z) < 2.4);
-  const h = G.hideSpots().find(s => s.f.t === 'ficus' && !G.DESKS.some(d => Math.hypot(d.x - s.x, d.z - s.z) < 2.6) && !nearPk(0, s.x, s.z));
-  b.pl.x = h.x; b.pl.z = h.z; await tick([a, b], .4);
-  it = b.getInteract(); assert(it && /Замаскуватись/.test(it.l), `${HN} біля фікуса: F — «Замаскуватись»`); it.fn();
+  // 🔀 меблі переставлені — шукаємо фікус, біля якого F пропонує саме його
+  let h = null; b.input.aimOk = false;
+  for (const s of G.hideSpots().filter(s => s.f.t === 'ficus' && !G.DESKS.some(d => Math.hypot(d.x - s.x, d.z - s.z) < 2.6) && !nearPk(0, s.x, s.z))) { h = s; b.pl.x = s.x; b.pl.z = s.z; await tick([a, b], .1); it = b.getInteract(); if (it && /Фікус/.test(it.l)) break; }
+  await tick([a, b], .3);
+  it = b.getInteract(); assert(it && /Замаскуватись/.test(it.l) && /Фікус/.test(it.l), `${HN} біля фікуса: F — «Замаскуватись: 🪴 Фікус»`); it.fn();
   await tick([a, b], 1);
   const eA = F.ST.ro.find(e => e.k === HN);
   assert(eA && eA.p === 'ficus' && G.me().p === 'ficus', 'сервер записав маскування — бачать обоє');
@@ -87,12 +89,21 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
   assert(rB && !rB.h.root.visible && rB.tag.style.display === 'none', `у боса герой ${HN} й табличка з іменем сховані`);
   assert(vB && vB.prop && Math.hypot(vB.prop.position.x - h.x, vB.prop.position.z - h.z) < .6, `у боса на місці ${HN} стоїть фікус`);
   assert(!b.hero.root.visible && G.V.ents.get(HN).prop, `${HN} сам себе теж бачить фікусом`);
-  assert(a.MODEBAR && a.MODEBAR.slots.map(q => q.id).join() === 'catch,check,bell,bk' && b.MODEBAR && b.MODEBAR.slots.map(q => q.id).join() === 'mask,decoy,ram,smoke,pl,pp,bk,ex', 'у кожного своя панель режиму: бос 👉🔍🔔📘, офісник 🎭📄🛞🚬✈️🧻📘🧯');
+  assert(a.MODEBAR && a.MODEBAR.slots.map(q => q.id).join() === 'catch,check,bell,bk,sniff,freeze' && b.MODEBAR && b.MODEBAR.slots.map(q => q.id).join() === 'mask,decoy,ram,taunt,pl,pp,bk,ex', 'у кожного своя панель режиму: бос 👉🔍🔔📘, офісник 🎭📄🛞🚬✈️🧻📘🧯');
   // усі сховались — нарада закінчується раніше (з 10 с)
   for (let k = 0; k < 30 && F.ST.ph === 'meet'; k++) { b.pl.x = h.x; b.pl.z = h.z; await tick([a, b], .5); }
   assert(F.ST.ph === 'hunt' && G.ST.ph === 'hunt', 'нарада скінчилась — бос полює');
   await tick([a, b], .3);
   assert(a.w.document.getElementById('hb-blind').style.display === 'none', 'бос знову бачить');
+  // v3 онлайн: 🔀 меблі переставлені однаково в обох (сервер шле лише зерно), 🔊 звук офісника — бос бачить кільце
+  {
+    const mv = X => X.FL[0].furn.filter(X.movable).map(f => f.x.toFixed(2) + ',' + f.z.toFixed(2)).join(';');
+    assert(F.ST.fs[0] && F.ST.fs[0] === G.ST.fs[0] && mv(F) === mv(G) && F.FL[0].furn.filter(F.movable).some(f => Math.hypot(f.x - f.bx, f.z - f.bz) > .1), `🔀 меблі переставлені однаково в обох (зерно ${F.ST.fs[0]})`);
+    b.keydown('KeyG'); b.keyup('KeyG'); await tick([a, b], .8);
+    const e = F.ST.ro.find(q => q.k === HN);
+    assert(e && e.tn === 1 && G.me().tn === 1 && F.V.noise && F.V.noise.taunt && Math.hypot(F.V.noise.x - h.x, F.V.noise.z - h.z) <= 3.3, `${HN} подав звук «${F.V.noise && F.V.noise.taunt && F.V.noise.taunt[1]}» — ${BN} бачить кільце (±3 м), сервер порахував`);
+    assert(F.me().am === F.AMMO && a.MODEBAR.slots[0].count() === F.AMMO, `у боса 🔫 ${F.AMMO} скоб — видно в панелі`);
+  }
   // бос промахується по справжньому предмету, потім ловить
   {
     // шафа подалі від усіх (боти теж ховаються й можуть таранити)
@@ -164,14 +175,20 @@ const tick = async (Ts, sec) => { for (let i = 0; i < sec * 20; i++) { for (cons
   const F1 = F.FL[1];
   assert(F.ST.v === 1 && G.ST.v === 1 && F.floorAt(a.pl.x, a.pl.z) === 1 && F.floorAt(b.pl.x, b.pl.z) === 1 && G.inOffice(b.pl.x, b.pl.z), `обох перевезло на 57-й: бос — у кабінеті супервайзерки, ${BN} — у холі`);
   // Шеф ховається кріслом і таранить боса
-  const hc = F.hideSpots(1).find(s => s.f.t === 'chair' && !F.FL[1].desks.some(d => Math.hypot(d.x - s.x, d.z - s.z) < 2.6) && !F.picks(1).some(sp => Math.hypot(sp.x - s.x, sp.z - s.z) < 2.4));
-  a.pl.x = hc.x; a.pl.z = hc.z; await tick([a, b], .4);
+  let hc = null; a.input.aimOk = false;
+  for (const s of F.hideSpots(1).filter(s => s.f.t === 'chair' && !F.FL[1].desks.some(d => Math.hypot(d.x - s.x, d.z - s.z) < 2.6) && !F.picks(1).some(sp => Math.hypot(sp.x - s.x, sp.z - s.z) < 2.4))) { hc = s; a.pl.x = s.x; a.pl.z = s.z; await tick([a, b], .1); it = a.getInteract(); if (it && /крісло/i.test(it.l)) break; }
+  await tick([a, b], .3);
   it = a.getInteract(); assert(it && /крісло/i.test(it.l) && /таранити/.test(it.l), `${BN} біля крісла: «Замаскуватись… (🛞 можна таранити!)»`); it.fn();
   for (let k = 0; k < 30 && F.ST.ph === 'meet'; k++) { a.pl.x = hc.x; a.pl.z = hc.z; await tick([a, b], .5); }
   assert(F.ST.ph === 'hunt' && G.ST.ro.find(e => e.k === BN).p === 'chair', `${BN} — крісло, бос вийшов з наради`);
   a.pl.x = F1.x - 6; a.pl.z = F1.z - 1; b.pl.x = F1.x - 3.5; b.pl.z = F1.z - 1; await tick([a, b], .6);
-  a.input.aimOk = true; a.input.ax = b.pl.x; a.input.az = b.pl.z; a.keydown('Digit3');
-  for (let k = 0; k < 20 && !(G.ST.stun > 0 && F.ST.stun > 0 && a.P.addons.hideboss.trips); k++) { b.pl.x = F1.x - 3.5; b.pl.z = F1.z - 1; await tick([a, b], .1); }
+  // боти теж таранять боса — якщо хтось із них устиг першим, чекаємо, поки бос підведеться, й пробуємо ще раз
+  for (let tr = 0; tr < 2 && !a.P.addons.hideboss.trips; tr++) {
+    for (let k = 0; k < 40 && (F.ST.stun > 0 || (F.me().rc > 0 && tr)); k++) { a.pl.x = F1.x - 6; a.pl.z = F1.z - 1; b.pl.x = F1.x - 3.5; b.pl.z = F1.z - 1; await tick([a, b], .5); }
+    a.pl.x = F1.x - 6; a.pl.z = F1.z - 1; await tick([a, b], .2);
+    a.input.aimOk = true; a.input.ax = b.pl.x; a.input.az = b.pl.z; a.keydown('Digit3'); a.keyup('Digit3');
+    for (let k = 0; k < 20 && !(G.ST.stun > 0 && F.ST.stun > 0 && a.P.addons.hideboss.trips); k++) { b.pl.x = F1.x - 3.5; b.pl.z = F1.z - 1; await tick([a, b], .1); }
+  }
   if (!(F.ST.stun > .5 && G.ST.stun > .5)) console.log('  [таран]', JSON.stringify({ a: [a.pl.x - F1.x, a.pl.z - F1.z], b: [b.pl.x - F1.x, b.pl.z - F1.z], ram: F.V.ram, me: F.me(), sv: F.ST.ro.map(e => [e.k, e.x - F1.x, e.z - F1.z, e.p]) }));
   assert(F.ST.stun > .5 && G.ST.stun > .5 && a.P.addons.hideboss.trips === 1, `таран кріслом: бос лежить в обох (${G.ST.stun.toFixed(1)} с), ${BN}: +1 «збив боса»`);
   assert(G.goal().txt.includes('збили з ніг'), 'босу підказка: «Тебе збили з ніг!»');

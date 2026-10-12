@@ -14,14 +14,21 @@
      промах по справжньому предмету — −5 с. 🔍 Перевірка — замасковані поруч трусяться.
      🔔 Загальні збори (1 раз): усі офісники мають за 15 с прийти в залу нарад — хто не прийшов, отримує 🚩.
    - Спійманий іде «на килим» у кабінет боса. Усі спіймані — перемога боса; вийшов час — перемагають ті, хто вцілів.
+   v3: 🔊 «подати звук» (G) за очки й монети; 🔫 степлер боса зі скобами (📎 шафа біля кабінету); 🐕 нюх і 📢 «Всім на нараду!»;
+     🧟 спіймані стають помічниками боса; ⚡ блекаут (ліхтарики, стіни закривають світло), 🧹 прибиральниця, ☕ кава-брейк;
+     🔀 меблі переставляються щораунду; 2 приманки; підсумки з MVP і найкращою схованкою.
    У спільному світі ролі, голоси, маскування, тарани й спіймання рахує сервер.
    Картинку для картки в меню поклади поруч: addons/hideboss/hideboss-bg.jpg */
-const A = Addon.info({ name: 'Сховайся від боса', version: '2.0', desc: 'Хованки (Prop Hunt) на 2–6 на поверсі хмарочоса: три поверхи на вибір, тарани кріслом, загальні збори, фейкові звіти. Наодинці — проти ботів.' });
+const A = Addon.info({ name: 'Сховайся від боса', version: '3.0', desc: 'Хованки (Prop Hunt) на 2–6 на поверсі хмарочоса: маскуйся під будь-які меблі, подавай звуки, бос зі степлером, блекаути з ліхтариками, помічники боса. Наодинці — проти ботів.' });
 
 const SIMSIDE = !!window.__SIM;
 const AUTH = () => SIMSIDE || !(typeof WORLD !== 'undefined' && WORLD.on);
-const MEET = 20, DUR = 180, PENALTY = 5, CHECK_CD = 12, CHECK_R = 7, WORK_T = 3, DRAIN = 100 / 75;
+const MEET = 30, DUR = 180, PENALTY = 5, CHECK_CD = 12, CHECK_R = 7, WORK_T = 3, DRAIN = 100 / 75;
 const RAM_CD = 14, RAM_T = .55, RAM_SPD = 10, STUN = 2.2, BUMP_CD = 2.5, BELL_T = 15, FLAG_T = 10, SMOKE_CD = 20;
+// v3: 🔊 «подати звук», 🔫 степлер зі скобами, 🐕 нюх, 📢 «Всім на нараду!», помічники боса, події (⚡ блекаут, 🧹 прибиральниця, ☕ кава-брейк, 🔀 меблі)
+const TAUNT_CD = 6, TAUNT_FORCE = 45, TAUNT_J = 3, AMMO = 12, AMMO_H = 6, REFILL = 6, REFILL_CD = 30, STAPLE_R = 5.5, STAPLE_RH = 3, HAND_R = 1.5;
+const SNIFF_CD = 20, FREEZE_CD = 30, FREEZE_T = 3, BRIEF_T = 3, DECOYS = 2, PRESS_T = 60, COFFEE_T = 5, CLEAN_T = 24, EV_GAP = [28, 42];
+const TAUNTS = [['🤧', 'АПЧХИ!'], ['🐱', 'Мяу?'], ['📱', 'Дзелень-дзелень!'], ['🫃', 'Буррр… (живіт)'], ['💨', 'Пррр! (це крісло, чесно)']];
 const PI = Math.PI, H2 = Math.PI / 2;
 const r2 = v => Math.round(v * 100) / 100;
 
@@ -82,33 +89,33 @@ const FT = {
   shelf: { n: 'Стелаж', ic: '📚', h: 1.8, c: [[-.6, 0, .33], [0, 0, .33], [.6, 0, .33]], miss: 'Стелаж. Тут лише папки за 2009 рік.' },
   archive: { n: 'Архівний стелаж', ic: '🗃️', h: 2.2, c: [[-.6, 0, .34], [0, 0, .34], [.6, 0, .34]], miss: 'Архів. Справа №1488/2007. Нічого цікавого.' },
   counter: { n: 'Кухонна стійка', ic: '🍽️', h: 1, c: [[-1.5, 0, .4], [-.5, 0, .4], [.5, 0, .4], [1.5, 0, .4]], miss: 'Стійка. Хтось знову не помив чашку.' },
-  fridge: { n: 'Холодильник', ic: '🧊', r: .45, h: 1.9, miss: 'Холодильник. Тут мій йогурт! А, ні — уже нема.' },
+  fridge: { n: 'Холодильник', ic: '🧊', r: .45, h: 1.9, dis: 1, miss: 'Холодильник. Тут мій йогурт! А, ні — уже нема.' },
   mtable: { n: 'Стіл для нарад', ic: '📊', h: .9, c: [[-2.4, 0, .7], [-1.2, 0, .7], [0, 0, .7], [1.2, 0, .7], [2.4, 0, .7]], miss: 'Стіл для нарад. Пам’ятає всі мої промови.' },
-  ktable: { n: 'Обідній стіл', ic: '🍽️', h: .9, c: [[-.6, 0, .55], [.6, 0, .55]], miss: 'Обідній стіл. Крихти, але не офісник.' },
-  ctable: { n: 'Журнальний столик', ic: '☕', h: .5, c: [[-.35, 0, .42], [.35, 0, .42]], miss: 'Столик. На ньому журнал «Ефективний менеджмент».' },
+  ktable: { n: 'Обідній стіл', ic: '🍽️', h: .9, dis: 1, c: [[-.6, 0, .55], [.6, 0, .55]], miss: 'Обідній стіл. Крихти, але не офісник.' },
+  ctable: { n: 'Журнальний столик', ic: '☕', h: .5, dis: 1, c: [[-.35, 0, .42], [.35, 0, .42]], miss: 'Столик. На ньому журнал «Ефективний менеджмент».' },
   rtable: { n: 'Читальний стіл', ic: '📖', h: .9, c: [[-.6, 0, .5], [.6, 0, .5]], miss: 'Читальний стіл. Тиша, як у суді.' },
   reception: { n: 'Стійка рецепції', ic: '🛎️', h: 1.1, c: [[-1.4, 0, .45], [-.7, 0, .45], [0, 0, .45], [.7, 0, .45], [1.4, 0, .45]], miss: 'Рецепція. Дзвоник: дзинь!' },
-  vend: { n: 'Автомат зі снеками', ic: '🍫', h: 1.9, c: [[-.25, 0, .4], [.25, 0, .4]], miss: 'Автомат. Знову з’їв мою монетку.' },
-  rack: { n: 'Серверна стійка', ic: '🖥️', r: .42, h: 2, miss: 'Сервер. Гуде. Блимає. Не чіпати!' },
-  sink: { n: 'Умивальник', ic: '🚰', r: .32, h: 1, miss: 'Умивальник. Мий руки, бос.' },
+  vend: { n: 'Автомат зі снеками', ic: '🍫', h: 1.9, dis: 1, c: [[-.25, 0, .4], [.25, 0, .4]], miss: 'Автомат. Знову з’їв мою монетку.' },
+  rack: { n: 'Серверна стійка', ic: '🖥️', r: .42, h: 2, dis: 1, miss: 'Сервер. Гуде. Блимає. Не чіпати!' },
+  sink: { n: 'Умивальник', ic: '🚰', r: .32, h: 1, dis: 1, miss: 'Умивальник. Мий руки, бос.' },
   wc: { n: 'Кабінка', ic: '🚽', r: .42, h: 1.8, miss: 'Кабінка порожня. Фух.' },
   pingpong: { n: 'Тенісний стіл', ic: '🏓', h: .8, c: [[-.8, 0, .72], [.8, 0, .72]], miss: 'Тенісний стіл. Тимбілдинг!' },
   pod: { n: 'Капсула сну', ic: '😴', h: 1.3, c: [[-.7, 0, .5], [0, 0, .5], [.7, 0, .5]], miss: 'Капсула сну. Порожня. Заздрю.' },
   kpi: { n: 'Табло KPI', ic: '📈', h: 2.2, c: [[-.6, 0, .3], [.6, 0, .3]], miss: 'Табло KPI. Червоне. Як завжди.' },
-  planter: { n: 'Клумба', ic: '🌿', h: .6, c: [[-.6, 0, .45], [.6, 0, .45]], miss: 'Клумба. Тут ростуть лише бонуси партнерів.' },
+  planter: { n: 'Клумба', ic: '🌿', h: .6, dis: 1, c: [[-.6, 0, .45], [.6, 0, .45]], miss: 'Клумба. Тут ростуть лише бонуси партнерів.' },
   tv: { n: 'Телевізор', ic: '📺', h: 0, c: [] }, board: { n: 'Дошка', ic: '📝', h: 0, c: [] },
 };
 const FURN = [];
 let CV = 0;   // поверх, який зараз розставляємо
 const W = (lx, lz) => ({ x: FL[CV].x + lx, z: FL[CV].z + lz });
 const loc = (f, lx, lz) => { const c = Math.cos(f.rot), s = Math.sin(f.rot); return { x: f.x + lx * c + lz * s, z: f.z - lx * s + lz * c }; };
-function addF(t, lx, lz, rot) { const p = W(lx, lz); const f = { i: FURN.length, v: CV, t, x: p.x, z: p.z, rot: rot || 0 }; FURN.push(f); return f; }
+function addF(t, lx, lz, rot) { const p = W(lx, lz); const f = { i: FURN.length, v: CV, t, x: p.x, z: p.z, rot: rot || 0, bx: p.x, bz: p.z, br: rot || 0 }; FURN.push(f); return f; }
 const addAll = list => list.forEach(a => addF(a[0], a[1], a[2], a[3] || 0));
 // стіл із ПК + крісло (rot 0 — працівник сидить з боку +z і дивиться на -z)
 let dk = 0;
 function deskSet(lx, lz, rot) {
   const d = addF('desk', lx, lz, rot), c = loc(d, .35, .9), k = dk++;
-  addF('chair', c.x - FL[CV].x, c.z - FL[CV].z, rot + PI + ((k * 37) % 7 - 3) * .08);
+  addF('chair', c.x - FL[CV].x, c.z - FL[CV].z, rot + PI + ((k * 37) % 7 - 3) * .08).dk = 1;   // крісло при столі не переставляємо
   return d;
 }
 /* поверх: стіни (локальні координати), кімнати, меблі, особливі місця */
@@ -371,7 +378,7 @@ function picks(v) {
     for (let k = 0; k < 8; k++) {
       const a = k / 8 * PI * 2, x = f.x + Math.sin(a) * .72, z = f.z + Math.cos(a) * .72;
       if (Math.abs(x - F.x) > F.hx - .4 || Math.abs(z - F.z) > F.hz - .4 || STATICS.some(o => dist2(x, z, o.x, o.z) < o.r + .2)) continue;
-      F.pk.push({ i: F.pk.length, t: 'ex', x: r2(x), z: r2(z), f: null }); break;
+      F.pk.push({ i: F.pk.length, t: 'ex', x: r2(x), z: r2(z), f: null, cf: f, dx: x - f.x, dz: z - f.z }); break;
     }
   }
   return F.pk;
@@ -380,12 +387,12 @@ const pkDist = (s, x, z) => s.f ? fdist(s.f, x, z) : dist2(x, z, s.x, s.z) - .2;
 const inv0 = () => ({ pl: 0, pp: 0, bk: 0, ex: 0 });
 
 /* ---------- Навігація ботів: сітка 0,5 м на кожному поверсі ---------- */
+const floorStatics = F => F.ss || (F.ss = STATICS.filter(o => Math.abs(o.x - F.x) < F.hx + 2 && Math.abs(o.z - F.z) < F.hz + 2));   // посилання: меблі їздять — список той самий
 function navBuild(F) {
-  const N = F.nav, b = new Uint8Array(N.nx * N.nz);
-  const ss = STATICS.filter(o => Math.abs(o.x - F.x) < F.hx + 2 && Math.abs(o.z - F.z) < F.hz + 2);
-  for (let i = 0; i < N.nx; i++) for (let j = 0; j < N.nz; j++) {
-    const x = N.x0 + (i + .5) * N.cell, z = N.z0 + (j + .5) * N.cell;
-    b[i + j * N.nx] = ss.some(o => dist2(x, z, o.x, o.z) < o.r + .26) ? 1 : 0;
+  const N = F.nav, b = new Uint8Array(N.nx * N.nz), c = N.cell;
+  for (const o of floorStatics(F)) {   // «штампуємо» кожну перешкоду в сітку (швидко й при перестановках)
+    const R = o.r + .26, i0 = Math.max(0, Math.floor((o.x - R - N.x0) / c)), i1 = Math.min(N.nx - 1, Math.floor((o.x + R - N.x0) / c)), j0 = Math.max(0, Math.floor((o.z - R - N.z0) / c)), j1 = Math.min(N.nz - 1, Math.floor((o.z + R - N.z0) / c));
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (!b[i + j * N.nx] && dist2(N.x0 + (i + .5) * c, N.z0 + (j + .5) * c, o.x, o.z) < R) b[i + j * N.nx] = 1;
   }
   N.block = b;
 }
@@ -421,11 +428,68 @@ function hideSpots(v) {
     for (let k = 0; k < 12; k++) {
       const a = k / 12 * Math.PI * 2 + .4, x = f.x + Math.cos(a) * (ext + .6), z = f.z + Math.sin(a) * (ext + .6);
       if (Math.abs(x - F.x) > F.hx - .6 || Math.abs(z - F.z) > F.hz - .6 || inOffF(F, x, z) || !navFree(x, z)) continue;
-      if (STATICS.some(o => dist2(x, z, o.x, o.z) < o.r + .42)) continue;
+      if (floorStatics(F).some(o => dist2(x, z, o.x, o.z) < o.r + .42) || !reachable(x, z)) continue;
       F.hide.push({ x, z, f }); break;
     }
   }
   return F.hide;
+}
+
+/* ---------- 🔀 Перестановка меблів: щораунду (і подією посеред раунду) предмети міняються місцями ----------
+   Місця — ті самі «правильні» точки, де меблі стояли від початку (двері не перекриє), предмет іде лише туди, куди влазить.
+   Сервер шле лише зерно (ST.fs[поверх]) — у всіх однаково переставляється з однакового FURN. */
+const MOVE = new Set(['chair', 'cooler', 'ficus', 'cabinet', 'box', 'trash', 'rollup', 'gong', 'pouf', 'globe', 'bust', 'armchair', 'lamp', 'copier', 'cart']);
+const movable = f => MOVE.has(f.t) && !f.dk && !inOffF(FL[f.v], f.bx, f.bz);
+/* куди з ліфтового холу можна дійти (BFS по сітці) — щоб перестановка не замурувала куточок */
+function navReach(F) {
+  const N = navOf(F.x, F.z); if (N.reach) return N.reach;
+  const r = new Uint8Array(N.nx * N.nz), [si, sj] = cellOf(N, F.spawn.x, F.spawn.z), q = [si + sj * N.nx]; r[q[0]] = 1;
+  for (let h = 0; h < q.length; h++) { const c = q[h], ci = c % N.nx, cj = (c / N.nx) | 0; for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ni = ci + di, nj = cj + dj; if (ni < 0 || nj < 0 || ni >= N.nx || nj >= N.nz) continue; const n = ni + nj * N.nx; if (r[n] || N.block[n]) continue; r[n] = 1; q.push(n); } }
+  N.reach = r; N.rn = q.length; return r;
+}
+const reachable = (x, z) => { const N = navOf(x, z), [i, j] = cellOf(N, x, z); return !!navReach(FL[floorAt(x, z)] || RF())[i + j * N.nx]; };
+function shuffleFloor(v, seed, exact) {
+  const F = FL[v]; if (!F || !F.furn) return;
+  seed = seed | 0;
+  if (!exact && seed) {   // авторитет: кілька спроб — розстановка не має відрізати від холу більше кількох клітинок; гравцям іде вже перевірене зерно
+    if (F.rn0 == null) { placeFloor(F, 0); navReach(F); F.rn0 = F.nav.rn; }
+    let ok = 0;
+    for (let k = 0; k < 12 && !ok; k++) { placeFloor(F, seed + k * 7777); navReach(F); if (F.nav.rn >= F.rn0 - 10) { ok = seed + k * 7777; } }
+    seed = ok;
+  }
+  placeFloor(F, seed); ST.fs[v] = seed;
+}
+function placeFloor(F, seed) {
+  const M = F.furn.filter(movable);
+  for (const f of M) { f.x = f.bx; f.z = f.bz; f.rot = f.br; }
+  if (seed) {
+    const rng = cityRng(seed);
+    for (const grp of [M.filter(f => !FT[f.t].c), M.filter(f => FT[f.t].c)]) {
+      const free = grp.map(f => ({ x: f.bx, z: f.bz, rot: f.br, r: propR(f.t) }));
+      for (const f of grp.slice().sort((a, b) => propR(b.t) - propR(a.t) || a.i - b.i)) {   // спершу великі — малим місце знайдеться завжди
+        const ok = free.filter(q => q.r + .12 >= propR(f.t)), q = ok.length ? ok[Math.floor(rng() * ok.length)] : free[0];
+        free.splice(free.indexOf(q), 1);
+        f.x = q.x; f.z = q.z; f.rot = q.rot + (f.t === 'cabinet' || FT[f.t].c ? 0 : (rng() - .5) * 1.2);
+      }
+    }
+  }
+  for (const f of M) {
+    if (f.st) circles(f).forEach((c, k) => { const o = f.st[k]; if (o) { o.x = c.x; o.z = c.z; } });
+    if (f.m) { f.m.position.set(f.x, 0, f.z); f.m.rotation.y = f.rot; }
+  }
+  F.nav.block = null; F.nav.reach = null; F.hide = null;
+  if (F.pk) for (const sp of F.pk) { if (sp.f) { sp.x = sp.f.x; sp.z = sp.f.z; } else if (sp.cf) { sp.x = r2(sp.cf.x + sp.dx); sp.z = r2(sp.cf.z + sp.dz); } }
+}
+/* 📎 шафа зі скобами для степлера: біля дверей кабінету боса, з боку коридору (тверда — і на сервері, і в гравців) */
+function supSpot(F) {
+  if (F.sup) return F.sup;
+  for (const R of [1.6, 2.1, 2.6, 3.2]) for (let k = 0; k < 16; k++) {
+    const a = k / 16 * PI * 2, x = F.door.x + Math.sin(a) * R, z = F.door.z + Math.cos(a) * R;
+    if (floorAt(x, z) !== FL.indexOf(F) || inOffF(F, x, z) || Math.abs(x - F.x) > F.hx - .8 || Math.abs(z - F.z) > F.hz - .8) continue;
+    if (STATICS.some(o => dist2(x, z, o.x, o.z) < o.r + .75)) continue;
+    return (F.sup = { x: r2(x), z: r2(z) });
+  }
+  return (F.sup = { x: F.door.x, z: F.door.z + 1.5 });
 }
 
 /* ---------- Стан раунду ---------- */
@@ -436,9 +500,13 @@ function hideSpots(v) {
 // лобі: lb — хто в лобі [ключ, готовий, голос], ct — відлік до автостарту (онлайн, 20 с після першого «Я готовий»)
 // лобі заповнюється до 5 учасників: lb — [ім’я, готовий, голос, бот], ct — «Старт за 3…2…1», ax — автостарт без мовчунів, lf — боти доповнюють
 // кидалки: inv — у кожного учасника, smk — хмари з вогнегасника [id, x, z, лишилось с]
-const ST = { on: false, ph: 'meet', t: 0, rn: 0, cd: 0, ro: [], dec: [], sc: {}, bk: '', v: 0, nv: 0, vt: [0, 0, 0], stun: 0, bell: 0, bu: 0, lb: [], ct: 0, ax: 0, lf: 0, smk: [] };
+// v3: am — скоби в степлері (бос і помічники), tn — скільки разів подав звук, tc — перезарядка звуку, pt — очки раунду, hl — інструктаж помічника, dn — звітів-приманок
+// bo — ⚡ блекаут (с), fz — 📢 «Всім на нараду!» (с), nc/fc — перезарядка нюху й наради, fs — зерна перестановки меблів, cl — 🧹 прибиральниця, ev — поточна подія
+const ST = { on: false, ph: 'meet', t: 0, rn: 0, cd: 0, ro: [], dec: [], sc: {}, bk: '', v: 0, nv: 0, vt: [0, 0, 0], stun: 0, bell: 0, bu: 0, lb: [], ct: 0, ax: 0, lf: 0, smk: [],
+  bo: 0, fz: 0, nc: 0, fc: 0, fs: [0, 0, 0], cl: null, ev: '' };
 const AU = { clock: 0, stT: 0, bot: {}, mv: {}, ws: {}, gone: {}, bc: {}, sus: [], did: 0, click: {}, freeze: false, votes: {}, vT: 0, ram: {}, bump: {}, claim: {}, ready: {}, role: {}, rdy1: '', rdyT: 0, lastB: '',
-  lbots: [], fillT: 0, fullT: 0, goT: 0, proj: [], pid: 0, take: {}, bin: {}, sid: 0 };
+  lbots: [], fillT: 0, fullT: 0, goT: 0, proj: [], pid: 0, take: {}, bin: {}, sid: 0, refill: {}, evT: 0, ftT: 0, svT: 0, fzP: {}, calm: false };
+const calm = () => AU.calm || !!window.__hidebossCalm;   // тест: без випадкових подій і примусових звуків
 const AUTO_T = 25;   // онлайн: стільки секунд після того, як лобі заповнилось, чекаємо мовчунів — потім стартуємо без них
 const SEATS = 5;     // учасників у раунді (люди + боти)
 const BOTN = ['Кент', 'Віта', 'Петро з бухгалтерії', 'Оксана з HR', 'Стажер Вітя', 'Галина Петрівна', 'Айтішник Макс', 'Секретарка Люда'];
@@ -454,8 +522,9 @@ const alive = () => hiders().filter(e => !e.c);
 const RF = () => FL[ST.v] || FL[0];   // поверх поточного раунду
 function snap() {
   return { on: ST.on ? 1 : 0, ph: ST.ph, t: r2(ST.t), rn: ST.rn, cd: r2(ST.cd), bk: ST.bk, v: ST.v, nv: ST.nv, vt: ST.vt, sn: r2(ST.stun), bl: r2(ST.bell), bu: ST.bu ? 1 : 0, lb: ST.lb, ct: r2(ST.ct), ax: r2(ST.ax), lf: ST.lf ? 1 : 0,
+    bo: r2(ST.bo), fz: r2(ST.fz), nc: r2(ST.nc), fc: r2(ST.fc), fs: ST.fs, ev: ST.ev, cl: ST.cl ? [r2(ST.cl.x), r2(ST.cl.z), r2(ST.cl.f), r2(ST.cl.t)] : 0,
     smk: ST.smk.map(m => [m.id, r2(m.x), r2(m.z), r2(m.t)]),
-    ro: ST.ro.map(e => [e.k, e.n, e.boss ? 1 : 0, e.bot ? 1 : 0, e.p, r2(e.r), e.c ? 1 : 0, Math.round(e.pr), r2(e.x), r2(e.z), r2(e.f), e.w ? 1 : 0, e.mv ? 1 : 0, e.dc ? 1 : 0, r2(e.fl), r2(e.rc), [e.inv.pl, e.inv.pp, e.inv.bk, e.inv.ex], r2(e.bn || 0)]),
+    ro: ST.ro.map(e => [e.k, e.n, e.boss ? 1 : 0, e.bot ? 1 : 0, e.p, r2(e.r), e.c ? 1 : 0, Math.round(e.pr), r2(e.x), r2(e.z), r2(e.f), e.w ? 1 : 0, e.mv ? 1 : 0, e.dc ? 1 : 0, r2(e.fl), r2(e.rc), [e.inv.pl, e.inv.pp, e.inv.bk, e.inv.ex], r2(e.bn || 0), e.am | 0, e.tn | 0, r2(e.tc || 0), e.pt | 0, r2(e.hl || 0), e.dn | 0]),
     dec: ST.dec.map(d => [d.id, r2(d.x), r2(d.z), d.t, r2(d.r)]), sc: Object.entries(ST.sc).sort((a, b) => b[1] - a[1]).slice(0, 10) };
 }
 function applySnap(d) {
@@ -463,9 +532,12 @@ function applySnap(d) {
   Object.assign(ST, { on: !!d.on, ph: d.ph === 'hunt' ? 'hunt' : 'meet', t: +d.t || 0, rn: d.rn | 0, cd: +d.cd || 0, bk: String(d.bk || ''), v: fv(d.v), nv: fv(d.nv), stun: +d.sn || 0, bell: +d.bl || 0, bu: d.bu ? 1 : 0 });
   if (Array.isArray(d.vt)) ST.vt = FL.map((_, i) => d.vt[i] | 0);
   ST.lb = Array.isArray(d.lb) ? d.lb.slice(0, 12).map(a => [String(a[0]).slice(0, 24), a[1] ? 1 : 0, a[2] >= 0 && a[2] < FL.length ? a[2] | 0 : -1, a[3] ? 1 : 0]) : []; ST.ct = +d.ct || 0; ST.ax = +d.ax || 0; ST.lf = d.lf ? 1 : 0;
+  Object.assign(ST, { bo: +d.bo || 0, fz: +d.fz || 0, nc: +d.nc || 0, fc: +d.fc || 0, ev: String(d.ev || '').slice(0, 12) });
+  ST.cl = Array.isArray(d.cl) ? { x: +d.cl[0] || 0, z: +d.cl[1] || 0, f: +d.cl[2] || 0, t: +d.cl[3] || 0 } : null;
+  if (Array.isArray(d.fs)) FL.forEach((F, i) => { const sd = d.fs[i] | 0; if (sd !== ST.fs[i]) shuffleFloor(i, sd, true); });   // 🔀 меблі переставили — у себе теж
   ST.smk = Array.isArray(d.smk) ? d.smk.slice(0, 12).map(a => ({ id: a[0] | 0, x: +a[1] || 0, z: +a[2] || 0, t: +a[3] || 0 })) : [];
   const iv = a => Array.isArray(a) ? { pl: a[0] | 0, pp: a[1] | 0, bk: a[2] | 0, ex: a[3] | 0 } : inv0();
-  if (Array.isArray(d.ro)) ST.ro = d.ro.slice(0, 12).map(a => ({ k: String(a[0]), n: String(a[1]).slice(0, 24), boss: !!a[2], bot: !!a[3], p: FT[a[4]] ? a[4] : '', r: +a[5] || 0, c: !!a[6], pr: +a[7] || 0, x: +a[8] || 0, z: +a[9] || 0, f: +a[10] || 0, w: !!a[11], mv: !!a[12], dc: !!a[13], fl: +a[14] || 0, rc: +a[15] || 0, inv: iv(a[16]), bn: +a[17] || 0 }));
+  if (Array.isArray(d.ro)) ST.ro = d.ro.slice(0, 12).map(a => ({ k: String(a[0]), n: String(a[1]).slice(0, 24), boss: !!a[2], bot: !!a[3], p: FT[a[4]] ? a[4] : '', r: +a[5] || 0, c: !!a[6], pr: +a[7] || 0, x: +a[8] || 0, z: +a[9] || 0, f: +a[10] || 0, w: !!a[11], mv: !!a[12], dc: !!a[13], fl: +a[14] || 0, rc: +a[15] || 0, inv: iv(a[16]), bn: +a[17] || 0, am: a[18] | 0, tn: a[19] | 0, tc: +a[20] || 0, pt: a[21] | 0, hl: +a[22] || 0, dn: a[23] | 0 }));
   if (Array.isArray(d.dec)) ST.dec = d.dec.slice(0, 12).map(a => ({ id: a[0] | 0, x: +a[1], z: +a[2], t: FT[a[3]] ? a[3] : 'report', r: +a[4] || 0 }));
   if (Array.isArray(d.sc)) ST.sc = Object.fromEntries(d.sc.slice(0, 10).map(a => [String(a[0]).slice(0, 24), a[1] | 0]));
 }
@@ -562,7 +634,12 @@ function onReq(d, from) {
       if (e.w && near && AU.clock - (AU.ws[k] || 0) >= WORK_T - .6) { e.pr = 100; e.w = 0; emit({ k: 'worked', who: k }); pushState(); }
     } else { e.w = 0; pushState(); }
   }
-  else if (d.k === 'decoy' && !e.boss && !e.c && !e.dc && p) { dropDecoy(e, p.x, p.z); }
+  else if (d.k === 'decoy' && !e.boss && !e.c && (e.dn | 0) < DECOYS && p) { dropDecoy(e, p.x, p.z); }
+  else if (d.k === 'taunt' && !e.boss && !e.c && p) doTaunt(e, p, false);
+  else if (d.k === 'rot' && !e.boss && !e.c && e.p) { e.r = r2((e.r || 0) + PI / 4); pushState(); }
+  else if (d.k === 'refill' && seeker(e) && p) doRefill(e, p);
+  else if (d.k === 'sniff' && e.boss && ST.ph === 'hunt' && ST.stun <= 0 && p) doSniff(e, p);
+  else if (d.k === 'freeze' && e.boss && ST.ph === 'hunt' && ST.stun <= 0) doFreeze(e);
   else if (d.k === 'ram' && !e.boss && !e.c && p) startRam(e, p, +d.a || 0);
   else if (d.k === 'ramhit' && !e.boss && !e.c && p && AU.ram[k] > AU.clock) { const b = bossE(), bp = b && posOf(b); if (bp && dist2(p.x, p.z, bp.x, bp.z) < 2.6) trip(e, bp); }
   else if (d.k === 'check' && e.boss && ST.ph === 'hunt' && ST.stun <= 0 && p) doCheck(e, p.x, p.z);
@@ -571,11 +648,14 @@ function onReq(d, from) {
   else if (d.k === 'take' && !e.c && p) takeItem(e, p, d.i);
   else if (d.k === 'throw' && p) throwIt(e, p, String(d.w), +d.a || 0, +d.d);
   else if (d.k === 'ext' && p) sprayExt(e, p);
-  else if (d.k === 'catch' && e.boss && ST.ph === 'hunt' && ST.stun <= 0 && p) {
+  else if (d.k === 'catch' && seeker(e) && ST.ph === 'hunt' && !(e.boss && ST.stun > 0) && p) {
     if (AU.clock - (AU.click[k] || -9) < .5) return; AU.click[k] = AU.clock;
-    if (d.who != null) { const t = ent(String(d.who)), tp = t && posOf(t); if (t && !t.boss && !t.c && tp && dist2(p.x, p.z, tp.x, tp.z) < 3) catchE(e, t, tp); }
-    else if (d.d != null) { const dc = ST.dec.find(q => q.id === (d.d | 0)); if (dc && dist2(p.x, p.z, dc.x, dc.z) < 3) miss(e, 'report', dc.x, dc.z, dc.id); }
-    else if (d.f != null) { const f = FURN[d.f | 0]; if (f && fdist(f, p.x, p.z) < 2.6) miss(e, f.t, f.x, f.z); }
+    // 🔫 степлер: впритул (рукою) — безкоштовно, далі — скоба з магазина; без скоб — лише впритул
+    const R = (e.am | 0) > 0 ? (e.boss ? STAPLE_R : STAPLE_RH) + .8 : HAND_R + .9;
+    const shot = (x, z, dd) => { if (dd <= HAND_R + .6) return true; if ((e.am | 0) <= 0) return false; e.am--; emit({ k: 'staple', by: k, x0: r2(p.x), z0: r2(p.z), x: r2(x), z: r2(z) }); return true; };
+    if (d.who != null) { const t = ent(String(d.who)), tp = t && posOf(t), dd = tp ? dist2(p.x, p.z, tp.x, tp.z) : 99; if (t && !t.boss && !t.c && dd < R && shot(tp.x, tp.z, dd)) catchE(e, t, tp); }
+    else if (d.d != null) { const dc = ST.dec.find(q => q.id === (d.d | 0)), dd = dc ? dist2(p.x, p.z, dc.x, dc.z) : 99; if (dc && dd < R && shot(dc.x, dc.z, dd)) miss(e, 'report', dc.x, dc.z, dc.id); }
+    else if (d.f != null) { const f = FURN[d.f | 0], dd = f ? fdist(f, p.x, p.z) : 99; if (f && dd < R - .4 && shot(f.x, f.z, dd + .4)) miss(e, f.t, f.x, f.z); }
   }
 }
 function startRound(starter, role, list) {
@@ -585,9 +665,11 @@ function startRound(starter, role, list) {
   const lbots = AU.lbots.slice(0, Math.max(0, SEATS - H.length)); while (H.length + lbots.length < SEATS) { addLobbyBot(); const b = AU.lbots[AU.lbots.length - 1]; if (!b || lbots.includes(b)) break; lbots.push(b); }
   const ch = chooseFloor(true); ST.v = ch.v; ST.nv = ch.v; AU.votes = {}; ST.vt = FL.map(() => 0); AU.ready = {}; AU.rdy1 = ''; AU.rdyT = 0; ST.lb = []; ST.ct = 0; ST.ax = 0; ST.lf = 0;
   AU.lbots = []; AU.fillOn = 0; AU.fullT = 0; AU.goT = 0;
+  shuffleFloor(ST.v, 1 + Math.floor(Math.random() * 999983));   // 🔀 щораунду меблі стоять інакше — бос не завчить сховки
   const F = RF();
+  ST.bo = 0; ST.fz = 0; ST.nc = 0; ST.fc = 0; ST.cl = null; ST.ev = ''; AU.evT = rand(EV_GAP[0], EV_GAP[1]); AU.ftT = 0; AU.svT = 0; AU.refill = {}; AU.fzP = {}; AU.cr = {};
   ST.ro = []; ST.dec = []; ST.smk = []; AU.bot = {}; AU.mv = {}; AU.ws = {}; AU.gone = {}; AU.sus = []; AU.click = {}; AU.ram = {}; AU.bump = {}; AU.claim = {}; AU.proj = []; AU.take = {}; AU.bin = {};
-  const mk = (k, n, boss, bot) => ({ k, n, boss, bot, p: '', r: 0, c: false, pr: 100, x: 0, z: 0, f: 0, w: false, mv: false, dc: false, fl: 0, rc: 0, inv: inv0(), bn: 0 });
+  const mk = (k, n, boss, bot) => ({ k, n, boss, bot, p: '', r: 0, c: false, pr: 100, x: 0, z: 0, f: 0, w: false, mv: false, dc: false, fl: 0, rc: 0, inv: inv0(), bn: 0, am: boss ? AMMO : 0, tn: 0, tc: 0, pt: 0, hl: 0, dn: 0, sv: 0 });
   // хто бос: наодинці — роль, яку обрав гравець (бос-бот — один із ботів лобі); кілька людей — жереб серед людей,
   // але той, хто був босом минулого раунду, двічі поспіль не буде (якщо є з кого обирати)
   let bossK = null;
@@ -601,7 +683,7 @@ function startRound(starter, role, list) {
     let s = { x: F.spawn.x - 1.8 + (n0 % 4) * 1.2, z: F.spawn.z + .8 - Math.floor(n0 / 4) * .9 }; if (!navFree(s.x, s.z)) s = { x: F.spawn.x, z: F.spawn.z }; n0++;
     ST.ro.push(Object.assign(mk(b.k, b.n, false, true), { x: s.x, z: s.z, inv: Object.assign(inv0(), { pl: 2, pp: 2 }) }));
   }
-  for (const e of ST.ro) if (e.bot) AU.bot[e.k] = { path: [], mode: e.boss ? 'meet' : 'go', t: 0, thr: rand(18, 40), think: 0, rt: 0, tt: rand(6, 14) };
+  for (const e of ST.ro) if (e.bot) AU.bot[e.k] = { path: [], mode: e.boss ? 'meet' : 'go', t: 0, thr: rand(18, 40), think: 0, rt: 0, tt: rand(6, 14), tn: rand(12, 26) };
   ST.on = true; ST.ph = 'meet'; ST.t = 0; ST.rn++; ST.cd = 0; ST.bk = bossK; ST.stun = 0; ST.bell = 0; ST.bu = 0; AU.clock = 0;
   const b = bossE();
   emit({ k: 'start', rn: ST.rn, boss: b.k, bn: b.n, v: ST.v, hs: ST.ro.filter(q => !q.bot).map(q => q.k) });
@@ -618,10 +700,16 @@ function checkReady() {   // усі сховались — нарада закі
   if (ST.ph === 'meet' && alive().length && alive().every(e => e.p) && ST.t < MEET - 10) ST.t = MEET - 10;
 }
 function catchE(b, t, tp) {
+  const rm = roomAt(tp.x, tp.z);
+  t.cp = t.p; t.cr = rm ? rm.n : ''; t.sv = ST.ph === 'hunt' ? ST.t : 0;   // для підсумків: де й під чим сидів
   t.c = true; t.p = ''; t.w = false; t.fl = 0;
+  // 🧟 «зараження»: спійманий стає помічником боса — інструктаж на килимі, потім шукає зі слабшим степлером
+  t.hl = BRIEF_T; t.am = AMMO_H; t.rc = 0; t.bn = 0; delete AU.ram[t.k];
   if (!b.bot) ST.sc[b.k] = (ST.sc[b.k] || 0) + 1;
+  b.pt = (b.pt | 0) + (b.boss ? 3 : 2);
   const n = hiders().filter(e => e.c).length, C = RF().carpet;
-  emit({ k: 'caught', who: t.k, wn: t.n, by: b.k, x: r2(tp.x), z: r2(tp.z), i: n });
+  emit({ k: 'caught', who: t.k, wn: t.n, by: b.k, bn: b.n, x: r2(tp.x), z: r2(tp.z), i: n });
+  if (t.bot) AU.bot[t.k] = { path: [], mode: 'wander', t: 0, think: .5, tg: null };
   const s = { x: r2(C.x - (n - 1) % 3 * .8), z: r2(C.z - Math.floor((n - 1) / 3) * .8) };
   if (t.bot) { t.x = s.x; t.z = s.z; t.f = 0; t.mv = false; delete AU.ram[t.k]; }
   else emit({ k: 'tp', who: t.k, x: s.x, z: s.z });
@@ -629,9 +717,10 @@ function catchE(b, t, tp) {
   if (!alive().length) endRound('boss');
 }
 function miss(b, t, x, z, decId) {
-  ST.t += PENALTY;
+  ST.t += b.boss ? PENALTY : 2;   // промах — мінус час (і «репутація» в підсумках)
+  b.ms = (b.ms | 0) + 1;
   if (decId != null) ST.dec = ST.dec.filter(q => q.id !== decId);
-  emit({ k: 'miss', t, x: r2(x), z: r2(z), by: b.k });
+  emit({ k: 'miss', t, x: r2(x), z: r2(z), by: b.k, pen: b.boss ? PENALTY : 2 });
   pushState();
 }
 function doCheck(b, x, z) {
@@ -644,11 +733,56 @@ function doCheck(b, x, z) {
   for (const k of ks) { const e = ent(k); if (e.bot && Math.random() < .35) { const s = AU.bot[k]; if (s && s.mode === 'hide') { s.mode = 'go'; s.spot = null; e.p = ''; } } }   // бот-офісник запанікував
   pushState();
 }
+const seeker = e => !!e && (e.boss || (e.c && !(e.hl > 0)));   // бос або помічник після інструктажу
+/* 🔊 «Подати звук»: смішний звук + підказка босові (кільце ±3 м від справжнього місця); за кожен — очки й монети */
+function doTaunt(e, p, forced) {
+  if (ST.ph !== 'hunt' || e.boss || e.c || (!forced && e.tc > 0)) return false;
+  e.tc = TAUNT_CD; e.tn = (e.tn | 0) + 1; if (!forced) e.pt = (e.pt | 0) + 1;
+  const s = Math.floor(Math.random() * TAUNTS.length), a = Math.random() * PI * 2, j = Math.random() * TAUNT_J;
+  const x = r2(p.x + Math.sin(a) * j), z = r2(p.z + Math.cos(a) * j);
+  for (const q of ST.ro) if (q.bot && seeker(q)) AU.sus.unshift({ n: 1, x, z, until: AU.clock + NOISE_T });
+  emit({ k: 'taunt', who: e.k, wn: e.n, s, x, z, f: forced ? 1 : 0 }); pushState();
+  return true;
+}
+/* 📎 скоби: біля шафи біля кабінету боса, раз на 30 с */
+function doRefill(e, p) {
+  const S = supSpot(RF()), mx = e.boss ? AMMO : AMMO_H;
+  if (dist2(p.x, p.z, S.x, S.z) > 2.1 || e.rc > 0 || (e.am | 0) >= mx) return false;
+  e.am = Math.min(mx, (e.am | 0) + REFILL); e.rc = REFILL_CD;
+  emit({ k: 'refill', who: e.k, n: e.am }); pushState(); return true;
+}
+/* 🐕 Нюх: напрям і відстань до найближчого офісника */
+function doSniff(b, p) {
+  if (ST.nc > 0) return false;
+  ST.nc = SNIFF_CD;
+  let best = null, bd = 1e9;
+  for (const e of alive()) { const q = posOf(e); if (q) { const d = dist2(q.x, q.z, p.x, p.z); if (d < bd) { bd = d; best = { e, q }; } } }
+  const ev = { k: 'sniff', by: b.k, x: r2(p.x), z: r2(p.z), d: best ? Math.round(bd) : -1, a: best ? r2(Math.atan2(best.q.x - p.x, best.q.z - p.z)) : 0 };
+  if (best && b.bot) AU.sus.push({ k: best.e.k, x: best.q.x + rand(-2, 2), z: best.q.z + rand(-2, 2), until: AU.clock + 8 });
+  emit(ev); pushState(); return true;
+}
+/* 📢 «Всім на нараду!»: 3 с — хто з офісників ворухнеться, того підсвітить 🚩 */
+function doFreeze(b) {
+  if (ST.fc > 0 || ST.fz > 0) return false;
+  ST.fc = FREEZE_CD; ST.fz = FREEZE_T; AU.fzP = {}; AU.fzM = [];
+  for (const e of alive()) { const p = posOf(e); if (p) AU.fzP[e.k] = { x: p.x, z: p.z }; if (e.bot && AU.bot[e.k]) AU.bot[e.k].still = Math.random() < .8; }
+  emit({ k: 'freeze', by: b.k }); pushState(); return true;
+}
+function freezeTick() {
+  for (const e of alive()) {
+    const p = posOf(e), o = AU.fzP[e.k]; if (!p || !o || AU.fzM.includes(e.k)) continue;
+    if (dist2(p.x, p.z, o.x, o.z) > .3) {
+      AU.fzM.push(e.k); e.fl = Math.max(e.fl, 8);
+      for (const q of ST.ro) if (q.bot && seeker(q)) AU.sus.push({ k: e.k, x: p.x, z: p.z, until: AU.clock + 8 });
+      emit({ k: 'moved', who: e.k, wn: e.n, x: r2(p.x), z: r2(p.z) });
+    }
+  }
+}
 function dropDecoy(e, x, z) {
-  e.dc = true;
-  const d = { id: ++AU.did, x: r2(x + .5), z: r2(z + .3), t: e.p || 'report', r: e.r || 0 };
+  e.dn = (e.dn | 0) + 1; e.dc = e.dn >= DECOYS;
+  const o = e.dn === 1 ? [.6, .3] : [-.5, .5], d = { id: ++AU.did, x: r2(x + o[0]), z: r2(z + o[1]), t: e.p || 'report', r: e.r || 0 };
   ST.dec.push(d);
-  emit({ k: 'decoy', who: e.k }); pushState();
+  emit({ k: 'decoy', who: e.k, n: DECOYS - e.dn }); pushState();
 }
 /* ---------- Кидалки: підбір, політ, влучання (рахує авторитет) ---------- */
 function takeItem(e, p, i) {
@@ -747,6 +881,49 @@ function bellEnd() {
   }
   emit({ k: 'bellEnd', fl, ok, room: F.meet.n }); pushState();
 }
+/* ---------- Події посеред полювання: ⚡ блекаут, 🧹 прибиральниця, ☕ кава-брейк, 🔀 переставили меблі ---------- */
+const EVS = ['dark', 'clean', 'coffee', 'shuf'];
+function startEvent(w) {
+  const F = RF(), b = bossE();
+  ST.ev = w; AU.lastEv = w;
+  if (w === 'dark') { ST.bo = r2(rand(15, 25)); emit({ k: 'ev', e: w, t: ST.bo }); }
+  else if (w === 'clean') {   // заходить з ліфтового холу й прибирає кімнату за кімнатою
+    ST.cl = { x: F.spawn.x, z: F.spawn.z, f: 0, t: CLEAN_T }; AU.clP = []; AU.cr = {};
+    emit({ k: 'ev', e: w });
+  }
+  else if (w === 'coffee') { ST.stun = Math.max(ST.stun, COFFEE_T); if (b && b.bot) { const s = AU.bot[b.k]; s.path = []; s.tg = null; } emit({ k: 'ev', e: w, bn: b ? b.n : '' }); }
+  else if (w === 'shuf') {
+    shuffleFloor(ST.v, 1 + Math.floor(Math.random() * 999983));
+    for (const e of ST.ro) { const s = AU.bot[e.k]; if (!s) continue; s.path = []; if (s.mode === 'go') s.spot = null; if (s.tg && s.tg.f != null) s.tg = null; }
+    for (const e of ST.ro) if (e.bot) pushOutStatics(e, .35);
+    emit({ k: 'ev', e: w });
+    ST.ev = '';
+  }
+  if (w !== 'dark' && w !== 'clean' && w !== 'coffee') AU.evT = rand(EV_GAP[0], EV_GAP[1]);
+  pushState();
+}
+function evTick(dt) {
+  if (ST.ev === 'dark' && (ST.bo = Math.max(0, ST.bo - dt)) <= 0) { ST.ev = ''; AU.evT = rand(EV_GAP[0], EV_GAP[1]); emit({ k: 'evEnd', e: 'dark' }); pushState(); }
+  if (ST.ev === 'coffee' && ST.stun <= 0) { ST.ev = ''; AU.evT = rand(EV_GAP[0], EV_GAP[1]); pushState(); }
+  if (ST.ev === 'clean' && ST.cl) {
+    const C = ST.cl; C.t -= dt;
+    if (!AU.clP.length) { const hs = hideSpots(), h = hs.length && pick(hs); if (h) AU.clP = route(C.x, C.z, h.x, h.z); }
+    const t = AU.clP[0];
+    if (t) { const d = dist2(C.x, C.z, t.x, t.z), st = Math.min(d, 2.2 * dt), a = Math.atan2(t.x - C.x, t.z - C.z); C.x += Math.sin(a) * st; C.z += Math.cos(a) * st; C.f = a; if (d < .3) AU.clP.shift(); }
+    // пилосос зачепив замаскованого — маскування злітає
+    for (const e of alive()) {
+      const p = posOf(e); if (!e.p || !p || AU.clock - (AU.cr[e.k] || -9) < 4) continue;
+      if (dist2(p.x, p.z, C.x, C.z) < propR(e.p) + .55) {
+        AU.cr[e.k] = AU.clock; const was = e.p; e.p = ''; e.w = false;
+        if (e.bot) { const s = AU.bot[e.k]; if (s) { s.mode = 'go'; s.spot = null; s.path = []; } }
+        for (const q of ST.ro) if (q.bot && seeker(q)) AU.sus.push({ k: e.k, x: p.x, z: p.z, until: AU.clock + 6 });
+        emit({ k: 'clean', who: e.k, wn: e.n, t: was, x: r2(p.x), z: r2(p.z) }); pushState();
+      }
+    }
+    if (C.t <= 0) { ST.cl = null; ST.ev = ''; AU.evT = rand(EV_GAP[0], EV_GAP[1]); emit({ k: 'evEnd', e: 'clean' }); pushState(); }
+  }
+  if (!ST.ev && !calm() && (AU.evT -= dt) <= 0) { const ws = EVS.filter(w => w !== AU.lastEv); startEvent(pick(ws)); }
+}
 function dropOut(e, msg) {
   ST.ro = ST.ro.filter(q => q !== e);
   if (msg) emit({ k: 'msg', txt: msg });
@@ -759,8 +936,15 @@ function endRound(win, why) {
   const b = bossE();
   if (win === 'boss' && b && !b.bot) ST.sc[b.k] = (ST.sc[b.k] || 0) + 2;
   if (win === 'hiders') for (const e of alive()) if (!e.bot) ST.sc[e.k] = (ST.sc[e.k] || 0) + 3;
-  const res = { k: 'end', win, why: why || '', ro: ST.ro.map(e => [e.k, e.boss ? 1 : 0, e.c ? 1 : 0, e.bot ? 1 : 0]), cc: hiders().filter(e => e.c).length, bn: b ? b.n : '', v: ST.v };
-  ST.on = false; ST.ro = []; ST.dec = []; ST.smk = []; AU.proj = []; AU.bot = {}; AU.ram = {}; ST.stun = 0; ST.bell = 0;
+  // підсумки: очки, скільки протримався, під чим і де сидів
+  const hunt = ST.ph === 'hunt' ? Math.min(DUR, ST.t) : 0;
+  for (const e of alive()) { const p = posOf(e), rm = p && roomAt(p.x, p.z); e.sv = hunt; e.cp = e.p; e.cr = rm ? rm.n : ''; if (win === 'hiders') e.pt = (e.pt | 0) + 3; }
+  const rows = ST.ro.map(e => [e.k, e.boss ? 1 : 0, e.c ? 1 : 0, e.bot ? 1 : 0, e.n, e.pt | 0, Math.round(e.sv || 0), e.boss ? '' : e.cp || '', e.boss ? '' : e.cr || '', e.tn | 0, e.ms | 0]);
+  const hs = rows.filter(r => !r[1]), top = (l, i) => l.slice().sort((a, b) => b[i] - a[i])[0];
+  const mvp = top(rows, 5), ls = top(hs, 6), sp = hs.filter(r => r[7] && FT[r[7]]).sort((a, b) => b[6] - a[6] || a[2] - b[2])[0];
+  const res = { k: 'end', win, why: why || '', ro: rows, cc: hiders().filter(e => e.c).length, bn: b ? b.n : '', v: ST.v,
+    mvp: mvp ? mvp[0] : '', ls: ls ? ls[0] : '', spot: sp ? [sp[0], sp[7], sp[8]] : 0 };
+  ST.on = false; ST.ro = []; ST.dec = []; ST.smk = []; AU.proj = []; AU.bot = {}; AU.ram = {}; ST.stun = 0; ST.bell = 0; ST.bo = 0; ST.fz = 0; ST.cl = null; ST.ev = '';
   emit(res); pushState();
 }
 function authTick(dt) {
@@ -769,7 +953,9 @@ function authTick(dt) {
   AU.clock += dt; ST.t += dt;
   if (ST.cd > 0) ST.cd = Math.max(0, ST.cd - dt);
   if (ST.stun > 0) ST.stun = Math.max(0, ST.stun - dt);
-  for (const e of ST.ro) { if (e.fl > 0) e.fl = Math.max(0, e.fl - dt); if (e.rc > 0) e.rc = Math.max(0, e.rc - dt); if (e.bn > 0) e.bn = Math.max(0, e.bn - dt); }
+  for (const e of ST.ro) { if (e.fl > 0) e.fl = Math.max(0, e.fl - dt); if (e.rc > 0) e.rc = Math.max(0, e.rc - dt); if (e.bn > 0) e.bn = Math.max(0, e.bn - dt); if (e.tc > 0) e.tc = Math.max(0, e.tc - dt); if (e.hl > 0) e.hl = Math.max(0, e.hl - dt); }
+  if (ST.nc > 0) ST.nc = Math.max(0, ST.nc - dt); if (ST.fc > 0) ST.fc = Math.max(0, ST.fc - dt);
+  if (ST.fz > 0) { freezeTick(); if ((ST.fz -= dt) <= 0) { ST.fz = 0; emit({ k: 'freezeEnd', ks: AU.fzM || [] }); pushState(); } }
   if (ST.bell > 0 && (ST.bell -= dt) <= 0) { ST.bell = 0; bellEnd(); }
   projTick(dt);
   if (ST.smk.length) { for (const m of ST.smk) m.t -= dt; ST.smk = ST.smk.filter(m => m.t > 0); }
@@ -792,8 +978,12 @@ function authTick(dt) {
   else {
     for (const e of alive()) if (!e.w) e.pr = Math.max(0, e.pr - DRAIN * dt);
     if (ST.t >= DUR) { endRound('hiders'); return; }
+    // +1 очко кожні 30 с, поки не спіймали; примусовий звук тому, хто «мовчав» найдовше; події
+    if ((AU.svT += dt) >= 30) { AU.svT -= 30; for (const e of alive()) e.pt = (e.pt | 0) + 1; }
+    if (!calm() && (AU.ftT += dt) >= TAUNT_FORCE) { AU.ftT = 0; const l = alive().filter(e => posOf(e)), mn = Math.min(...l.map(e => e.tn | 0)), c = l.filter(e => (e.tn | 0) === mn); if (c.length) { const e = pick(c); doTaunt(e, posOf(e), true); } }
+    evTick(dt); if (!ST.on) return;
   }
-  if (!AU.freeze) for (const e of ST.ro.slice()) if (e.bot && ST.on) { try { e.boss ? bossBot(e, dt) : hiderBot(e, dt); } catch (err) { console.error('hideboss bot', err); } }
+  if (!AU.freeze) for (const e of ST.ro.slice()) if (e.bot && ST.on) { try { e.boss || e.c ? bossBot(e, dt) : hiderBot(e, dt); } catch (err) { console.error('hideboss bot', err); } }
   if (!ST.on) return;
   AU.stT -= dt; if (AU.stT <= 0) { AU.stT = .2; pushState(); }
 }
@@ -801,8 +991,9 @@ A.on('tick', dt => {
   if (AUTH()) authTick(dt);
   else if (ST.on) {
     ST.t += dt; if (ST.cd > 0) ST.cd = Math.max(0, ST.cd - dt); if (ST.stun > 0) ST.stun = Math.max(0, ST.stun - dt); if (ST.bell > 0) ST.bell = Math.max(0, ST.bell - dt);
-    for (const e of ST.ro) { if (e.fl > 0) e.fl = Math.max(0, e.fl - dt); if (e.rc > 0) e.rc = Math.max(0, e.rc - dt); if (e.bn > 0) e.bn = Math.max(0, e.bn - dt); }
+    for (const e of ST.ro) { if (e.fl > 0) e.fl = Math.max(0, e.fl - dt); if (e.rc > 0) e.rc = Math.max(0, e.rc - dt); if (e.bn > 0) e.bn = Math.max(0, e.bn - dt); if (e.tc > 0) e.tc = Math.max(0, e.tc - dt); if (e.hl > 0) e.hl = Math.max(0, e.hl - dt); }
     for (const m of ST.smk) m.t = Math.max(0, m.t - dt);
+    for (const k of ['nc', 'fc', 'fz', 'bo']) if (ST[k] > 0) ST[k] = Math.max(0, ST[k] - dt);
   }
   if (!SIMSIDE) clientTick(dt);
 });
@@ -825,7 +1016,7 @@ function walk(e, s, dt, spd) {   // іде маршрутом; true — дійш
   const ox = e.x, oz = e.z, F = RF();
   e.x += Math.sin(a) * st; e.z += Math.cos(a) * st; e.f = a; e.mv = true;
   if (s.path.length > 1 || d > 1.2) pushOutStatics(e, .35);
-  if (e.boss && ST.ph === 'hunt') pushProps(e, .4, s.tg && s.tg.k);
+  if (seeker(e) && ST.ph === 'hunt') pushProps(e, .4, s.tg && s.tg.k);
   e.x = clamp(e.x, F.x - F.hx + .5, F.x + F.hx - .5); e.z = clamp(e.z, F.z - F.hz + .5, F.z + F.hz - .5);
   // застряг — наступна точка маршруту
   s.stuck = dist2(ox, oz, e.x, e.z) < st * .25 ? (s.stuck || 0) + dt : 0;
@@ -843,6 +1034,13 @@ function meetSpot(e) {   // місце в залі нарад: біля мебл
 function hiderBot(e, dt) {
   const s = AU.bot[e.k]; if (e.c) { e.mv = false; return; }
   if (s.stunT > 0) { s.stunT -= dt; e.mv = false; return; }   // 📘 дістав книжкою — оговтується
+  if (ST.fz > 0 && s.still && s.mode !== 'ram') { e.mv = false; return; }   // 📢 «Всім на нараду!» — завмер
+  // 🔊 бос далеко — подає звук (очки!); поруч — мовчить
+  if (s.mode === 'hide' && ST.ph === 'hunt' && (s.tn -= dt) <= 0) {
+    s.tn = rand(14, 28);
+    const b = bossE(), bp = b && posOf(b), far = !bp || dist2(bp.x, bp.z, e.x, e.z) > 9;
+    if (far && e.tc <= 0 && Math.random() < .65) doTaunt(e, e, false);
+  }
   // ✈️ / 🧻 бос поруч — кидає подалі від себе, щоб той пішов на «шурх»
   if (s.mode === 'hide' && ST.ph === 'hunt' && (s.tt -= dt) <= 0) {
     s.tt = rand(5, 10);
@@ -857,8 +1055,13 @@ function hiderBot(e, dt) {
   if (s.mode === 'go') {
     if (!s.spot) {
       const taken = new Set(ST.ro.filter(q => q !== e && AU.bot[q.k] && AU.bot[q.k].spot).map(q => AU.bot[q.k].spot));
-      const free = hideSpots().filter(h => !taken.has(h) && dist2(h.x, h.z, e.x, e.z) < 22);
-      s.spot = pick(free.length ? free : hideSpots()); goTo(e, s, s.spot.x, s.spot.z);
+      // розумна схованка: подалі від боса й від інших, не надто далеко йти; іноді — те, що таранить
+      const b = bossE(), bp = b && (b.bot ? b : posOf(b)) || RF().bossSpot, mates = ST.ro.filter(q => q !== e && !q.boss && !q.c);
+      const free = hideSpots().filter(h => !taken.has(h) && dist2(h.x, h.z, e.x, e.z) < 24);
+      const sc = h => Math.min(14, dist2(h.x, h.z, bp.x, bp.z)) + Math.min(6, ...mates.map(q => dist2(h.x, h.z, q.x, q.z)), 6) * .6 + (canRoll(h.f.t) ? 2 : 0) + rand(0, 5);
+      const pool = free.length ? free : hideSpots(); let best = null, bs = -1e9;
+      for (let k = 0; k < 10; k++) { const h = pick(pool), v = sc(h); if (v > bs) { bs = v; best = h; } }
+      s.spot = best; goTo(e, s, s.spot.x, s.spot.z);
     }
     if (walk(e, s, dt, ST.bell > 0 ? 3.6 : 2.9)) { e.p = s.spot.f.t; e.r = s.spot.f.rot; s.mode = 'hide'; checkReady(); pushState(); }
   } else if (s.mode === 'hide') {
@@ -889,10 +1092,41 @@ function hiderBot(e, dt) {
     if (s.t <= 0) { e.w = false; e.pr = 100; s.thr = rand(18, 40); s.mode = 'go'; s.spot = null; pushState(); }
   }
 }
+/* стіни як відрізки (з прорізами дверей) — для ліхтариків і «бачить крізь стіну?» */
+function wallSegs(F) {
+  if (F.ws) return F.ws;
+  F.ws = [];
+  for (const w of F.walls) { const horiz = w.z1 === w.z2; for (const [a, b] of wallParts(w)) if (b > a) F.ws.push(horiz ? [a, w.z1, b, w.z1] : [w.x1, a, w.x1, b]); }
+  return F.ws;
+}
+function segT(ax, az, bx, bz, s) {   // де промінь A→B уперше перетинає відрізок (0…1), інакше 2
+  const rx = bx - ax, rz = bz - az, sx = s[2] - s[0], sz = s[3] - s[1], den = rx * sz - rz * sx;
+  if (Math.abs(den) < 1e-9) return 2;
+  const t = ((s[0] - ax) * sz - (s[1] - az) * sx) / den, u = ((s[0] - ax) * rz - (s[1] - az) * rx) / den;
+  return t >= 0 && t <= 1 && u >= -.02 && u <= 1.02 ? t : 2;
+}
+function rayLen(F, x, z, a, L) { let t = 1; for (const sg of wallSegs(F)) t = Math.min(t, segT(x, z, x + Math.sin(a) * L, z + Math.cos(a) * L, sg)); return t * L; }
+const losClear = (F, ax, az, bx, bz) => wallSegs(F).every(sg => segT(ax, az, bx, bz, sg) > 1);
+/* у темряві (⚡ блекаут) шукач бачить лише в промені ліхтарика: 7 м, ±0,55 рад, і не крізь стіни */
+function inCone(e, x, z) {
+  const d = dist2(x, z, e.x, e.z); if (d < 1.2) return true; if (d > 7) return false;
+  let da = Math.atan2(x - e.x, z - e.z) - e.f; da = Math.atan2(Math.sin(da), Math.cos(da));
+  return Math.abs(da) < .55 && losClear(RF(), e.x, e.z, x, z);
+}
 function bossBot(e, dt) {
-  const s = AU.bot[e.k], F = RF();
-  if (ST.ph === 'meet') { e.x = F.bossSpot.x; e.z = F.bossSpot.z; e.f = Math.PI; e.mv = false; if ((s.t -= dt) <= 0) { s.t = rand(5, 8); say(e, pick(['Так, колеги, синергія…', 'Хто з’їв мій йогурт?', 'KPI мають рости!', 'Зараз прийду — перевірю…'])); } return; }
-  if (ST.stun > 0) { e.mv = false; s.path = []; return; }   // лежить і бачить зірочки
+  const s = AU.bot[e.k], F = RF(), B = e.boss, dark = ST.bo > 0;
+  if (!s) return;
+  if (ST.ph === 'meet' && B) { e.x = F.bossSpot.x; e.z = F.bossSpot.z; e.f = Math.PI; e.mv = false; if ((s.t -= dt) <= 0) { s.t = rand(5, 8); say(e, pick(['Так, колеги, синергія…', 'Хто з’їв мій йогурт?', 'KPI мають рости!', 'Зараз прийду — перевірю…'])); } return; }
+  if ((B && ST.stun > 0) || e.hl > 0) { e.mv = false; s.path = []; return; }   // лежить і бачить зірочки / ☕ п’є каву / помічник на інструктажі
+  // 📎 скоби скінчились — по нові до шафи біля кабінету
+  if (s.mode === 'refill') {
+    const S = supSpot(F);
+    if (!s.path.length && dist2(e.x, e.z, S.x, S.z) > 1.6) goTo(e, s, S.x, S.z);
+    walk(e, s, dt, 3.4);
+    if (dist2(e.x, e.z, S.x, S.z) < 1.9) { doRefill(e, e); s.mode = 'wander'; s.path = []; say(e, pick(['Так, скоби є. Тепер стережіться!', 'Новий магазин скоб!'])); }
+    else if (!s.path.length) s.mode = 'wander';
+    return;
+  }
   s.think -= dt;
   if (s.think <= 0) {
     s.think = .4;
@@ -900,10 +1134,13 @@ function bossBot(e, dt) {
     const see = alive().map(q => ({ q, p: pos(q) })).filter(o => o.p);
     AU.sus = AU.sus.filter(o => o.until > AU.clock);
     // рухається в маскуванні — помітно
-    for (const o of see) if (o.q.p && dist2(o.p.x, o.p.z, e.x, e.z) < 9 && (o.q.bot ? o.q.mv : AU.clock - ((AU.mv[o.q.k] || {}).t || -9) < .6) && Math.random() < .7 && !AU.sus.some(u => u.k === o.q.k)) AU.sus.push({ k: o.q.k, x: o.p.x, z: o.p.z, until: AU.clock + 6 });
+    for (const o of see) if (o.q.p && dist2(o.p.x, o.p.z, e.x, e.z) < (dark ? 5 : 9) && (!dark || inCone(e, o.p.x, o.p.z)) && (o.q.bot ? o.q.mv : AU.clock - ((AU.mv[o.q.k] || {}).t || -9) < .6) && Math.random() < .7 && !AU.sus.some(u => u.k === o.q.k)) AU.sus.push({ k: o.q.k, x: o.p.x, z: o.p.z, until: AU.clock + 6 });
     for (const d of ST.dec) if (dist2(d.x, d.z, e.x, e.z) < 8 && !AU.sus.some(u => u.d === d.id) && Math.random() < .25) AU.sus.push({ d: d.id, x: d.x, z: d.z, until: AU.clock + 10 });
-    const vis = see.filter(o => !o.q.p && dist2(o.p.x, o.p.z, e.x, e.z) < 10.5 && !inSmoke(o.p.x, o.p.z));   // у хмарі з вогнегасника — не видно
-    const blink = see.filter(o => o.q.p && (o.q.pr <= 0 || o.q.fl > 0) && dist2(o.p.x, o.p.z, e.x, e.z) < 14 && !inSmoke(o.p.x, o.p.z));
+    const vis = see.filter(o => !o.q.p && dist2(o.p.x, o.p.z, e.x, e.z) < 10.5 && !inSmoke(o.p.x, o.p.z) && (!dark || inCone(e, o.p.x, o.p.z)));   // у хмарі з вогнегасника (і в темряві поза ліхтариком) — не видно
+    const blink = see.filter(o => o.q.p && (o.q.pr <= 0 || o.q.fl > 0) && dist2(o.p.x, o.p.z, e.x, e.z) < (dark ? 7 : 14) && !inSmoke(o.p.x, o.p.z) && (!dark || inCone(e, o.p.x, o.p.z)));
+    // останні 60 с — офісники «світяться»: бос-бот інколи здогадується
+    if (DUR - ST.t < PRESS_T && Math.random() < .05) { const o = pick(see); if (o) AU.sus.push({ k: o.q.k, x: o.p.x + rand(-1.5, 1.5), z: o.p.z + rand(-1.5, 1.5), until: AU.clock + 5 }); }
+    if ((e.am | 0) <= 0 && e.rc <= 0 && !vis.length && Math.random() < .5) { s.mode = 'refill'; s.path = []; s.tg = null; return; }
     const noise = AU.sus.filter(u => u.n);
     const near = (l, f) => l.sort((a, b) => dist2(f(a).x, f(a).z, e.x, e.z) - dist2(f(b).x, f(b).z, e.x, e.z))[0];
     let tg = null;
@@ -921,12 +1158,20 @@ function bossBot(e, dt) {
     // 📘 книжкою в того, кого побачив (3–8 м)
     if (s.mode === 'chase' && tg && tg.k && (e.inv.bk | 0) > 0 && Math.random() < .3) { const d = dist2(tg.x, tg.z, e.x, e.z); if (d > 2.5 && d < 8) { throwIt(e, e, 'bk', Math.atan2(tg.x - e.x, tg.z - e.z), d + .3); say(e, 'Лови книжку «Ефективний менеджмент»!'); } }
     // «Перевірка» і «Загальні збори»
-    if (ST.cd <= 0 && s.mode !== 'chase' && Math.random() < .12) { doCheck(e, e.x, e.z); say(e, 'Перевірка! Хто тут не працює?'); }
+    // 🔫 степлер здалеку: бачить офісника за 1,5–4 м — стріляє скобою
+    if (tg && tg.k && (e.am | 0) > 0 && (vis.length || blink.length)) { const d = dist2(tg.x, tg.z, e.x, e.z), q = ent(tg.k); if (q && !q.c && d > HAND_R && d < 4 && Math.random() < .55) {
+      e.am--; emit({ k: 'staple', by: e.k, x0: r2(e.x), z0: r2(e.z), x: r2(tg.x), z: r2(tg.z) });
+      if (Math.random() < .75) { catchE(e, q, q.bot ? q : posOf(q) || tg); s.tg = null; s.path = []; AU.sus = AU.sus.filter(u => u.k !== tg.k); say(e, pick(['Клац! Попався!', 'Степлер не бреше!'])); return; }
+    } }
+    if (!B) return;   // далі — лише бос: Перевірка, Збори, Нюх, Нарада
+    if (ST.nc <= 0 && s.mode === 'wander' && Math.random() < .08) { doSniff(e, e); say(e, '🐕 Нюх-нюх… пахне ледарем!'); }
+    else if (ST.fc <= 0 && s.mode !== 'chase' && alive().length && Math.random() < .04) { doFreeze(e); say(e, '📢 Всім на нараду! Ніхто не рухається!'); }
+    else if (ST.cd <= 0 && s.mode !== 'chase' && Math.random() < .12) { doCheck(e, e.x, e.z); say(e, 'Перевірка! Хто тут не працює?'); }
     else if (!ST.bu && ST.t > 30 && s.mode !== 'chase' && Math.random() < .03) { ringBell(e); say(e, `🔔 Загальні збори! Усі — у «${F.meet.n.replace(/^\S+\s/, '')}»!`); }
   }
   const tg = s.tg; if (!tg) return;
-  const done = walk(e, s, dt, s.mode === 'chase' ? 4.4 : 3.1);
-  if (ST.stun > 0) return;
+  const done = walk(e, s, dt, (s.mode === 'chase' ? 4.4 : 3.1) * (B ? 1 : .9) * (dark ? .85 : 1));
+  if (B && ST.stun > 0) return;
   // дійшов / наздогнав: «Попався!» або промах
   if (tg.k) {
     const q = ent(tg.k), p = q && !q.c && (q.bot ? q : posOf(q));
@@ -946,11 +1191,23 @@ function bossBot(e, dt) {
 
 /* ======================= ДАЛІ — ЛИШЕ В ГРАВЦЯ ======================= */
 const V = { lbl: null, glbl: null, gArrow: null, gMark: null, goal: null, hud: null, goalEl: null, blind: null, work: null, ram: null, ents: new Map(), decs: new Map(), shake: {}, blbl: new Map(), doors: [], stars: null, music: -1, auto: false, pref: 'hider', joined: false, lastRes: null, bar: '', bumpT: {}, smokeCd: 0, smokeT: 0,
-  proj: new Map(), smk: new Map(), pks: null, take: {}, thrCd: 0, want: '', wantT: 0, lbot: null };
+  proj: new Map(), smk: new Map(), pks: null, take: {}, thrCd: 0, want: '', wantT: 0, lbot: null,
+  ripples: [], sniff: null, dark: null, sup: [], clean: null, endEl: null, litN: 0, pressT: 0 };
 const amIn = () => !!(ST.on && me());
 const amBoss = () => { const e = me(); return !!(ST.on && e && e.boss); };
 const amHider = () => { const e = me(); return !!(ST.on && e && !e.boss && !e.c); };
 const amCaught = () => { const e = me(); return !!(ST.on && e && !e.boss && e.c); };
+const amHelper = () => { const e = me(); return !!(ST.on && e && !e.boss && e.c && !(e.hl > 0)); };   // 🧟 помічник боса (після інструктажу)
+const amSeeker = () => amBoss() || amHelper();
+/* 🔊 смішні офісні звуки — свої в загальний набір звуків гри */
+if (!SIMSIDE && typeof SFXD !== 'undefined' && typeof tone === 'function') {
+  const nz = (t, o, ty, f1, f2, d, v) => { if (typeof noiz === 'function') noiz(t, o, ty, f1, f2, d, v); };
+  SFXD.hb_t0 = (t, o) => { tone(t, o, 'sine', 700, 900, .12, .06); nz(t + .14, o, 'bandpass', 3200, 1400, .22, .35); };                       // 🤧 а-а-пчхи
+  SFXD.hb_t1 = (t, o) => { tone(t, o, 'sawtooth', 520, 820, .14, .07); tone(t + .14, o, 'sawtooth', 820, 430, .28, .07); };                 // 🐱 мяу
+  SFXD.hb_t2 = (t, o) => { for (let k = 0; k < 8; k++) tone(t + k * .06, o, 'square', k % 2 ? 1320 : 1660, k % 2 ? 1320 : 1660, .05, .05); }; // 📱 дзелень
+  SFXD.hb_t3 = (t, o) => { for (let k = 0; k < 4; k++) tone(t + k * .11, o, 'sawtooth', 95 + k * 12, 70, .14, .12); };                        // 🫃 бурчання
+  SFXD.hb_t4 = (t, o) => { tone(t, o, 'square', 120, 70, .38, .13); nz(t, o, 'lowpass', 400, 150, .35, .2); };                                 // 💨 крісло
+}
 const myProp = () => { const e = me(); return ST.on && e && !e.boss && !e.c ? e.p : ''; };
 const onRound = () => floorAt(pl.x, pl.z) === ST.v;   // гравець на поверсі раунду
 const myFloor = () => FL[floorAt(pl.x, pl.z)] || FL[ST.on ? ST.v : ST.nv] || FL[0];
@@ -1335,7 +1592,7 @@ function buildFloor(i) {
   // стійка «🗳️ ЛОБІ»: F поруч — знову відкрити вікно лобі (голос за поверх і «Я готовий»)
   { const p = F.board; put(g, mesh(new THREE.BoxGeometry(.08, 1.4, .08), '#4E4A6E'), p.x, .7, p.z);
     const sp = signPlane('🗳️ ЛОБІ', '#7FE08A', 1.5, .5, 'rgba(46,35,70,.92)'); sp.position.set(p.x, 1.55, p.z + .05); g.add(sp); }
-  for (const f of F.furn) { const m = furnMesh(f.t); m.position.set(f.x, 0, f.z); m.rotation.y = f.rot; g.add(m); }
+  for (const f of F.furn) { const m = furnMesh(f.t); m.position.set(f.x, 0, f.z); m.rotation.y = f.rot; g.add(m); if (movable(f)) { f.m = m; A.dynamic(m); } }   // переставні — не зливаємо
   return g;
 }
 const _buildIsland = buildIsland;
@@ -1349,7 +1606,8 @@ A.on('world', () => {
     for (const w of F.walls) { const horiz = w.z1 === w.z2; for (const [a, b] of wallParts(w)) for (let t = a; t <= b + .01; t += .5) addStatic(horiz ? t : w.x1, horiz ? w.z1 : t, .3, 2.5); }
     addStatic(F.board.x, F.board.z, .25, 1.4);
   }
-  for (const f of FURN) for (const c of circles(f)) addStatic(c.x, c.z, c.r, FT[f.t].h);
+  for (const f of FURN) { f.st = []; for (const c of circles(f)) { addStatic(c.x, c.z, c.r, FT[f.t].h); f.st.push(STATICS[STATICS.length - 1]); } }   // посилання — щоб переставляти меблі
+  for (const F of FL) { const s = supSpot(F); addStatic(s.x, s.z, .32, 1.5); }   // 📎 шафа зі скобами
 });
 
 /* ---------- Події ---------- */
@@ -1379,7 +1637,7 @@ function onEvent(e) {
     const iBoss = e.boss === myKey(), F = FL[e.v | 0] || FL[0];
     if (V.joined) roleCard(iBoss, F, e.bn);
     banner(iBoss ? `👔 Ти — БОС! ${F.n}. Нарада 20 с… потім шукай ледарів.` : `🙈 Ти — офісник! ${F.n}. Бос — ${escapeHTML(e.bn)}. Ховайся серед меблів (F)!`);
-    sfx('ding'); V.shake = {}; V.ram = null; V.work = null;
+    sfx('ding'); V.shake = {}; V.ram = null; V.work = null; V.noise = null; V.sniff = null; V.ripples = [];
   }
   else if (e.k === 'tp') { if (mine && running) { pl.x = +e.x; pl.z = +e.z; pl.y = 0; pl.vy = 0; pl.jump = null; pl.falling = false; V.ram = null; } }
   else if (e.k === 'hunt') { if (hr) { banner(amBoss() ? '🔎 Нарада скінчилась — шукай! ЛКМ по підозрілому, 2 — Перевірка, 3 — Збори.' : '👔 Бос вийшов з наради! Не рухайся…'); sfx('warn'); } }
@@ -1388,13 +1646,13 @@ function onEvent(e) {
   else if (e.k === 'caught') {
     if (!hr) return;
     burst(+e.x, 1.2, +e.z, '#FF5C7A', 22, 5, .8, 4); ftext(+e.x, 2.6, +e.z, 'ПОПАВСЯ! 😵', 'crit'); sfx('crit', +e.x, +e.z); shake = Math.max(shake, .3);
-    if (mine) { banner('😵 Попався! Іди на килим до боса — дивишся звідти до кінця раунду.'); V.work = null; V.ram = null; }
-    else if (e.by === myKey()) { banner(`🎯 Попався, ${escapeHTML(e.wn)}! Лишилось: ${alive().length}`); P.coins += 5; refreshHUD(); }
-    else toast(`😵 ${escapeHTML(e.wn)} попався босові.`);
+    if (mine) { banner(`😵 Попався! Інструктаж на килимі ${BRIEF_T} с — і ти 🧟 ПОМІЧНИК боса: шукай інших (степлер на ${AMMO_H} скоб).`); V.work = null; V.ram = null; }
+    else if (e.by === myKey()) { banner(`🎯 Попався, ${escapeHTML(e.wn)}! Тепер він твій помічник. Лишилось: ${alive().length}`); P.coins += 5; refreshHUD(); }
+    else toast(`😵 ${escapeHTML(e.wn)} попався (${escapeHTML(e.bn || 'босові')}) — тепер шукає разом з босом.`);
   }
   else if (e.k === 'miss') {
     if (!hr) return;
-    ftext(+e.x, 2.3, +e.z, FT[e.t] ? FT[e.t].miss : 'Нікого…', 'bad'); ftext(+e.x, 3, +e.z, `−${PENALTY} с ⏱`, 'bad'); sfx('hurt', +e.x, +e.z);
+    ftext(+e.x, 2.3, +e.z, FT[e.t] ? FT[e.t].miss : 'Нікого…', 'bad'); ftext(+e.x, 3, +e.z, `−${e.pen || PENALTY} с ⏱ · −репутація`, 'bad'); sfx('hurt', +e.x, +e.z);
     burst(+e.x, 1, +e.z, '#FFD27A', 8, 3, .5, 2);
   }
   else if (e.k === 'check') {
@@ -1405,7 +1663,7 @@ function onEvent(e) {
     if ((e.ks || []).includes(myKey())) { banner('😬 Перевірка! Твій предмет труситься — бос дивиться…'); shake = Math.max(shake, .25); }
     else if (e.by === myKey()) toast(`🔎 Перевірка: трусяться ${(e.ks || []).length + (e.ds || []).length ? 'предмети поруч — дивись уважно!' : 'нічого поруч. Шукай далі.'}`);
   }
-  else if (e.k === 'decoy') { if (mine) { toast('📄 Фейковий звіт лишено! Бос може на нього клюнути (−5 с йому).'); sfx('page'); } }
+  else if (e.k === 'decoy') { if (mine) { toast(`📄 Приманка лишилась — схожа на тебе! Бос може на неї клюнути (−${PENALTY} с йому). Ще: ${e.n | 0}.`); sfx('page'); } }
   else if (e.k === 'ram') {
     if (!hr) return;
     sfx('dash', +e.x, +e.z); burst(+e.x, .3, +e.z, '#FFF3E6', 8, 2, .4, 1);
@@ -1435,6 +1693,39 @@ function onEvent(e) {
     else if ((e.ok || []).includes(myKey())) { toast('👏 Ти прийшов на збори — +25% продуктивності за «залученість».'); sfx('coin'); }
     else if (amBoss()) toast(`🔔 Збори скінчились: прийшли ${(e.ok || []).length}, прогуляли 🚩 ${(e.fl || []).length}.`);
   }
+  else if (e.k === 'taunt') {   // 🔊 хтось подав звук: усі чують, бос бачить кільце (±3 м)
+    if (!hr) return;
+    const T = TAUNTS[e.s | 0] || TAUNTS[0], x = +e.x, z = +e.z;
+    if (typeof SFXD !== 'undefined') sfx('hb_t' + (e.s | 0), x, z);
+    ringFX(x, z, TAUNT_J, '#FF9CE0', 1.2); ringFX(x, z, 1.2, '#FF9CE0', .8); ftext(x, 2.6, z, `${T[0]} ${T[1]}`, 'gold');
+    V.noise = { x, z, until: gameTime + 6, taunt: T }; V.noises = (V.noises || []).concat([{ x, z, t: gameTime }]).slice(-6);
+    V.ripples.push({ x, z, t: gameTime, c: '#FF9CE0' });
+    if (mine) { if (!e.f) { P.coins += 3; addXP(4); const d = A.data(); d.taunts = (d.taunts || 0) + 1; refreshHUD(); toast(`${T[0]} «${T[1]}» — бос чує, де ти (приблизно). <b>+3 🪙</b>, +1 очко.`); } else banner(`${T[0]} Ти давно мовчиш — офіс сам видав «${T[1]}»! Бос чує…`); }
+    else if (amSeeker()) toast(`🔊 «${T[1]}» — хтось ховається в рожевому колі!`);
+  }
+  else if (e.k === 'staple') { if (hr) { for (let k = 1; k <= 6; k++) burst(lerp(+e.x0, +e.x, k / 6), 1.1, lerp(+e.z0, +e.z, k / 6), '#E8EEF8', 1, .4, .25, .2); sfx('staple', +e.x, +e.z); burst(+e.x, 1, +e.z, '#C9D6E8', 5, 2.5, .3, 1); } }
+  else if (e.k === 'refill') { if (mine) { toast(`📎 Нові скоби: у степлері <b>${e.n | 0}</b>. Наступна пачка — за ${REFILL_CD} с.`); sfx('equip'); } }
+  else if (e.k === 'sniff') {
+    if (!hr) return;
+    if (e.by === myKey()) {
+      if (e.d < 0) toast('🐕 Нюх: поблизу нікого не чути…');
+      else { V.sniff = { a: +e.a, d: e.d | 0, until: gameTime + 4 }; const dir = ['північ', 'північний схід', 'схід', 'південний схід', 'південь', 'південний захід', 'захід', 'північний захід'][((Math.round(((Math.PI - (+e.a)) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) / (Math.PI / 4))) % 8)];
+        banner(`🐕 Нюх-нюх… найближчий ледар — ~${e.d | 0} м, на ${dir}!`); }
+      sfx('discover');
+    } else if (amHider()) toast('🐕 Бос принюхується… він знає, в який бік іти!');
+  }
+  else if (e.k === 'freeze') { if (hr) { sfx('warn'); if (amHider()) { banner('📢 «ВСІМ НА НАРАДУ!» — ЗАВМРИ на 3 с! Хто ворухнеться — того видно.'); shake = Math.max(shake, .15); } else banner('📢 Всім на нараду! 3 с — хто ворухнеться, засвітиться 🚩'); } }
+  else if (e.k === 'moved') { if (hr) { V.shake[e.who] = gameTime + 2.5; ftext(+e.x, 2.6, +e.z, '🚩 ворухнувся!', 'bad'); if (mine) banner('🚩 Ти ворухнувся на нараді — бос бачить прапорець!'); } }
+  else if (e.k === 'freezeEnd') { if (hr && amSeeker()) toast((e.ks || []).length ? `📢 Ворухнулись: ${(e.ks || []).length} — шукай 🚩!` : '📢 Ніхто не ворухнувся… хитрі.'); }
+  else if (e.k === 'ev') {   // події
+    if (!hr) return;
+    if (e.e === 'dark') { sfx('break'); shake = Math.max(shake, .2); banner(amSeeker() ? '⚡ БЛЕКАУТ! Світло зникло — у тебе 🔦 ліхтарик. Степлер працює!' : '⚡ БЛЕКАУТ! Бос бачить лише в промені ліхтарика — міняй схованку!'); }
+    else if (e.e === 'clean') { sfx('whoosh'); banner('🧹 Прибиральниця з пилососом! Кого зачепить — того «розмаскує».'); }
+    else if (e.e === 'coffee') { sfx('pour'); banner(amBoss() ? `☕ Кава-брейк! Бос мусить випити каву — ${COFFEE_T} с не рухаєшся.` : `☕ Кава-брейк! ${escapeHTML(e.bn || 'Бос')} ${COFFEE_T} с п’є каву — біжи!`); }
+    else if (e.e === 'shuf') { sfx('travel'); banner('🔀 Переставили меблі! Нові схованки — і нові пастки.'); for (const f of RF().furn) if (f.m && Math.random() < .5) burst(f.x, .6, f.z, '#FFFFFF', 3, 1.5, .4, 1); }
+  }
+  else if (e.k === 'evEnd') { if (hr) { if (e.e === 'dark') { banner('💡 Світло повернулось!'); sfx('ding'); } else if (e.e === 'clean') toast('🧹 Прибиральниця пішла.'); } }
+  else if (e.k === 'clean') { if (hr) { ftext(+e.x, 2.4, +e.z, `🧹 Ой! ${FT[e.t] ? FT[e.t].ic : ''} та тут людина!`, 'bad'); sfx('hurt', +e.x, +e.z); burst(+e.x, .8, +e.z, '#DDEEFF', 12, 3, .6, 2); if (mine) banner('🧹 Прибиральниця зачепила тебе пилососом — маскування злетіло!'); } }
   else if (e.k === 'say') { const v = V.ents.get(e.who); if (v && hr) bubble(v.ent, String(e.txt).slice(0, 70), /стояти|Попався|збори/i.test(e.txt), 2.6); }
   else if (e.k === 'end') finish(e);
 }
@@ -1456,11 +1747,37 @@ function finish(e) {
     if (win) d.survived = (d.survived || 0) + 1; if (caught) d.caught = (d.caught || 0) + 1;
     txt = win ? `🎉 Ти пересидів боса! ${e.why ? e.why + ' ' : ''}Офісники перемагають.` : caught ? `😵 Бос ${escapeHTML(e.bn)} переміг. Наступного разу ховайся краще!` : `👔 Бос ${escapeHTML(e.bn)} переміг.`;
   }
+  { const r = (e.ro || []).find(q => q[0] === myKey()); if (r && r[5] > 0) coins += Math.min(30, r[5] * 2); }   // ⭐ очки раунду → монети
   P.coins += coins; addXP(xp);
+  if (e.mvp === myKey()) d.mvp = (d.mvp || 0) + 1;
+  endCard(e, coins, xp);
   banner(txt); toast(`Нагорода: <b>+${coins} 🪙</b> · +${xp} досвіду. Ще раунд — у вікні лобі: голос за поверх і ✅ «Я готовий». Боса обирає жереб (двічі поспіль — ні).`);
   sfx(/🎉|👔 Усі/.test(txt) ? 'level' : 'ding'); refreshHUD(); save();
 }
 
+/* 🏁 підсумки раунду (вікно в стилі «ОфісOS»): MVP, найкраща схованка, хто протримався найдовше, табличка очок */
+function endCard(e, coins, xp) {
+  if (typeof document === 'undefined') return;
+  let el = document.getElementById('hb-end'); if (el) el.remove();
+  el = document.createElement('div'); el.id = 'hb-end'; V.endEl = el;
+  const ro = (e.ro || []).filter(r => Array.isArray(r)), nmR = r => r[0] === myKey() ? 'Ти' : escapeHTML(String(r[4] || r[0]));
+  const byK = k => ro.find(r => r[0] === k), mvp = byK(e.mvp), ls = byK(e.ls), sp = Array.isArray(e.spot) ? e.spot : null, spR = sp && byK(sp[0]);
+  const rows = ro.slice().sort((a, b) => b[5] - a[5]).map(r => `<tr${r[0] === myKey() ? ' style="background:rgba(255,224,102,.18)"' : ''}><td>${r[1] ? '👔' : r[2] ? '🧟' : '🙈'} ${nmR(r)}</td><td style="text-align:right">⭐ ${r[5] | 0}</td><td style="text-align:right">${r[1] ? `${r[10] | 0} пром.` : `${mmss(r[6] | 0)}${r[2] ? '' : ' ✔'}`}</td><td style="text-align:right">${r[1] ? '' : `🔊 ${r[9] | 0}`}</td></tr>`).join('');
+  const win = e.win === 'boss' ? '👔 Бос і помічники перемогли!' : e.win === 'hiders' ? '🙈 Офісники пересиділи боса!' : '🏁 Раунд скінчився';
+  el.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:35;width:min(420px,calc(100vw - 32px));max-height:80vh;overflow:auto;background:#2E2346;color:#fff;border-radius:16px;box-shadow:0 14px 44px rgba(0,0,0,.5);font:13px/1.45 system-ui,sans-serif;border:2px solid #9F8BE0';
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;background:#4E3A7C;border-radius:14px 14px 0 0;font-weight:800"><span>🖥️ ОфісOS · Звіт про раунд</span><span style="flex:1"></span><button class="x" style="background:#C2335A;color:#fff;border:0;border-radius:6px;width:26px;height:22px;cursor:pointer">✕</button></div>
+    <div style="padding:10px 14px">
+      <div style="font:900 18px system-ui;margin-bottom:6px">${win}</div>
+      ${mvp ? `<div>🏆 <b>MVP</b>: ${nmR(mvp)} — ⭐ ${mvp[5] | 0}</div>` : ''}
+      ${ls ? `<div>⏱ <b>Протримався найдовше</b>: ${nmR(ls)} — ${mmss(ls[6] | 0)}${ls[2] ? '' : ' (не знайшли!)'}</div>` : ''}
+      ${sp && spR && FT[sp[1]] ? `<div>🪄 <b>Найкраща схованка</b>: ${nmR(spR)} — ${FT[sp[1]].ic} ${escapeHTML(FT[sp[1]].n.toLowerCase())}${sp[2] ? ` у «${escapeHTML(roomName({ n: String(sp[2]) }))}»` : ''}</div>` : ''}
+      <table style="width:100%;margin-top:8px;border-collapse:collapse;font-size:12px">${rows}</table>
+      <div style="margin-top:8px;color:#FFE066">Тобі: +${coins} 🪙 · +${xp} досвіду</div>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('.x').onclick = () => el.remove();
+  V.endT = 9;   // зникає сама (ігровий час)
+}
 /* ---------- Хто де: позиції людей і ботів ---------- */
 function remoteOf(k) { for (const id in NET.players) { const r = NET.players[id]; if (r.name === k) return r; } return null; }
 function posC(e) {   // позиція учасника в гравця
@@ -1509,13 +1826,15 @@ function render(dt) {
     if (v.hum) {
       v.hum.root.visible = !prop;
       if (!prop) {
-        const down = e.boss && ST.stun > 0;   // бос лежить після тарана
+        const down = e.boss && ST.stun > 0 && ST.ev !== 'coffee';   // бос лежить після тарана (на кава-брейку — стоїть і п’є)
         v.hum.root.position.set(p.x, down ? .25 : 0, p.z); v.hum.root.rotation.set(down ? -1.35 : 0, v.f, 0);
         const sw = e.mv ? Math.sin(t * 10 + p.x) * .6 : 0;
         v.hum.l1.rotation.x = sw; v.hum.l2.rotation.x = -sw; v.hum.aL.rotation.x = -sw * .7; v.hum.aR.rotation.x = -.35 - sw * .3;
         if (e.w) { v.hum.aL.rotation.x = v.hum.aR.rotation.x = -1.3 + Math.sin(t * 22) * .15; }
-        v.hum.body.position.y = e.c ? -.3 : e.mv ? Math.abs(Math.sin(t * 10)) * .06 : 0;
-        if (e.c) { v.hum.aL.rotation.x = v.hum.aR.rotation.x = -.2; v.hum.body.rotation.x = .25; } else v.hum.body.rotation.x = 0;
+        const brief = e.c && e.hl > 0;   // спійманий на інструктажі — понуро стоїть на килимі
+        v.hum.body.position.y = brief ? -.3 : e.mv ? Math.abs(Math.sin(t * 10)) * .06 : 0;
+        if (e.boss && ST.ev === 'coffee' && ST.stun > 0) { v.hum.aR.rotation.x = -1.9; if (Math.random() < dt * 2) ftext(p.x, 2.6, p.z, '☕ сьорб…', 'calm'); }
+        if (brief) { v.hum.aL.rotation.x = v.hum.aR.rotation.x = -.2; v.hum.body.rotation.x = .25; } else v.hum.body.rotation.x = 0;
       }
     }
     if (v.prop) {
@@ -1545,10 +1864,71 @@ function render(dt) {
   }
   for (const [id, m] of V.decs) if (!ds.has(id)) { scene.remove(m); V.decs.delete(id); }
   projRender(dt); smokeRender(dt); if (running) { pickMeshes(); pickRender(); }
+  extraRender(dt);
   // двері кабінету: зачинені під час наради
   FL.forEach((F, i) => { const D = V.doors[i]; if (!D) return; const tx = F.door.x + (ST.on && ST.ph === 'meet' && ST.v === i ? 0 : 1.35); D.position.x = lerp(D.position.x, tx, Math.min(1, dt * 5)); });
 }
 
+/* ---------- v3 у гравця: 📎 шафи зі скобами, 🧹 прибиральниця, кільця звуків, 🐕 нюх, останні 60 с ---------- */
+function extraRender(dt) {
+  const t = gameTime;
+  if (!V.sup.length && typeof scene !== 'undefined') FL.forEach((F, i) => {   // синя шафа з табличкою «📎 СКОБИ»
+    const S = supSpot(F), g = new THREE.Group();
+    put(g, mesh(new THREE.BoxGeometry(.6, 1.45, .5), '#3E6EC8'), 0, .73, 0); put(g, mesh(new THREE.BoxGeometry(.5, .05, .52), '#FFE066', false), 0, 1.0, 0);
+    for (const y of [.35, .7]) put(g, mesh(new THREE.BoxGeometry(.3, .08, .06), '#C9D6E8', false), 0, y, .27);
+    const sp = signPlane('📎 СКОБИ', '#FFE066', 1.1, .34, 'rgba(46,35,70,.92)'); sp.position.set(0, 1.85, 0); g.add(sp);
+    g.position.set(S.x, 0, S.z); scene.add(g); V.sup[i] = g;
+  });
+  for (const g of V.sup) if (g) g.children[g.children.length - 1].rotation.y = Math.atan2(camPos.x - g.position.x, camPos.z - g.position.z);
+  // 🧹 прибиральниця з пилососом
+  if (ST.on && ST.cl) {
+    if (!V.clean) { const h = buildOffice('#F0C8A0', '#4FA3D9'); h.vac = put(h.root, mesh(new THREE.BoxGeometry(.4, .3, .5), '#E03A3A'), 0, .15, .75); put(h.root, mesh(new THREE.BoxGeometry(.05, .8, .05), '#2E2346'), 0, .55, .45); scene.add(h.root); V.clean = h; }
+    const h = V.clean, k = Math.min(1, dt * 8), C = ST.cl;
+    h.root.visible = true; h.root.position.x = lerp(h.root.position.x || C.x, C.x, k); h.root.position.z = lerp(h.root.position.z || C.z, C.z, k); h.root.rotation.y = lerpAng(h.root.rotation.y, C.f, k);
+    const sw = Math.sin(t * 8) * .5; h.l1.rotation.x = sw; h.l2.rotation.x = -sw; h.aL.rotation.x = h.aR.rotation.x = -.9;
+    if (Math.random() < dt * 10) burst(h.root.position.x + Math.sin(C.f) * .8, .1, h.root.position.z + Math.cos(C.f) * .8, '#DDEEFF', 1, 1, .3, .5);
+  } else if (V.clean) V.clean.root.visible = false;
+  // 🔊 кільця звуку ще 3 с хвилями розходяться
+  V.ripples = V.ripples.filter(r => t - r.t < 3);
+  for (const r of V.ripples) { const n = Math.floor((t - r.t) / .7); if (n !== r.n) { r.n = n; ringFX(r.x, r.z, 1.5 + n * .8, r.c, .7); } }
+  // 🐕 нюх: доріжка слідів у бік найближчого ледаря
+  if (V.sniff && V.sniff.until > t) { if ((V.sniffT = (V.sniffT || 0) - dt) <= 0) { V.sniffT = .25; for (let k = 1; k <= 4; k++) burst(pl.x + Math.sin(V.sniff.a) * k * 1.1, .15, pl.z + Math.cos(V.sniff.a) * k * 1.1, '#FFB347', 1, .5, .5, .3); } }
+  // ⏳ останні 60 с — кожні 4 с усі вцілілі ледь «світяться»
+  if (ST.on && ST.ph === 'hunt' && left() < PRESS_T && onRound()) {
+    if ((V.pressT -= dt) <= 0) { V.pressT = 4; for (const e of alive()) { const p = posC(e); if (p) { burst(p.x, 1.2, p.z, '#FFE066', 4, 1.2, .6, 1.5); ringFX(p.x, p.z, .9, '#FFE066', .5); } } if (amSeeker()) toast('⏳ Остання хвилина: офісники «світяться» кожні 4 с!'); }
+  }
+}
+/* ⚡ блекаут: темрява, у шукачів — промінь ліхтарика (стіни його обрізають), в офісника — тьмяне коло навколо себе */
+function darkness() {
+  if (!V.dark) { V.dark = document.createElement('canvas'); V.dark.id = 'hb-dark'; V.dark.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity .5s;opacity:0'; const hd = document.getElementById('hud'); if (hd && hd.parentNode) hd.parentNode.insertBefore(V.dark, hd); else document.body.appendChild(V.dark); }   // під HUD: панель і кнопки видно
+  const on = running && ST.on && ST.bo > 0 && onRound() && !panel && !pl.dead;
+  V.dark.style.opacity = on ? 1 : 0; V.dark.dataset.on = on ? 1 : ''; if (!on) { V.litN = 0; return; }
+  const c = V.dark, W_ = innerWidth | 0, H_ = innerHeight | 0; if (c.width !== W_ || c.height !== H_) { c.width = W_; c.height = H_; }
+  const g = c.getContext && c.getContext('2d'); if (!g || !g.fillRect) return;
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.clearRect(0, 0, W_, H_); g.fillStyle = 'rgba(8,5,22,.93)'; g.fillRect(0, 0, W_, H_);
+  g.globalCompositeOperation = 'destination-out';
+  const F = RF(), L = [];
+  for (const e of ST.ro) {
+    if (!seeker(e)) continue;
+    const p = posC(e); if (!p) continue;
+    const f = e.k === myKey() ? pl.face : e.bot ? (V.ents.get(e.k) || {}).f || e.f : (p.r && p.r.face) || 0;
+    L.push({ x: p.x, z: p.z, f, cone: 1, down: e.boss && ST.stun > 0 });
+  }
+  if (!amSeeker()) L.push({ x: pl.x, z: pl.z, f: 0, cone: 0 });   // офісник бачить лише поруч
+  V.litN = L.filter(q => q.cone).length;
+  const grad = (x, y, r0, r1) => { const gr = g.createRadialGradient(x, y, r0, x, y, r1); if (gr) { gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(.75, 'rgba(0,0,0,.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; } return gr; };
+  for (const q of L) {
+    const p = screenPos(q.x, 1, q.z), u = screenPos(q.x + 1, 1, q.z); if (!p.vis) continue;
+    const m = Math.max(8, Math.hypot(u.x - p.x, u.y - p.y));   // пікселів на метр
+    const r0 = (q.cone ? 1.3 : 2.4) * m;
+    if (grad(p.x, p.y, 0, r0)) { g.beginPath(); g.arc(p.x, p.y, r0, 0, 7); g.fill(); }
+    if (!q.cone || q.down) continue;
+    // промінь: віяло з 18 променів, кожен обрізаний першою стіною
+    const pts = []; for (let k = 0; k <= 18; k++) { const a = q.f - .55 + k / 18 * 1.1, len = rayLen(F, q.x, q.z, a, 7.5), s2 = screenPos(q.x + Math.sin(a) * len, 1, q.z + Math.cos(a) * len); pts.push(s2); }
+    if (grad(p.x, p.y, m * .5, 7.5 * m)) { g.beginPath(); g.moveTo(p.x, p.y); for (const s2 of pts) g.lineTo(s2.x, s2.y); g.closePath(); g.fill(); }
+  }
+  g.globalAlpha = 1;
+}
 /* ---------- Кидалки в гравця: польот по дузі, хмари піни, помітні місця підбору ---------- */
 function projMesh(w) {
   const g = new THREE.Group();
@@ -1653,6 +2033,7 @@ function pickRender() {
   for (const o of V.pks) {
     o.g.visible = o.v === fv;
     if (!o.g.visible) continue;
+    o.g.position.x = o.sp.x; o.g.position.z = o.sp.z; if (o.sp.f && (o.sp.t === 'pl' || o.sp.t === 'bk')) o.g.rotation.y = o.sp.f.rot;   // 🔀 меблі могли переставити
     const empty = e && !e.c && (e.inv[o.sp.t] | 0) === 0 && (!e.boss || o.sp.t === 'bk'), cool = V.take[o.sp.i] > t;
     o.g.ring.material.opacity = cool ? .2 : empty ? .55 + Math.sin(t * 6) * .35 : .6;
     o.g.ring.scale.setScalar(empty && !cool ? 1 + Math.sin(t * 4) * .08 : 1);
@@ -1737,20 +2118,21 @@ function clientTick(dt) {
   { const it = document.getElementById('hb-intro'); if (it && !it.dataset.f && (!running || !(inIsl(pl.x, pl.z)))) it.remove(); }
   if (V.roleT > 0 && !(running && inIsl(pl.x, pl.z))) { V.roleT = 0; const r = document.getElementById('hb-role'); if (r) r.style.display = 'none'; }   // картка ролі не їде з тобою у світ   // пішов з режиму, не закривши «як грати», — вікно не висить над світом (і над інвентарем)
   render(dt);
-  if (!running) { if (V.lbl) V.lbl.style.display = 'none'; syncBar(); lobbyUI(); return; }   // гра не йде — підписи (боти, кімнати) не висять
+  if (!running) { if (V.lbl) V.lbl.style.display = 'none'; syncBar(); darkness(); lobbyUI(); return; }   // гра не йде — підписи (боти, кімнати) не висять
   const fv = floorAt(pl.x, pl.z);
   if (fv >= 0 && !pl.dead) {
     const F = FL[fv];
     pl.safe = { x: F.spawn.x, z: F.spawn.z };
     // бос на нараді й спіймані — у кабінеті
-    if (onRound() && ((amBoss() && ST.ph === 'meet') || amCaught())) { const O = RF().off; pl.x = clamp(pl.x, O.x0, O.x1); pl.z = clamp(pl.z, O.z0, O.z1); }
+    if (onRound() && ((amBoss() && ST.ph === 'meet') || (amCaught() && me().hl > 0))) { const O = RF().off; pl.x = clamp(pl.x, O.x0, O.x1); pl.z = clamp(pl.z, O.z0, O.z1); }
     if (amBoss() && ST.stun > 0) { pl.lock = Math.max(pl.lock || 0, .05); pl.emote = 'sit'; pl.emoteT = .2; }
     { const e = me(); if (e && !e.boss && !e.c && e.bn > 0 && onRound()) { pl.lock = Math.max(pl.lock || 0, .05); V.work = null; V.ram = null; } }   // 📘 дістав книжкою від боса
     updWork(dt); updRam(dt); bossMass(); updSmoke(dt);
     if (amHider() && myProp() && hero) hero.root.visible = false;
   }
-  syncBar(); hud(); guide(); blindfold(); lobbyUI();
+  syncBar(); hud(); guide(); blindfold(); darkness(); lobbyUI();
   if (V.roleT > 0 && (V.roleT -= dt) <= 0) { const r = document.getElementById('hb-role'); if (r) r.style.display = 'none'; }
+  if (V.endT > 0 && ((V.endT -= dt) <= 0 || ST.on)) { V.endT = 0; const el = document.getElementById('hb-end'); if (el) el.remove(); }
 }
 function updWork(dt) {
   if (!V.work) return;
@@ -1816,16 +2198,24 @@ function updSmoke() { if (V.smokeT > gameTime && Math.random() < .5) burst(pl.x,
 const BAR = {
   hider: { slots: [
     { id: 'mask', ic: '🎭', n: 'Маска', use: () => maskToggle() },
-    { id: 'decoy', ic: '📄', n: 'Звіт', count: () => (me() && !me().dc ? 1 : 0), use: () => placeDecoy() },
-    { id: 'ram', ic: '🛞', n: 'Таран', count: () => { const e = me(); return !e || !canRoll(e.p) ? 0 : e.rc > 0 ? Math.ceil(e.rc) : null; }, use: () => startRamC() },
-    { id: 'smoke', ic: '🚬', n: 'Перекур', count: () => (V.smokeCd > gameTime ? Math.ceil(V.smokeCd - gameTime) : null), use: () => smokeBreak() },
+    { id: 'decoy', ic: '📄', n: 'Приманка', count: () => (me() ? Math.max(0, DECOYS - (me().dn | 0)) : 0), use: () => placeDecoy() },
+    // 🛞 таран (у маскуванні на коліщатках) або 🚬 перекур-ривок (в усіх інших випадках)
+    { id: 'ram', get ic() { const e = me(); return e && canRoll(e.p) ? '🛞' : '🚬'; }, get n() { const e = me(); return e && canRoll(e.p) ? 'Таран' : 'Ривок'; },
+      count: () => { const e = me(); if (e && canRoll(e.p)) return e.rc > 0 ? Math.ceil(e.rc) : null; return V.smokeCd > gameTime ? Math.ceil(V.smokeCd - gameTime) : null; },
+      use: () => { const e = me(); if (e && canRoll(e.p)) startRamC(); else smokeBreak(); } },
+    { id: 'taunt', ic: '🔊', n: 'Звук (G)', count: () => { const e = me(); return e && e.tc > 0 ? Math.ceil(e.tc) : null; }, use: () => tauntC() },
     itemSlot('pl', () => throwC('pl')), itemSlot('pp', () => throwC('pp')), itemSlot('bk', () => throwC('bk')), itemSlot('ex', () => extC()),
   ] },
   boss: { slots: [
-    { id: 'catch', ic: '👉', n: 'Попався', use: () => bossClick() },
+    { id: 'catch', ic: '🔫', n: 'Степлер', count: () => (me() ? me().am | 0 : 0), use: () => bossClick() },
     { id: 'check', ic: '🔍', n: 'Перевірка', count: () => (ST.cd > 0 ? Math.ceil(ST.cd) : null), use: () => bossCheck() },
     { id: 'bell', ic: '🔔', n: 'Збори', count: () => (ST.bu ? 0 : 1), use: () => bossBell() },
     itemSlot('bk', () => throwC('bk')),
+    { id: 'sniff', ic: '🐕', n: 'Нюх', count: () => (ST.nc > 0 ? Math.ceil(ST.nc) : null), use: () => bossSniff() },
+    { id: 'freeze', ic: '📢', n: 'Нарада!', count: () => (ST.fc > 0 ? Math.ceil(ST.fc) : null), use: () => bossFreeze() },
+  ] },
+  helper: { slots: [   // 🧟 помічник боса: лише степлер (скоби — у шафі 📎 біля кабінету)
+    { id: 'catch', ic: '🔫', n: 'Степлер', count: () => (me() ? me().am | 0 : 0), use: () => bossClick() },
   ] },
 };
 /* слот кидалки: лічильник, а на нулі — підпис «де: …» (і в підказці при наведенні) */
@@ -1834,17 +2224,30 @@ function itemSlot(w, use) {
   return { id: w, ic: T.ic, count: () => invOf()[w] | 0, get n() { return (invOf()[w] | 0) ? T.n : 'де: ' + where; }, use };
 }
 function syncBar() {
-  const e = me(), k = !running || pl.dead || !ST.on || !e || !onRound() || e.c ? '' : e.boss ? 'boss' : 'hider';
+  const e = me(), k = !running || pl.dead || !ST.on || !e || !onRound() ? '' : e.boss ? 'boss' : e.c ? (e.hl > 0 ? '' : 'helper') : 'hider';
   if (k === V.bar) return;
   V.bar = k; if (typeof modeBar === 'function') modeBar(k ? BAR[k] : null);
 }
 function maskToggle() {
   const e = me(); if (!amHider() || !e || V.work) return;
-  const f = nearFurn(q => FT[q.t].dis && q.t !== e.p, 1.3);
+  const f = aimFurn(e);
   if (f) req('dis', { i: f.i });
   else if (e.p) req('dis', { i: -1 });
   else toast('🎭 Підійди ближче до меблів: 🪑 крісло, 🪴 фікус, 🚰 кулер, 📦 коробка…');
 }
+/* 🎭 під що маскуватись: предмет під курсором (до 2,2 м), інакше — найближчий */
+function aimFurn(e) {
+  const ok = q => FT[q.t].dis && q.t !== e.p;
+  if (input.aimOk) { let b = null, bd = 1.1; const F = FL[floorAt(pl.x, pl.z)]; for (const f of F ? F.furn : []) { if (!ok(f) || fdist(f, pl.x, pl.z) > 2.2) continue; const d = fdist(f, input.ax, input.az); if (d < bd) { bd = d; b = f; } } if (b) return b; }
+  return nearFurn(ok, 1.3);
+}
+function tauntC() {
+  const e = me(); if (!amHider() || !e) return;
+  if (ST.ph !== 'hunt') { toast('🔊 Бос ще на нараді — звук подаси, коли почнеться полювання.'); return; }
+  if (e.tc > 0) { toast(`🔊 Горло ще не відпочило: ${Math.ceil(e.tc)} с`); return; }
+  req('taunt'); e.tc = TAUNT_CD;
+}
+function rotC() { const e = me(); if (!amHider() || !e || !e.p) return; req('rot'); if (!AUTH()) e.r = (e.r || 0) + PI / 4; sfx('tick'); }
 /* велика картка ролі на старті раунду: «Ти — БОС!» / «Ти — офісник» (4 с, клік — сховати) */
 function roleCard(boss, F, bn) {
   if (typeof document === 'undefined') return;
@@ -1853,8 +2256,8 @@ function roleCard(boss, F, bn) {
   el.dataset.role = boss ? 'boss' : 'hider';
   el.style.cssText = `position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:30;display:block;cursor:pointer;text-align:center;padding:18px 28px;border-radius:20px;color:#fff;font:900 34px/1.25 system-ui,sans-serif;box-shadow:0 14px 44px rgba(0,0,0,.45);border:3px solid ${boss ? '#FF5C7A' : '#7FE08A'};background:${boss ? 'rgba(120,20,50,.94)' : 'rgba(24,70,60,.94)'};max-width:92vw`;
   el.innerHTML = boss
-    ? `👔 Ти — БОС!<div style="font:700 15px/1.45 system-ui,sans-serif;margin-top:6px">${escapeHTML(F.n)} · спершу нарада 20 с (нічого не бачиш),<br>потім шукай офісників, що прикинулись меблями. ЛКМ — «Попався!»</div>`
-    : `🙈 Ти — офісник<div style="font:700 15px/1.45 system-ui,sans-serif;margin-top:6px">${escapeHTML(F.n)} · бос — <b>${escapeHTML(bn || '')}</b>.<br>20 с наради — біжи й маскуйся під меблі (F)!</div>`;
+    ? `👔 Ти — БОС!<div style="font:700 15px/1.45 system-ui,sans-serif;margin-top:6px">${escapeHTML(F.n)} · спершу рахуєш до ${MEET} (нічого не бачиш),<br>потім шукай офісників, що прикинулись меблями. ЛКМ — 🔫 степлер (${AMMO} скоб)</div>`
+    : `🙈 Ти — офісник<div style="font:700 15px/1.45 system-ui,sans-serif;margin-top:6px">${escapeHTML(F.n)} · бос — <b>${escapeHTML(bn || '')}</b>.<br>Бос рахує до ${MEET} — біжи й маскуйся під будь-які меблі (F)! G — 🔊 звук за очки</div>`;
   V.roleT = 4;   // ховаємо в clientTick (ігровий час)
 }
 /* засліплення боса під час наради */
@@ -1862,28 +2265,32 @@ function blindfold() {
   if (!V.blind) { V.blind = document.createElement('div'); V.blind.id = 'hb-blind'; V.blind.style.cssText = 'position:fixed;inset:0;z-index:1;pointer-events:none;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(14,10,30,.94);color:#fff;font:800 22px/1.5 system-ui,sans-serif;text-align:center;padding:16px'; document.body.appendChild(V.blind); }
   const on = running && amBoss() && ST.ph === 'meet' && onRound() && !panel;
   V.blind.style.display = on ? 'flex' : 'none';
-  if (on) { const h = `👔 Ти — БОС! 🙈 НАРАДА<br><span style="font-size:15px;font-weight:600">«…і тому KPI мають рости». Ти нічого не бачиш ще <b>${Math.ceil(left())} с</b>.<br>Офісники ховаються серед меблів на поверсі «${RF().n}».</span>`; if (V.blind.innerHTML !== h) V.blind.innerHTML = h; }
+  if (on) { const n = Math.min(MEET, Math.floor(MEET - left()) + 1); const h = `👔 Ти — БОС! 🙈 Заплющ очі й рахуй…<div style="font:900 64px/1.1 system-ui,sans-serif;color:#FFE066;margin:8px 0">${n}</div><span style="font-size:15px;font-weight:600">«Бос рахує до ${MEET}…» — ще <b>${Math.ceil(left())} с</b>. Офісники ховаються серед меблів на поверсі «${RF().n}».<br>Меблі цього раунду переставлені 🔀 — старі схованки не допоможуть.</span>`; if (V.blind.innerHTML !== h) V.blind.innerHTML = h; }
 }
 
 /* ---------- Бос: «Попався!», «Перевірка», «Збори» ---------- */
+/* 🔫 куди влучить степлер: впритул — рукою, далі (є скоби) — до 5,5 м у боса й 3 м у помічника */
+const reachC = () => { const e = me(); return e && (e.am | 0) > 0 ? (e.boss ? STAPLE_R : STAPLE_RH) : 1.7; };
 function bossTarget() {
-  const fx = pl.x + Math.sin(pl.face) * 1.1, fz = pl.z + Math.cos(pl.face) * 1.1;
-  const ax = input.aimOk && dist2(input.ax, input.az, pl.x, pl.z) < 4 ? input.ax : fx, az = input.aimOk && dist2(input.ax, input.az, pl.x, pl.z) < 4 ? input.az : fz;
+  const fx = pl.x + Math.sin(pl.face) * 1.1, fz = pl.z + Math.cos(pl.face) * 1.1, RR = reachC(), aimOk = input.aimOk && dist2(input.ax, input.az, pl.x, pl.z) < RR + 1.5;
+  const ax = aimOk ? input.ax : fx, az = aimOk ? input.az : fz;
   let best = null, bd = 1e9;
-  const consider = (o, reach, aimD) => { if (reach > 1.7) return; const s = aimD; if (s < bd) { bd = s; best = o; } };
+  const consider = (o, reach, aimD) => { if (reach > RR || (reach > 1.7 && aimD > 1.2)) return; const s = aimD; if (s < bd) { bd = s; best = o; } };   // далеко — лише те, у що цілишся
   for (const e of alive()) { if (e.k === myKey()) continue; const p = posC(e); if (p) consider({ who: e.k, x: p.x, z: p.z }, dist2(p.x, p.z, pl.x, pl.z) - .4, dist2(p.x, p.z, ax, az) - .25); }
   for (const d of ST.dec) consider({ d: d.id, x: d.x, z: d.z }, dist2(d.x, d.z, pl.x, pl.z) - .4, dist2(d.x, d.z, ax, az));
-  for (const f of RF().furn) { const r = fdist(f, pl.x, pl.z); if (r < 1.7) consider({ f: f.i, x: f.x, z: f.z }, r, fdist(f, ax, az) + .1); }
+  for (const f of RF().furn) { const r = fdist(f, pl.x, pl.z); if (r < RR) consider({ f: f.i, x: f.x, z: f.z }, r, fdist(f, ax, az) + .1); }
   return best;
 }
 function bossClick() {
-  if (!amBoss() || ST.ph !== 'hunt') { if (amBoss()) toast('🙈 Ти ще на нараді…'); return; }
-  if (ST.stun > 0) { toast('💫 Ти ще бачиш зірочки… Встань спершу!'); return; }
+  if (!amSeeker() || ST.ph !== 'hunt') { if (amBoss()) toast('🙈 Ти ще на нараді…'); return; }
+  if (amBoss() && ST.stun > 0) { toast(ST.ev === 'coffee' ? '☕ Спершу допий каву…' : '💫 Ти ще бачиш зірочки… Встань спершу!'); return; }
   const tg = bossTarget();
   pl.swingT = .22; pl.swingKind = 0; pl.atkCd = .45;
   if (!tg) { ftext(pl.x, 2.4, pl.z, 'Тут нікого…', 'calm'); return; }
   pl.face = Math.atan2(tg.x - pl.x, tg.z - pl.z);
-  ftext(tg.x, 2.1, tg.z, '👉 Попався?!', 'crit'); sfx('whoosh', tg.x, tg.z);
+  const far = dist2(tg.x, tg.z, pl.x, pl.z) > HAND_R + .4;
+  ftext(tg.x, 2.1, tg.z, far ? '🔫 Клац!' : '👉 Попався?!', 'crit'); sfx(far ? 'staple' : 'whoosh', tg.x, tg.z);
+  if (far && !((me().am | 0) > 0)) { toast(`📎 Скоби скінчились! Лови впритул або візьми нові в шафі 📎 біля кабінету боса.`); return; }
   req('catch', tg.who != null ? { who: tg.who } : tg.d != null ? { d: tg.d } : { f: tg.f });
 }
 function bossCheck() {
@@ -1891,6 +2298,18 @@ function bossCheck() {
   if (ST.stun > 0) { toast('💫 Спершу встань з підлоги…'); return; }
   if (ST.cd > 0) { toast(`🔎 Перевірка перезаряджається: ${Math.ceil(ST.cd)} с`); return; }
   req('check'); bubble(pl, 'ПЕРЕВІРКА! Хто тут не працює?!', true, 2);
+}
+function bossSniff() {
+  if (!amBoss() || ST.ph !== 'hunt') return;
+  if (ST.stun > 0) { toast('💫 Спершу встань…'); return; }
+  if (ST.nc > 0) { toast(`🐕 Нюх відпочиває: ${Math.ceil(ST.nc)} с`); return; }
+  req('sniff'); bubble(pl, '🐕 Нюх-нюх…', false, 1.5);
+}
+function bossFreeze() {
+  if (!amBoss() || ST.ph !== 'hunt') return;
+  if (ST.stun > 0) { toast('💫 Спершу встань…'); return; }
+  if (ST.fc > 0) { toast(`📢 Нарада щойно була: ${Math.ceil(ST.fc)} с`); return; }
+  req('freeze'); bubble(pl, '📢 ВСІМ НА НАРАДУ! НІХТО НЕ РУХАЄТЬСЯ!', true, 2.5);
 }
 function bossBell() {
   if (!amBoss() || ST.ph !== 'hunt') return;
@@ -1905,7 +2324,7 @@ attack = function () {
     // ЛКМ, коли в панелі вибрана кидалка (і вона є), — кидок у бік курсора
     const M = typeof MODEBAR !== 'undefined' ? MODEBAR : null, sl = M && M.slots[M.sel], e = me();
     if (sl && THR[sl.id] && e && (e.inv[sl.id] | 0) > 0) { throwC(sl.id); return; }
-    if (amBoss() && pl.atkCd <= 0) bossClick();
+    if (amSeeker() && pl.atkCd <= 0) bossClick();
     return;
   }
   return _attack.apply(this, arguments);
@@ -1925,9 +2344,11 @@ const qKey = () => {
 A.key('KeyQ', qKey);
 A.on('start', () => { const k = ADDONS.keys.KeyQ; if (k && k[1] !== qKey) { _prevQ = k; ADDONS.keys.KeyQ = [ADDONS.keys.KeyR[0], qKey]; } });
 A.key('KeyR', () => { if (!running || !amHider() || !onRound()) return false; placeDecoy(); });
+A.key('KeyG', () => { if (!running || !onRound()) return false; if (amHider()) tauntC(); else if (amBoss()) bossSniff(); else return false; });   // 🔊 звук / 🐕 нюх
+A.key('KeyT', () => { if (!running || !onRound()) return false; if (amHider()) rotC(); else if (amBoss()) bossFreeze(); else return false; });   // 🔄 повернути предмет / 📢 нарада
 function placeDecoy() {
   const e = me(); if (!e || !amHider()) return;
-  if (e.dc) { toast('📄 Фейковий звіт уже використано в цьому раунді.'); return; }
+  if ((e.dn | 0) >= DECOYS) { toast(`📄 Обидві приманки вже розставлено (${DECOYS} за раунд).`); return; }
   req('decoy');
 }
 /* у маскуванні — повільно, без ривків і стрибків; у тарані — керує розгін */
@@ -1948,17 +2369,25 @@ getInteract = function () {
     if (amIn() && onRound()) {
       const e = me();
       const pk = types => { const sp = nearPick(types, 1.2); if (!sp || V.take[sp.i] > gameTime || (e.inv[sp.t] | 0) >= PK[sp.t].max) return null; return { l: `${PK[sp.t].take} · є ${e.inv[sp.t] | 0}/${PK[sp.t].max}`, fn: () => req('take', { i: sp.i }) }; };
+      if (seeker(e) && ST.ph === 'hunt') {   // 📎 шафа зі скобами
+        const S = supSpot(F), mx = e.boss ? AMMO : AMMO_H;
+        if (dist2(pl.x, pl.z, S.x, S.z) < 1.9) return e.rc > 0 ? { l: `📎 Нова пачка скоб буде за ${Math.ceil(e.rc)} с`, fn: () => { } } : (e.am | 0) >= mx ? { l: `📎 Степлер повний (${e.am})`, fn: () => { } } : { l: `📎 Взяти скоби (+${REFILL}) · зараз ${e.am | 0}/${mx}`, fn: () => req('refill') };
+      }
+      if (e.c && !e.boss) {
+        if (e.hl > 0) return { l: `🧟 Інструктаж у боса… ${Math.ceil(e.hl)} с`, fn: () => { } };
+        const tg = bossTarget(); if (tg) return { l: '🔫 «Попався!» — степлером (ЛКМ)', fn: () => bossClick() };
+        return null;
+      }
       if (e.boss) {
-        if (ST.ph === 'meet') return { l: `🙈 Нарада… ще ${Math.ceil(left())} с`, fn: () => { } };
+        if (ST.ph === 'meet') return { l: `🙈 Рахую до ${MEET}… ще ${Math.ceil(left())} с`, fn: () => { } };
         const tg = bossTarget(); if (tg && tg.who != null) return { l: '👉 «Попався!» — перевірити цей предмет (ЛКМ)', fn: () => bossClick() };
         const bk = pk(['bk']); if (bk) return bk;
         if (tg) return { l: '👉 «Попався!» — перевірити цей предмет (ЛКМ)', fn: () => bossClick() };
         return null;
       }
-      if (e.c) return { l: '😵 Ти на килимі в боса — чекай кінця раунду', fn: () => { } };
       if (V.work) return { l: `💻 Працюю… ${Math.round(V.work.t / WORK_T * 100)}%`, fn: () => { } };
       { const t = pk(['pl', 'pp', 'bk', 'ex']); if (t) return t; }
-      const dk = nearFurn(f => f.t === 'desk', 1.15), f = nearFurn(f => FT[f.t].dis && f.t !== e.p, 1.1);
+      const dk = nearFurn(f => f.t === 'desk', 1.15), f = aimFurn(e);
       if (dk && (!f || fdist(dk, pl.x, pl.z) < .9 || fdist(dk, pl.x, pl.z) < fdist(f, pl.x, pl.z))) return { l: `💻 Попрацювати за комп’ютером (3 с, тебе видно) · продуктивність ${Math.round(e.pr)}%`, fn: () => startWork(dk) };
       if (f) return { l: `🎭 Замаскуватись: ${FT[f.t].ic} ${FT[f.t].n}${FT[f.t].roll ? ' (🛞 можна таранити!)' : ''}`, fn: () => req('dis', { i: f.i }) };
       if (e.p) return { l: `🎭 Зняти маскування (${FT[e.p].ic} ${FT[e.p].n})`, fn: () => req('dis', { i: -1 }) };
@@ -1988,24 +2417,37 @@ function goal() {
   const e = me();
   if (!e || !onRound()) return { txt: `Раунд іде на «${RF().n}» (${mmss(left())}) — ти глядач. Дочекайся наступного — відкриється лобі.` };
   const R = RF();
-  if (e.boss) {
-    if (ST.ph === 'meet') return { txt: `🙈 Нарада ще ${Math.ceil(left())} с. Потім — шукай офісників серед меблів!` };
-    if (ST.stun > 0) return { txt: `💫 Тебе збили з ніг! Встанеш за ${ST.stun.toFixed(1)} с.` };
-    if (ST.bell > 0) return { id: 'meet', tg: { x: R.x + (R.meet.x0 + R.meet.x1) / 2, z: R.z + (R.meet.z0 + R.meet.z1) / 2 }, txt: `🔔 Збори! Ще ${Math.ceil(ST.bell)} с — хто не в «${roomName(R.meet)}», отримає 🚩.` };
-    if (V.noise && V.noise.until > gameTime) return { id: 'noise', tg: V.noise, txt: `🔊 Там щось шурхнуло! Хтось кинув літачок чи папірець — перевір… або це приманка.` };
-    if (V.wantT > gameTime) { const ih = itemHint(e); if (ih) return ih; }
-    return { txt: `🔎 <b>ЛКМ / F / 1</b> — «Попався!». <b>2 / Q</b> — Перевірка${ST.cd > 0 ? ` (${Math.ceil(ST.cd)} с)` : ''}. <b>3</b> — 🔔 Збори${ST.bu ? ' (були)' : ''}. <b>4</b> — 📘 книжкою (${e.inv.bk | 0}${e.inv.bk ? '' : ', бери на 📚 шафі'}) — збиває маскування. Промах — <b>−${PENALTY} с</b>! Лишилось: ${alive().length}` };
+  const supG = () => (e.am | 0) <= 0 && e.rc <= 0 ? { id: 'sup', tg: supSpot(R), txt: `📎 Скоби скінчились! Шафа <b>«📎 СКОБИ»</b> біля кабінету боса — F (+${REFILL}). Без скоб ловиш лише впритул.` } : null;
+  if (e.c && !e.boss) {   // 🧟 помічник боса
+    if (e.hl > 0) return { txt: `😵 Попався! Інструктаж на килимі ще ${Math.ceil(e.hl)} с — потім ти 🧟 помічник боса.` };
+    if (ST.bo > 0) return { txt: `⚡ Темно! У тебе 🔦 ліхтарик — світи туди, де підозріло. ЛКМ — 🔫 степлер (${e.am | 0}).` };
+    const sg = supG(); if (sg) return sg;
+    if (V.noise && V.noise.until > gameTime) return { id: 'noise', tg: V.noise, txt: '🔊 Там хтось подав звук — біжи перевір!' };
+    return { txt: `🧟 Ти — <b>помічник боса</b>: шукай офісників серед меблів. <b>ЛКМ / 1</b> — 🔫 степлер (${e.am | 0} скоб, до ${STAPLE_RH} м; впритул — без скоб). Промах — −2 с. Лишилось: ${alive().length}` };
   }
-  if (e.c) return { txt: '😵 Ти попався. Стоїш на килимі в боса — дивись, як ховаються інші.' };
+  if (e.boss) {
+    if (ST.ph === 'meet') return { txt: `🙈 Бос рахує до ${MEET}… ще ${Math.ceil(left())} с. Потім — шукай офісників серед меблів!` };
+    if (ST.stun > 0) return { txt: ST.ev === 'coffee' ? `☕ Кава-брейк: п’єш каву ще ${ST.stun.toFixed(1)} с…` : `💫 Тебе збили з ніг! Встанеш за ${ST.stun.toFixed(1)} с.` };
+    if (ST.fz > 0) return { txt: `📢 Нарада! Ще ${ST.fz.toFixed(1)} с — дивись, хто ворухнеться (🚩).` };
+    if (ST.bo > 0) return { txt: `⚡ БЛЕКАУТ ще ${Math.ceil(ST.bo)} с — бачиш лише в промені 🔦 ліхтарика (куди дивишся). Степлер працює: ${e.am | 0} скоб.` };
+    { const sg = supG(); if (sg) return sg; }
+    if (ST.bell > 0) return { id: 'meet', tg: { x: R.x + (R.meet.x0 + R.meet.x1) / 2, z: R.z + (R.meet.z0 + R.meet.z1) / 2 }, txt: `🔔 Збори! Ще ${Math.ceil(ST.bell)} с — хто не в «${roomName(R.meet)}», отримає 🚩.` };
+    if (V.noise && V.noise.until > gameTime) return { id: 'noise', tg: V.noise, txt: V.noise.taunt ? `${V.noise.taunt[0]} «${V.noise.taunt[1]}» — хтось подав звук! Ховається в межах рожевого кола (±${TAUNT_J} м).` : `🔊 Там щось шурхнуло! Хтось кинув літачок чи папірець — перевір… або це приманка.` };
+    if (V.wantT > gameTime) { const ih = itemHint(e); if (ih) return ih; }
+    return { txt: `🔎 <b>ЛКМ / 1</b> — 🔫 степлер (${e.am | 0} скоб, до ${STAPLE_R} м; впритул — рукою). <b>2 / Q</b> — Перевірка${ST.cd > 0 ? ` (${Math.ceil(ST.cd)} с)` : ''}. <b>3</b> — 🔔 Збори${ST.bu ? ' (були)' : ''}. <b>4</b> — 📘 (${e.inv.bk | 0}). <b>5 / G</b> — 🐕 Нюх${ST.nc > 0 ? ` (${Math.ceil(ST.nc)} с)` : ''}. <b>6 / T</b> — 📢 «Всім на нараду!»${ST.fc > 0 ? ` (${Math.ceil(ST.fc)} с)` : ''}. Промах — <b>−${PENALTY} с</b>! Лишилось: ${alive().length}` };
+  }
+  if (ST.fz > 0) return { txt: `📢 <b>ВСІМ НА НАРАДУ!</b> Завмри ще ${ST.fz.toFixed(1)} с — хто ворухнеться, отримає 🚩!` };
   if (V.work) return { txt: `💻 Працюю ${Math.round(V.work.t / WORK_T * 100)}% — стій біля комп’ютера! Тебе видно.` };
-  if (ST.bell > 0 && !inRoomR(R, R.meet, pl.x, pl.z, .1)) return { id: 'meet', tg: { x: R.x + (R.meet.x0 + R.meet.x1) / 2, z: R.z + (R.meet.z0 + R.meet.z1) / 2 }, txt: `🔔 <b>ЗАГАЛЬНІ ЗБОРИ!</b> Біжи в «${roomName(R.meet)}» — ще <b>${Math.ceil(ST.bell)} с</b>, інакше 🚩! (<b>4</b> — 🚬 перекур-ривок)` };
-  if (ST.stun > 0 && e.pr < 70) { const d = nearestF(f => f.t === 'desk' && !inOffice(f.x, f.z)); if (d) return { id: 'desk', tg: workSpot(d), txt: `💫 Бос лежить ще ${ST.stun.toFixed(1)} с — біжи працювати за 💻!` }; }
+  if (ST.bell > 0 && !inRoomR(R, R.meet, pl.x, pl.z, .1)) return { id: 'meet', tg: { x: R.x + (R.meet.x0 + R.meet.x1) / 2, z: R.z + (R.meet.z0 + R.meet.z1) / 2 }, txt: `🔔 <b>ЗАГАЛЬНІ ЗБОРИ!</b> Біжи в «${roomName(R.meet)}» — ще <b>${Math.ceil(ST.bell)} с</b>, інакше 🚩! (<b>3</b> — 🚬 ривок)` };
+  if (ST.stun > 0 && e.pr < 70) { const d = nearestF(f => f.t === 'desk' && !inOffice(f.x, f.z)); if (d) return { id: 'desk', tg: workSpot(d), txt: `${ST.ev === 'coffee' ? '☕ Бос п’є каву' : '💫 Бос лежить'} ще ${ST.stun.toFixed(1)} с — біжи працювати за 💻!` }; }
   if (e.pr < 30 && ST.ph === 'hunt') { const d = nearestF(f => f.t === 'desk' && !inOffice(f.x, f.z)); if (d) return { id: 'desk', tg: workSpot(d), txt: `📉 Продуктивність ${Math.round(e.pr)}%! Біжи до <b>💻 комп’ютера</b> (${roomAt(d.x, d.z).n}) і натисни F (3 с). ${e.pr <= 0 ? '<b style="color:#C2335A">Маскування блимає!</b>' : ''}` }; }
   if (e.bn > 0) return { txt: '📘 Тебе збили книжкою — маскування злетіло! Оговтуєшся… потім тікай і ховайся знову.' };
+  if (ST.bo > 0 && e.p) return { txt: `⚡ <b>БЛЕКАУТ</b> ще ${Math.ceil(ST.bo)} с! Бос бачить лише в промені ліхтарика — тихенько зміни схованку (зніми маску — F, і знову F біля нових меблів).` };
+  if (ST.cl && dist2(ST.cl.x, ST.cl.z, pl.x, pl.z) < 5) return { txt: '🧹 Прибиральниця з пилососом поруч — відійди, бо «розмаскує»!' };
   if (V.wantT > gameTime) { const ih = itemHint(e); if (ih) return ih; }   // натиснув порожній слот — стрілка до місця підбору
   if (e.p && ST.ph === 'meet' && left() > 4) { const ih = itemHint(e); if (ih) return Object.assign(ih, { txt: `Бос на нараді ще <b>${Math.ceil(left())} с</b> — встигни взяти кидалки! ${ih.txt}` }); }
   if (!e.p) { const f = nearestF(f => FT[f.t].dis && !inOffice(f.x, f.z)); return { id: 'hide', tg: f, txt: `${ST.ph === 'meet' ? `Бос на нараді ще <b>${Math.ceil(left())} с</b>! ` : ''}${f ? `Найближче — ${FT[f.t].ic} у кімнаті «${roomAt(f.x, f.z).n}». ` : ''}Підійди до меблів і натисни <b>F</b> (або <b>1</b>) — замаскуйся. 🪑 Крісло й 🚰 кулер ще й таранять!` }; }
-  return { txt: `Ти — ${FT[e.p].ic} <b>${FT[e.p].n.toLowerCase()}</b>. Не рухайся — рух видно!${e.fl > 0 ? ' <b style="color:#C2335A">🚩 Над тобою прапорець!</b>' : ''} ${canRoll(e.p) ? `<b>3</b> — 🛞 таран${e.rc > 0 ? ` (${Math.ceil(e.rc)} с)` : ''}. ` : ''}${e.dc ? '' : '<b>2 / R</b> — фейковий звіт. '}Продуктивність ${Math.round(e.pr)}%.${invTxt(e)}` };
+  return { txt: `Ти — ${FT[e.p].ic} <b>${FT[e.p].n.toLowerCase()}</b>. Не рухайся — рух видно!${e.fl > 0 ? ' <b style="color:#C2335A">🚩 Над тобою прапорець!</b>' : ''} ${canRoll(e.p) ? `<b>3</b> — 🛞 таран${e.rc > 0 ? ` (${Math.ceil(e.rc)} с)` : ''}. ` : ''}${(e.dn | 0) < DECOYS ? `<b>2 / R</b> — приманка (${DECOYS - (e.dn | 0)}). ` : ''}<b>4 / G</b> — 🔊 звук (+очко${e.tc > 0 ? `, ${Math.ceil(e.tc)} с` : ''}). <b>T</b> — 🔄 повернутись. Продуктивність ${Math.round(e.pr)}%.${invTxt(e)}` };
 }
 function invTxt(e) {   // що є в кишенях і як кидати
   const v = e.inv || inv0(), has = ['pl', 'pp', 'bk', 'ex'].filter(w => v[w] > 0);
@@ -2024,7 +2466,7 @@ function guide() {
       @keyframes hbB{to{margin-top:-6px}}`;
     document.head.appendChild(css); document.body.appendChild(V.lbl);
     // місця підбору кидалок — підписи видно здалеку (смітники — ближче, їх багато)
-    FL.forEach((F, v) => picks(v).forEach(sp => PLACES.push({ id: 'pick:' + v + ':' + sp.i, v, pk: sp, p: { x: sp.x, z: sp.z }, y: sp.t === 'bk' ? 2.6 : sp.t === 'pl' ? 2 : 1.5, far: sp.t === 'pp' ? 9 : 17, t: () => PK[sp.t].lbl })));
+    FL.forEach((F, v) => picks(v).forEach(sp => PLACES.push({ id: 'pick:' + v + ':' + sp.i, v, pk: sp, p: sp, y: sp.t === 'bk' ? 2.6 : sp.t === 'pl' ? 2 : 1.5, far: sp.t === 'pp' ? 9 : 17, t: () => PK[sp.t].lbl })));
     for (const P of PLACES) { P.el = document.createElement('div'); P.el.className = 'hb-lbl' + (P.room ? ' room' : P.pk ? ' pick' : ''); V.lbl.appendChild(P.el); }
     V.glbl = document.createElement('div'); V.glbl.className = 'hb-lbl goal'; V.lbl.appendChild(V.glbl);
     V.gArrow = new THREE.Group(); const sh = mesh(new THREE.ConeGeometry(.28, .7, 3), bulb('#FFE066'), false); sh.rotation.z = -Math.PI / 2; sh.position.x = 1.25; V.gArrow.add(sh); scene.add(V.gArrow);
@@ -2050,13 +2492,13 @@ function guide() {
     const p = posC(e); if (!p) continue;
     want.add(e.k);
     let el = V.blbl.get(e.k); if (!el) { el = document.createElement('div'); el.className = 'hb-lbl' + (e.boss ? ' boss' : ''); V.lbl.appendChild(el); V.blbl.set(e.k, el); }
-    const t = e.boss ? `👔 ${e.bot ? e.n : 'БОС'}${ST.stun > 0 ? ' 💫' : ''}` : e.c ? `😵 ${e.n}` : e.w ? `💻 ${e.n}` : e.n;
+    const t = e.boss ? `👔 ${e.bot ? e.n : 'БОС'}${ST.stun > 0 ? ' 💫' : ''}` : e.c ? (e.hl > 0 ? `😵 ${e.n}` : `🧟 ${e.n} · помічник`) : e.w ? `💻 ${e.n}` : e.n;
     if (el.textContent !== t) el.textContent = t; pos(el, p.x, e.boss ? 2.9 : 2.5, p.z);
   }
   for (const [k, el] of V.blbl) if (!want.has(k)) { el.remove(); V.blbl.delete(k); }
   V.glbl.style.opacity = g.tg ? 1 : 0;
   if (g.tg) {
-    const P = PLACES.find(q => q.id === g.id), t = '👉 ' + (P ? P.t() : g.id === 'desk' ? '💻 Попрацюй тут (F)' : g.id === 'meet' ? `🔔 ${RF().meet.n}` : g.id === 'pick' ? `${PK[g.w].lbl} (F)` : g.id === 'noise' ? '🔊 Шурх тут!' : g.id === 'hide' ? `${FT[g.tg.t] ? FT[g.tg.t].ic : ''} Сховайся тут (F)` : 'Сюди');
+    const P = PLACES.find(q => q.id === g.id), t = '👉 ' + (P ? P.t() : g.id === 'desk' ? '💻 Попрацюй тут (F)' : g.id === 'meet' ? `🔔 ${RF().meet.n}` : g.id === 'pick' ? `${PK[g.w].lbl} (F)` : g.id === 'noise' ? (V.noise && V.noise.taunt ? `${V.noise.taunt[0]} Звук десь тут!` : '🔊 Шурх тут!') : g.id === 'sup' ? '📎 Скоби (F)' : g.id === 'hide' ? `${FT[g.tg.t] ? FT[g.tg.t].ic : ''} Сховайся тут (F)` : 'Сюди');
     if (V.glbl.textContent !== t) V.glbl.textContent = t; pos(V.glbl, g.tg.x, 2.6, g.tg.z);
     const d = dist2(pl.x, pl.z, g.tg.x, g.tg.z);
     V.gMark.position.set(g.tg.x, .1, g.tg.z); V.gMark.scale.setScalar(1 + Math.sin(gameTime * 5) * .12);
@@ -2071,11 +2513,12 @@ function intro(force) {
   el.innerHTML = `<div style="max-width:480px;width:100%;max-height:90vh;overflow:auto;background:#2E2346;color:#fff;border-radius:18px;padding:18px 20px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.4)">
     <div style="font:800 20px system-ui;margin-bottom:8px">🙈 Сховайся від боса — як грати</div>
     <div>1. 🏢 Три поверхи хмарочоса: ${FL.map(F => `${F.ic} <b>${F.n.split(' · ')[1]}</b>`).join(', ')}. У вікні <b>лобі</b> клікни по картці поверху — голос, потім <b>✅ Я готовий</b>. 🎲 Онлайн на старті жереб робить одного з гравців <b>👔 босом</b>, решта — 🙈 офісники. Сам — проти ботів (роль: вкладка 🙈 Хованки).</div>
-    <div>2. 🙈 <b>Офісник</b>: F (або 1) біля меблів — маскуєшся. Рух у маскуванні повільний і хитає предмет — бос помітить!</div>
-    <div>3. 📉 <b>Продуктивність</b> тане — F біля 💻 комп’ютера 3 с (тебе видно). 📄 <b>2 / R</b> — фейковий звіт. 🚬 <b>4</b> — перекур-ривок.</div>
+    <div>2. 🙈 <b>Офісник</b>: наведи курсор на будь-які меблі поруч і натисни F (або 1) — станеш цим предметом (форма й розмір). <b>T</b> — 🔄 повернутись. Рух у маскуванні повільний і хитає предмет — бос помітить! 🔀 Щораунду меблі переставляють.</div>
+    <div>3. 🔊 <b>4 / G — подати звук</b> (чхнути, «мяу», дзвінок…): бос бачить рожеве коло ±3 м, а тобі — ⭐ очко й 🪙. Хто мовчить найдовше — раз на ${TAUNT_FORCE} с «звучить» сам. 📉 <b>Продуктивність</b> тане — F біля 💻 3 с. 📄 <b>2 / R</b> — приманка у твоїй формі (${DECOYS} за раунд). 🚬 <b>3</b> — ривок.</div>
     <div>4. 🛞 <b>ТАРАН</b>: у маскуванні 🪑 крісла, 🚰 кулера чи 🛒 візка натисни <b>3</b> — розженись у бік курсора й збий боса з ніг (2 с не ловить). Але якщо бос сам врізався в тебе — ти «бздинькаєш» і видаєш себе!</div>
-    <div>5. 👔 <b>Бос</b>: 20 с наради, потім 3 хв. <b>ЛКМ / 1</b> — «Попався!» (промах −5 с). <b>2 / Q</b> — 🔍 Перевірка. <b>3</b> — 🔔 Загальні збори: хто за 15 с не прийде в залу нарад — отримає 🚩.</div>
-    <div>6. Спійманий іде на килим у кабінет боса. Усіх спіймано — виграв бос; час вийшов — виграли ті, хто вцілів.</div>
+    <div>5. 👔 <b>Бос</b>: рахує до ${MEET} із заплющеними очима, потім 3 хв. <b>ЛКМ / 1</b> — 🔫 <b>степлер</b>: ${AMMO} скоб, б’є до ${STAPLE_R} м (впритул — рукою, без скоб); нові скоби — у шафі «📎 СКОБИ» біля кабінету (раз на ${REFILL_CD} с). Промах по меблях — −${PENALTY} с. <b>2 / Q</b> — 🔍 Перевірка. <b>3</b> — 🔔 Збори. <b>5 / G</b> — 🐕 Нюх (напрям до найближчого). <b>6 / T</b> — 📢 «Всім на нараду!»: 3 с, хто ворухнеться — 🚩.</div>
+    <div>6. 🧟 Спійманий після інструктажу стає <b>помічником боса</b> (степлер на ${AMMO_H} скоб, до ${STAPLE_RH} м). Усіх спіймано — виграли бос і помічники; час вийшов — виграли вцілілі. Остання хвилина — вцілілі «світяться». ⭐ Очки: +1 за кожні 30 с, за звук; босу — за знахідку. У кінці — MVP і найкраща схованка.</div>
+    <div>6½. ⚡ <b>Події</b>: блекаут (бос бачить лише в промені ліхтарика — стіни його закривають), 🧹 прибиральниця з пилососом (розмасковує, кого зачепить), ☕ кава-брейк (бос 5 с п’є каву), 🔀 переставили меблі.</div>
     <div>7. 🎯 <b>Кидалки</b> (F біля кольорового кільця): ✈️ <b>папір для літачків</b> — біля 🖨️ ксерокса, 🧻 <b>макулатура</b> — біля 🗑️ смітників, 📘 <b>книжки</b> — на 📚 шафах, 🧯 <b>вогнегасник</b> — біля 🚰 кулерів. Офісник: <b>5 / 6 / 7</b> — кинути в бік курсора (або ЛКМ, коли слот вибраний). Літачок чи папірець, що впав, — «шурх!»: бос іде дивитись. 📘 у боса — 1 с зірочок. <b>8</b> 🧯 — хмара піни, в якій тебе не видно. Папірець у 🗑️ смітник здалеку — 🪙 і досвід. Бос: <b>4</b> 📘 — книжкою по знайденому офісникові, маскування злітає.</div>
     <div>8. 👥 У раунді 5 учасників: після першого «Я готовий» 🤖 боти доповнюють лобі, потім «Старт за 3…2…1».</div>
     <div style="margin-top:8px;color:#FFE066">Жовта стрілка й мітка показують, куди йти зараз. Підказка — внизу екрана 👇</div>
@@ -2100,13 +2543,23 @@ function hud() {
   let h;
   if (ST.on && fv === ST.v) {
     const e = me(), all = hiders().length, al = alive().length, lt = left();
-    const role = !e ? '👀 глядач' : e.boss ? '👔 БОС' : e.c ? '😵 спійманий' : '🙈 офісник';
-    const tm = ST.ph === 'meet' ? `🙈 нарада ${Math.ceil(lt)} с` : `⏱ <span style="color:${lt < 30 ? '#FF8A7A' : '#fff'}">${mmss(lt)}</span>`;
+    const role = !e ? '👀 глядач' : e.boss ? '👔 БОС' : e.c ? (e.hl > 0 ? '😵 спійманий' : '🧟 помічник боса') : '🙈 офісник';
+    const tm = ST.ph === 'meet' ? `🙈 бос рахує ${Math.ceil(lt)} с` : `⏱ <span style="color:${lt < 30 ? '#FF8A7A' : '#fff'}">${mmss(lt)}</span>`;
     let sub = '';
     if (e && !e.boss && !e.c) {
       const pr = Math.round(e.pr), col = pr > 50 ? '#7FE08A' : pr > 25 ? '#FFD27A' : '#FF5C7A';
-      sub = `Продуктивність <span style="color:${col}">${'■'.repeat(Math.ceil(pr / 10))}</span><span style="opacity:.3">${'■'.repeat(10 - Math.ceil(pr / 10))}</span> ${pr}%${e.p ? ` · ${FT[e.p].ic} ${FT[e.p].n}${canRoll(e.p) ? (e.rc > 0 ? ` · 🛞 ${Math.ceil(e.rc)} с` : ' · 🛞 таран готовий') : ''}` : ' · <span style="color:#FF8A7A">не замаскований</span>'}${e.fl > 0 ? ' · <span style="color:#FF8A7A">🚩 прогульник</span>' : ''}${V.work ? ` · 💻 ${Math.round(V.work.t / WORK_T * 100)}%` : ''}`;
-    } else if (e && e.boss) sub = ST.ph === 'meet' ? 'чекаєш, поки всі сховаються…' : ST.stun > 0 ? '<span style="color:#FFE066">💫 лежиш на підлозі…</span>' : `🔍 ${ST.cd > 0 ? `<span style="color:#FFD27A">${Math.ceil(ST.cd)} с</span>` : '<span style="color:#7FE08A">готова</span>'} · 🔔 ${ST.bu ? 'були' : '<span style="color:#7FE08A">готові</span>'} · промах −${PENALTY} с`;
+      sub = `Продуктивність <span style="color:${col}">${'■'.repeat(Math.ceil(pr / 10))}</span><span style="opacity:.3">${'■'.repeat(10 - Math.ceil(pr / 10))}</span> ${pr}%${e.p ? ` · ${FT[e.p].ic} ${FT[e.p].n}${canRoll(e.p) ? (e.rc > 0 ? ` · 🛞 ${Math.ceil(e.rc)} с` : ' · 🛞 таран готовий') : ''}` : ' · <span style="color:#FF8A7A">не замаскований</span>'}${e.fl > 0 ? ' · <span style="color:#FF8A7A">🚩 прогульник</span>' : ''}${V.work ? ` · 💻 ${Math.round(V.work.t / WORK_T * 100)}%` : ''} · 🔊 ${e.tc > 0 ? Math.ceil(e.tc) + ' с' : '<span style="color:#7FE08A">G</span>'} · ⭐ ${e.pt | 0}`;
+    } else if (e && (e.boss || e.c)) {
+      const am = e.am | 0, amT = `🔫 <span style="color:${am ? am < 4 ? '#FFD27A' : '#7FE08A' : '#FF5C7A'}">${'❘'.repeat(Math.min(am, 12))}${am ? '' : '0'}</span> ${am}`;
+      sub = e.c ? (e.hl > 0 ? 'інструктаж у боса…' : `${amT} · ⭐ ${e.pt | 0} · промах −2 с`)
+        : ST.ph === 'meet' ? 'рахуєш до ' + MEET + '… поки всі ховаються' : ST.stun > 0 ? `<span style="color:#FFE066">${ST.ev === 'coffee' ? '☕ п’єш каву…' : '💫 лежиш на підлозі…'}</span>`
+        : `${amT} · 🔍 ${ST.cd > 0 ? `<span style="color:#FFD27A">${Math.ceil(ST.cd)} с</span>` : '<span style="color:#7FE08A">✓</span>'} · 🐕 ${ST.nc > 0 ? Math.ceil(ST.nc) + ' с' : '<span style="color:#7FE08A">✓</span>'} · 📢 ${ST.fc > 0 ? Math.ceil(ST.fc) + ' с' : '<span style="color:#7FE08A">✓</span>'} · 🔔 ${ST.bu ? 'були' : '<span style="color:#7FE08A">✓</span>'} · ⭐ ${e.pt | 0}`;
+    }
+    if (ST.bo > 0) sub += `${sub ? '<br>' : ''}<span style="color:#9CC8FF">⚡ БЛЕКАУТ — ще ${Math.ceil(ST.bo)} с</span>`;
+    if (ST.cl) sub += `${sub ? '<br>' : ''}<span style="color:#9CC8FF">🧹 прибиральниця ходить офісом</span>`;
+    if (ST.ev === 'coffee' && ST.stun > 0) sub += `${sub ? '<br>' : ''}<span style="color:#FFD27A">☕ кава-брейк боса — ще ${ST.stun.toFixed(1)} с</span>`;
+    if (ST.fz > 0) sub += `${sub ? '<br>' : ''}<span style="color:#FFE066">📢 НАРАДА — ніхто не рухається! ${ST.fz.toFixed(1)} с</span>`;
+    if (ST.ph === 'hunt' && lt < PRESS_T) sub += `${sub ? '<br>' : ''}<span style="color:#FFB347">⏳ остання хвилина — вцілілі «світяться»</span>`;
     if (ST.bell > 0) sub += `${sub ? '<br>' : ''}<span style="color:#FFE066">🔔 ЗАГАЛЬНІ ЗБОРИ — ще ${Math.ceil(ST.bell)} с!</span>`;
     const b = bossE();
     h = `🏢 ${RF().n} · раунд ${ST.rn} · ${role} · ${tm} · 👥 вціліли ${al}/${all}${b && (!e || !e.boss) ? ` · 👔 ${escapeHTML(b.n)}${ST.stun > 0 ? ' 💫' : ''}` : ''}${sub ? `<br><span style="font-weight:600;font-size:12px">${sub}</span>` : ''}`;
@@ -2127,7 +2580,7 @@ if (!SIMSIDE && typeof scheduleStep === 'function') {
   scheduleStep = function (i, t) {
     if (!running || pl.dead || !inIsl(pl.x, pl.z) || typeof LAYER === 'undefined' || !LAYER.drums) { if (V.music >= 0) { V.music = -1; barMode = ''; } return _ss.apply(this, arguments); }
     const s = i % 16, bar = Math.floor(i / 16), h = STEP / 2;
-    const lvl = !ST.on || !onRound() ? 0 : (bossNear() || ST.bell > 0 || (ST.ph === 'hunt' && left() < 30)) ? 2 : 1;
+    const lvl = !ST.on || !onRound() ? 0 : (bossNear() || ST.bell > 0 || ST.bo > 0 || ST.fz > 0 || (ST.ph === 'hunt' && left() < PRESS_T)) ? 2 : 1;
     if (s === 0 && V.music !== lvl) { V.music = lvl; const m = [{ keys: .8, bass: .5, drums: .3, tension: 0, lead: .15, crackle: .1 }, { keys: .85, bass: .8, drums: .55, tension: .15, lead: .3, crackle: 0 }, { keys: .7, bass: 1, drums: .9, tension: .75, lead: .35, crackle: 0 }][lvl]; for (const k in m) if (LAYER[k]) LAYER[k].gain.setTargetAtTime(m[k], t, .4); }
     const [root, ch] = HPROG[bar % 4];
     // піцикато: короткі щипки, крадькома
@@ -2158,11 +2611,12 @@ A.tab('hideboss', '🙈 Хованки', () => {
     <h3 style="margin-top:12px">🏢 Поверхи</h3>
     <div class="list" style="font-size:13px;line-height:1.5">${FL.map((F, i) => `<div>${F.ic} <b>${F.n}</b>${ST.nv === i && !ST.on ? ' · <b style="color:#7FE08A">наступний</b>' : ''}${ST.on && ST.v === i ? ' · <b style="color:#FFD27A">зараз граємо</b>' : ''} — ${F.about}.${!ST.on && ST.vt[i] ? ` 🗳️ ${ST.vt[i]}` : ''}</div>`).join('')}</div>
     <div class="list" style="margin-top:10px;font-size:13px;line-height:1.55">
-      <div>🙈 <b>Офісник</b>: F / 1 біля меблів — маскуєшся. Рух у маскуванні повільний і хитає предмет. 📄 2 / R — фейковий звіт (1 раз). 🚬 4 — перекур-ривок (${SMOKE_CD} с).</div>
+      <div>🙈 <b>Офісник</b>: F / 1 біля будь-яких меблів (під курсором) — маскуєшся, T — повернутись. Рух у маскуванні повільний і хитає предмет. 📄 2 / R — приманка (${DECOYS} за раунд). 🚬 3 — ривок (${SMOKE_CD} с). 🔊 4 / G — подати звук: бос бачить коло ±${TAUNT_J} м, тобі — очко й 🪙.</div>
       <div>🛞 <b>Фізичний тролінг</b>: у маскуванні крісла, кулера чи поштового візка — 3: таран! Збив боса — він ${STUN} с лежить і не ловить. Але врізався бос у тебе — ти «бздинькаєш» і видаєш себе.</div>
       <div>📉 <b>Продуктивність</b> тане ~75 с. F біля 💻 комп’ютера, 3 с — 100%, але тебе видно. На нулі — маскування блимає.</div>
-      <div>👔 <b>Бос</b>: 20 с наради, потім 3 хв. ЛКМ / 1 — «Попався!», промах −5 с. 🔍 2 / Q — Перевірка (${CHECK_CD} с). 🔔 3 — Загальні збори: за ${BELL_T} с усі в залу нарад, прогульникам — 🚩 на ${FLAG_T} с.</div>
-      <div>😵 Спійманий — на килим у кабінет боса.</div>
+      <div>👔 <b>Бос</b>: рахує до ${MEET}, потім 3 хв. ЛКМ / 1 — 🔫 степлер (${AMMO} скоб, до ${STAPLE_R} м; скоби — 📎 шафа біля кабінету), промах −${PENALTY} с. 🔍 2 / Q — Перевірка (${CHECK_CD} с). 🔔 3 — Загальні збори (${BELL_T} с, прогульникам 🚩). 🐕 5 / G — Нюх (${SNIFF_CD} с). 📢 6 / T — «Всім на нараду!» (${FREEZE_T} с не рухатись).</div>
+      <div>🧟 Спійманий — ${BRIEF_T} с інструктажу на килимі, далі <b>помічник боса</b> зі слабшим степлером.</div>
+      <div>⚡ <b>Події</b>: блекаут 15–25 с (у шукачів — ліхтарики), 🧹 прибиральниця, ☕ кава-брейк боса, 🔀 перестановка меблів (і щораунду теж).</div>
       <div>🎯 <b>Кидалки</b> — шукай кольорові кільця й підписи: ✈️ <b>Папір для літачків</b> біля 🖨️ ксероксів (F, +3), 🧻 <b>Макулатура</b> біля 🗑️ смітників (F, +5), 📘 <b>Книжкова шафа</b> (F, +2), 🧯 <b>Вогнегасник</b> біля 🚰 кулерів. Офісник кидає 5 / 6 / 7 у бік курсора (або ЛКМ із вибраним слотом): «шурх!» відводить боса, 📘 в боса — 1 с зірочок, 🧯 8 — хмара піни, щоб утекти. 🗑️ Папірець у смітник здалеку — монети й досвід (до ${BIN_CAP} за раунд). Бос: 4 — 📘 книжкою в офісника, маскування злітає.</div>
       <div>👥 <b>Лобі на 5</b>: після першого «Я готовий» 🤖 боти сідають на вільні місця (людина, що прийшла, займає місце бота). Усі готові й лобі повне — «Старт за 3…2…1». Онлайн мовчунів чекаємо ${AUTO_T} с.</div>
       <div>🎲 <b>Хто бос?</b> Онлайн — на старті раунду жереб обирає одного з гравців (двічі поспіль той самий — ні), решта — офісники. Сам — роль обираєш тут, ботів додає гра.</div>
@@ -2193,5 +2647,6 @@ A.on('start', () => { if (V.auto && !SIMSIDE) setTimeout(() => goHide(), 700); }
 if (window.__ADDON_TEST) {
   const F0 = FL[0];
   window.__hideboss = { FL, roleCard, ROOMS: F0.rooms, WALLS: F0.walls, navFree, cellOf, navOf, ST, AU, V, FURN, FT, DESKS, BOARD: F0.board, SPAWN: F0.spawn, OFF: F0.off, CARPET: F0.carpet, BOSS_SPOT: F0.bossSpot, MEET, DUR, STUN, RAM_CD, BELL_T, FLAG_T,
-    req, goal, intro, me, bossE, picks, PK, THR, invOf, throwC, extC, nearPick, itemHint, SEATS, BOTN, BIN_CAP, inSmoke, tallAt, alive, hiders, bossTarget, bossClick, fdist, workSpot, hideSpots, route, endRound, inOffice, floorAt, roomAt, inRoomR, propR, canRoll, startRamC, bossBell, syncBar, BAR, chooseFloor, goHide, lobbyDef, openLobby, inLobby };
+    req, goal, intro, me, bossE, picks, PK, THR, invOf, throwC, extC, nearPick, itemHint, SEATS, BOTN, BIN_CAP, inSmoke, tallAt, alive, hiders, bossTarget, bossClick, fdist, workSpot, hideSpots, route, endRound, inOffice, floorAt, roomAt, inRoomR, propR, canRoll, startRamC, bossBell, syncBar, BAR, chooseFloor, goHide, lobbyDef, openLobby, inLobby,
+    shuffleFloor, supSpot, startEvent, losClear, rayLen, inCone, movable, seeker, TAUNTS, AMMO, AMMO_H, DECOYS, STAPLE_R, REFILL_CD, SNIFF_CD, FREEZE_CD, TAUNT_FORCE, PRESS_T, COFFEE_T, wallSegs, aimFurn, calm };
 }

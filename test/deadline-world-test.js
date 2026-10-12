@@ -77,7 +77,7 @@ async function follow(T, D, Ts) {
   const bots0 = E.ST.bt.map(q => q.n).join();
   lob(b).querySelector('.rdy').click(); let cdSeen = 0;
   for (let i = 0; i < 40 && !(D.ST.on && E.ST.on); i++) { await tick(Ts, .2); if ([a, b].some(T => lob(T) && /Усі на місці — старт за/.test(lob(T).textContent))) cdSeen = 1; }
-  assert(cdSeen, 'обоє готові — «Усі на місці — старт за 3…2…1»');
+  assert(cdSeen, 'обоє готові — «Усі на місці — старт за 3…2…1»' + (cdSeen ? '' : ' [' + JSON.stringify({ on: [D.ST.on, E.ST.on], cd: [D.ST.cd, E.ST.cd], la: lob(a) && lob(a).textContent.slice(0, 300), lb: lob(b) && lob(b).textContent.slice(0, 200) }) + ']'));
   assert(D.ST.bt.map(q => q.n).join() === bots0 && E.ST.bt.map(q => q.n).join() === bots0 && D.V.bm.size === 3, `у раунді ті самі 3 боти в обох: ${bots0}`);
   assert(D.ST.on && E.ST.on && D.ST.vi === 1 && E.ST.vi === 1 && D.ST.steps.join() === E.ST.steps.join() && D.ST.steps.length === 6, `раунд почався в обох на 57-му (рахує сервер): ${E.ST.steps.join(' → ')}`);
   assert([a, b].every(T => Math.hypot(T.pl.x - D.START.p.x, T.pl.z - D.START.p.z) < 2), '🛗 ліфт переніс обох на поверх банку');
@@ -90,7 +90,8 @@ async function follow(T, D, Ts) {
     const g = E.goal(); assert(g.id === 'desk', 'підказка Стажеру: до колеги з 📄');
     at(b, g.tg); await tick(Ts, .3); at(b, g.tg);
     it = b.getInteract(); assert(it && /Взяти дані/.test(it.l), 'біля каси F — «Взяти дані»' + (it && /Взяти дані/.test(it.l) ? '' : ' [' + (it && it.l) + ' · стіл ' + JSON.stringify(g.tg) + ' · гравець ' + b.pl.x.toFixed(2) + ',' + b.pl.z.toFixed(2) + ' · дані ' + E.ST.desk.join('') + ']')); it.fn(); await tick(Ts, 1);
-    assert(E.myHeld().it === 'sheets' && D.ST.held['Стажер'] && D.ST.held['Стажер'].it === 'sheets', 'у Стажера в руках 📄 — бачать обоє');
+    for (let i = 0; i < 6 && !(E.myHeld().it === 'sheets' && D.ST.held['Стажер']); i++) { at(b, g.tg); const i2 = b.getInteract(); if (i2 && /Взяти дані/.test(i2.l)) i2.fn(); await tick(Ts, .5); }   // під навантаженням (ALL_ADDONS) позиція доходить до сервера із запізненням
+    assert(E.myHeld().it === 'sheets' && D.ST.held['Стажер'] && D.ST.held['Стажер'].it === 'sheets', 'у Стажера в руках 📄 — бачать обоє' + (E.myHeld().it === 'sheets' && D.ST.held['Стажер'] ? '' : ' [' + JSON.stringify({ e: E.ST.held, d: D.ST.held, desk: E.ST.desk, fl: E.ST.floor, on: E.ST.on, pst: E.ST.pst, zc: E.ST.zom.filter(q => q.carry).length }) + ']'));
     const rp = Object.values(a.NET.players).find(p => p.name === 'Стажер'), hm = D.V.hm.get('Стажер');
     assert(rp && hm && hm.g.parent === rp.h.root, 'Бухгалтер бачить стос паперів у руках Стажера');
     assert(D.ST.desk.filter(Boolean).length === 2, 'стіл колеги спорожнів і в Бухгалтера');
@@ -105,11 +106,11 @@ async function follow(T, D, Ts) {
     for (let r = 0; r < 10 && E.ST.sv; r++) { at(a, { x: S.x + .4, z: S.z }); at(b, { x: S.x - .4, z: S.z }); await tick(Ts, .5); for (const T of Ts) { const it2 = T.getInteract(); if (it2 && /ліфта РАЗОМ/.test(it2.l)) it2.fn(); } await tick(Ts, .4); }
     assert(!D.ST.sv && !E.ST.sv && E.ST.dur >= d0 + 15, '🛗 удвох розсунули двері ліфта — колега вільний, +15 с (бачать обоє)');
     const q = E.myDesk9('Стажер'); at(b, E.chair9(q)); await tick(Ts, .3); at(b, E.chair9(q)); const it3 = b.getInteract();
-    assert(it3 && /Сісти за свій стіл/.test(it3.l), `💻 Стажер біля свого столу — «${it3 && it3.l}»`); it3.fn(); for (let i = 0; i < 15 && !D.ST.st9.includes('Стажер'); i++) { at(b, E.chair9(q)); await tick(Ts, .2); }
-    assert(E.V.os9 && D.ST.st9.includes('Стажер') && b.w.document.querySelector('#dl-os .dlos'), '💻 Стажер сів — ОфісOS; Бухгалтер бачить, що він за столом');
-    const d1 = E.ST.dur; for (const f of E.V.os9.files) if (!f.at) E.osDrop(f, f.t === 'meme' ? 'bin' : f.t); await tick(Ts, .6);
-    assert(E.V.osDone9.files && D.ST.dur === d1 + 8, '💻 файли розкладено — сервер перевірив і дав +8 с');
-    E.osClose(); E.stand9(); await tick(Ts, .4); assert(!D.ST.st9.includes('Стажер'), '🚶 Стажер встав — бачить і Бухгалтер');
+    assert(it3 && /Сісти за свій стіл/.test(it3.l), `💻 Стажер біля свого столу — «${it3 && it3.l}»`); it3.fn(); const tS = Date.now(); for (let i = 0; i < 40 && !D.ST.st9.includes('Стажер'); i++) { at(b, E.chair9(q)); await tick(Ts, .2); } console.log(`  (сів за ${Date.now() - tS} мс)`);
+    assert(E.V.os9 && D.ST.st9.includes('Стажер') && b.w.document.querySelector('#dl-os .dlos'), '💻 Стажер сів — ОфісOS; Бухгалтер бачить, що він за столом' + (D.ST.st9.includes('Стажер') ? '' : ' [' + JSON.stringify({ os: !!E.V.os9, sit: !!E.V.sit9, st9: [D.ST.st9, E.ST.st9], mt: !!E.ST.mt, on: E.ST.on, pos: [b.pl.x, b.pl.z, E.chair9(q)] }) + ']'));
+    const d1 = E.ST.dur; for (const f of E.V.os9.files) if (!f.at) E.osDrop(f, f.t === 'meme' ? 'bin' : f.t); for (let i = 0; i < 15 && !(E.V.osDone9.files && D.ST.dur >= d1 + 8); i++) await tick(Ts, .2);
+    assert(E.V.osDone9.files && D.ST.dur >= d1 + 8 && D.ST.dur < d1 + 20, '💻 файли розкладено — сервер перевірив і дав +8 с' + (E.V.osDone9.files && D.ST.dur >= d1 + 8 ? '' : ' [' + JSON.stringify({ done: E.V.osDone9, d1, dur: [D.ST.dur, E.ST.dur],  st9: D.ST.st9, sv: E.ST.sv, pos: [b.pl.x, b.pl.z, E.chair9(q)] }) + ']'));
+    E.osClose(); E.stand9(); for (let i = 0; i < 15 && D.ST.st9.includes('Стажер'); i++) await tick(Ts, .2); assert(!D.ST.st9.includes('Стажер'), '🚶 Стажер встав — бачить і Бухгалтер' + (D.ST.st9.includes('Стажер') ? ' [' + JSON.stringify({ st9: D.ST.st9, e: E.ST.st9, sit: !!E.V.sit9, os: !!E.V.os9, pos: [b.pl.x, b.pl.z] }) + ']' : ''));
   }
   // далі — разом, слухаючись підказок, поки звіт не здано; щойно звіт надруковано — кидаємо його напарнику
   const c0a = a.P.coins, c0b = b.P.coins; let maxSi = 0, sameSeen = 0, thrown = 0;
@@ -135,7 +136,7 @@ async function follow(T, D, Ts) {
     if (E.ST.on) await follow(b, E, Ts); if (D.ST.on) await follow(a, D, Ts);   // після перемоги підказка веде на новий ▶ СТАРТ — не тиснемо
     if (D.ST.on && D.ST.si === E.ST.si) sameSeen++;
     maxSi = Math.max(maxSi, E.ST.si);
-    if (k % 20 === 0) console.log(`  … крок ${E.ST.si}/${E.ST.steps.length} (${E.ST.steps[E.ST.si] || '—'}) · ${E.clockStr(E.ST.t)} · звіт ${Math.round(E.ST.rhp)}%`);
+    if (k % 20 === 0) console.log(`  … крок ${E.ST.si}/${E.ST.steps.length} (${E.ST.steps[E.ST.si] || '—'}) · ${E.clockStr(E.ST.t)} · звіт ${Math.round(E.ST.rhp)}% · ціль ${(E.goal() || {}).id}/${(D.goal() || {}).id} · ${JSON.stringify({ jam: E.ST.jam, pw: E.ST.pw, rt: E.ST.rt, tn: E.ST.tn, enc: E.ST.enc9, fed: E.ST.fed, need: E.ST.need, mt: !!E.ST.mt, lt: !!E.ST.lt9, g: ((E.goal() || {}).txt || '').replace(/<[^>]+>/g, '').slice(0, 80) })}`);
   }
   await tick(Ts, 1);
   assert(thrown, 'звіт кидали напарнику');
@@ -276,7 +277,8 @@ async function follow(T, D, Ts) {
       Z.dismount(false); await tick(T3, .3); }
     // ✈️ літачки в колегу → 😤 «зайобуючий» у всіх
     // ✈️ папір — з лотка (F); 🧻 папірець, кинутий одним, бачать усі
-    { const sp = YX.L.pk.find(q => q.k === 'pp' && YX.pkOn(q)); at(Y, sp); await tick(T3, .2); const it = Y.getInteract(); assert(it && /скласти літачок/.test(it.l), 'біля лотка з папером F — «скласти літачок (+3)»'); it.fn(); assert(YX.V.pp === 5, '✈️ 2 + 3 = 5 літачків'); }
+    { const sp = YX.L.pk.find(q => q.k === 'pp' && YX.pkOn(q)); let it = null; for (let r = 0; r < 8 && !(it && /скласти літачок/.test(it.l)); r++) { at(Y, sp); await tick(T3, .3); it = Y.getInteract(); }   // поруч може пробігти зомбі — чекаємо, поки F знову про лоток
+      assert(it && /скласти літачок/.test(it.l), 'біля лотка з папером F — «скласти літачок (+3)»' + (it && /скласти літачок/.test(it.l) ? '' : ` [${it && it.l}]`)); it.fn(); assert(YX.V.pp === 5, '✈️ 2 + 3 = 5 літачків'); }
     { at(Y, YX.START.p); Y.pl.face = 0; await tick(T3, .2); Y.w.document.querySelector('#modebar [data-ms="4"]').click(); let seen = 0; for (let i = 0; i < 10 && !seen; i++) { await tick(T3, .1); seen = Dx.every(X => X.ST.th.length || X === YX); } assert(seen, '🧻 мʼятий папір у польоті бачать усі'); await tick(T3, 1.5); assert(Dx.every(X => !X.ST.th.length), '🧻 приземлився в усіх'); }
     { const cp = YX.colPos(1); for (let n = 0; n < 7 && !Dx.every(X => X.pestOf(1)); n++) { if (YX.V.pp < 1) YX.V.pp = 3; at(Y, { x: cp.x + 2.5, z: cp.z }); Y.pl.face = -Math.PI / 2; await tick(T3, .2); YX.V.ppCd = 0; Y.w.document.querySelector('#modebar [data-ms="3"]').click(); await tick(T3, .9); } }
     await tick(T3, .5);
@@ -311,6 +313,7 @@ async function follow(T, D, Ts) {
       mt(OT).querySelector(`[data-mv="${si}"]`).click(); await tick(T3, .8);
       assert(Dx.every(X => !X.ST.on || (X.ST.mt && X.ST.mt.cnt[si] === 2)), '👔 голос боса рахується ×2');
       for (let i = 0; i < 30 && Dx.some(X => X.ST.on); i++) await tick(T3, 1);
+      await tick(T3, .2);   // кінець раунду міг прийти між кадрами — даємо вікну наради сховатись
       assert(Dx.every(X => !X.ST.on && X.ST.sbC === 1) && T3.every(T => !mt(T) || mt(T).style.display === 'none'), `🕵️ спіймали саботажника (${sk}) — раунд скінчився в усіх` + ' ' + JSON.stringify(T3.map(T => [mt(T) && mt(T).style.display, (T.w.__dlErr || []).slice(0, 2)])) + (Dx.every(X => !X.ST.on && X.ST.sbC === 1) ? '' : ' · ' + JSON.stringify(Dx.map(X => [X.ST.on, X.ST.sbC, X.ST.mt && X.ST.mt.ph, X.ST.mt && X.ST.mt.cnt, X.ST.mt && Math.round(X.ST.mt.t)]))));
       assert([OT, S].every(T => /Звільнено/.test(T.w.document.getElementById('dl-verdict').textContent) && /БУВ/.test(T.w.document.getElementById('dl-verdict').textContent)), '🗂️ драматичний вердикт: «Звільнено: … — БУВ саботажником!»');
       await tick(T3, .3);

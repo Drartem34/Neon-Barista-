@@ -745,7 +745,7 @@ const AU = { chaosT: 25, jamP: .45, boomP: .3, jammed: 0, boomed: 0, pwT: 0, rai
 const TEAM = 5, LEFT_OUT = 25;                                                   // онлайн: хто не готовий 25 с після заповнення — стартуємо без нього
 const BOTN = ['Кент', 'Віта', 'Толік', 'Оксана', 'Стас', 'Люда', 'Гена', 'Ірина', 'Петро', 'Зоя'];
 const fastLobby = () => !SIMSIDE && typeof window !== 'undefined' && !!window.__deadlineFastLobby;   // тестовий гачок: кроки по 0,2 с
-const FILL1 = () => fastLobby() ? .2 : 4, FILLN = () => fastLobby() ? .2 : 2.5, CDN = () => fastLobby() ? .4 : 3;
+const FILL1 = () => fastLobby() ? .2 : 4, FILLN = () => fastLobby() ? .2 : 2.5, CDN = () => fastLobby() ? 1 : 3;
 const TUBE_T = 2.6;
 const DUR = 420, T0 = 17 * 3600 + 53 * 60;                                   // раунд 7 хв: з 17:53:00 до 18:00
 const myKey = () => (NET.on && typeof WORLD !== 'undefined' && WORLD.on ? myName() : 'me');
@@ -2561,7 +2561,9 @@ getInteract = function () {
   if (!SIMSIDE && running && !pl.dead && inOffice(pl.x, pl.z) && !pl.carry && !pl.ride) {
     const near = (o, r) => dist2(pl.x, pl.z, o.x, o.z) < r, h = myHeld(), s = cur();
     if (V.act) return { l: `${V.act.ic} ${V.act.l}… ${Math.min(100, Math.round(V.act.t / V.act.need * 100))}%`, fn: () => { } };
-    if (ST.on) for (const z of ST.zom) if (z.stun <= 0 && near(z, 1.9)) {
+    // біля свого ПК (і в боса біля його столу) — сісти важливіше, ніж прогнати зомбі без паперів (🗣️ є й на панелі)
+    const atPc = ST.on && (V.boss7 && near(BOSS_DESK, 1.9) || (() => { const q = typeof myDesk9 === 'function' && myDesk9(myKey()); return !!(q && near(chair9(q), 1.3)); })());
+    if (ST.on) for (const z of ST.zom) if (z.stun <= 0 && near(z, 1.9) && (z.carry || !atPc)) {
       if (z.carry && z.carry.it === 'report') return { l: '🪠 Вантузом його — хай виплюне звіт!', fn: () => firePlunger(z) };
       return { l: z.carry ? `🧟 Відібрати ${ITEM[z.carry.it].ic}: «Це можна було листом!»` : '🗣️ «Це можна було листом!» (прогнати зомбі)', fn: () => req('shoo', { id: z.id }) };
     }
@@ -2670,6 +2672,7 @@ if (!SIMSIDE && typeof scheduleStep === 'function') {
     if (s % tickEvery === 0 && typeof tone === 'function') tone(t, LAYER.drums, 'square', (s / tickEvery) % 2 ? 1500 : 2100, 0, .018, ST.on ? .05 : .025);
     if ([2, 7, 10, 14].includes(s) && Math.random() < (lvl ? .45 : .3)) (lvl === 2 ? marimba : steel)(t, pick(JMEL) - (lvl === 2 ? 3 : 0), .04);
     if (lvl === 1 && bar % 4 === 2 && s === 8) leadNote(t, ch[3] + 12, STEP * 6, .03);
+    if (lvl === 1 && ST.t >= 180) { if (s % 4 === 2) hat(t, .02, false); if (s === 10 && bar % 2) steel(t, ch[2] + 12, .035); }   // 🍽️ обід: шейкер і дзвіночки — офіс гуде
     if (lvl === 2) hat(t, .025, false);
     if (lvl === 2 && s % 2 === 0) pulse(t, root + 24 + (s % 8 === 6 ? 6 : 0), STEP * .9, .05);
   };
@@ -4564,7 +4567,7 @@ function osDrop(f, d) {
   const ok = (f.t === 'rep' && d === 'rep') || (f.t === 'inv' && d === 'inv') || (f.t === 'meme' && d === 'bin');
   if (ok) { f.at = d; sfx('tick'); O.msg = `${f.ic} ${escapeHTML(f.n)} → ${OSDIR[d][1]}`; }
   else { sfx('hurt'); O.msg = f.t === 'meme' && d === 'memes' ? '😅 Мемчики — лише в кошик! Це робочий ПК.' : `❌ «${escapeHTML(f.n)}» не туди!`; }
-  if (O.files.every(q => q.at)) { req('os9', { j: 'files' }); O.msg = '📂 Усе розкладено!'; }
+  if (O.files.every(q => q.at)) { req('os9', { j: 'files' }); V.osPend = { o: { j: 'files' }, t: gameTime, n: 0 }; O.msg = '📂 Усе розкладено!'; }
   V.osSig = ''; osDraw();
 }
 function osClick(ev) {
@@ -4630,7 +4633,8 @@ function sit9(q) {
   osOpen(q[4] ? 'boss' : 'own');
 }
 function stand9() {
-  if (!V.sit9) return; V.sit9 = null; osClose(); req('sit9', { on: 0 });
+  if (!V.sit9) { if (ST.st9.includes(myKey())) req('sit9', { on: 0 }); return; }   // сервер ще вважає, що сидимо, — виправляємо
+  V.sit9 = null; osClose(); req('sit9', { on: 0 });
   if (typeof hero !== 'undefined' && hero) { hero.body.position.y = 0; hero.l1.rotation.x = hero.l2.rotation.x = 0; }
 }
 { const _fsm9 = funSpeedMul; funSpeedMul = function () { const m = _fsm9.apply(this, arguments); return V.sit9 || V.os9 ? 0 : m; }; }
@@ -4665,6 +4669,7 @@ function onEvent9(e, here, nm) {
   }
   if (k === 'os9') {
     if (!to) return true;
+    if (V.osPend && V.osPend.o.j === e.j) V.osPend = null;
     if (e.ok) { V.osDone9[e.j] = 1; toast(`${OSJ[e.j][0]} ${OSJ[e.j][1]} — готово! +${e.s} с до дедлайну${e.dat ? ' · 📄 аркуш із даними вже біля принтера — підбери й поклади в лоток!' : ''}`); sfx('level'); osMsg(`✅ +${e.s} с`); }
     else osMsg(e.j === 'print' ? (e.why === 'pr' ? '🖨️ Не той принтер!' : e.why === 'n' ? `🖨️ Шеф просив ${osCopies()} копії!` : '🖨️ Принтер поверху не друкує (світло / роутер / зажований).') : e.j === 'mail' ? '😱 Лист директора видалено — шеф помітив: −5 с' : '😬 Невдала відповідь — спробуй за 10 с.');
     return true;
@@ -4705,6 +4710,8 @@ function deskMesh(q) {
 }
 const sitPose = (h, on) => { if (!h) return; h.body.position.y = on ? -.38 : 0; if (on) { h.l1.rotation.x = h.l2.rotation.x = -1.45; h.aL.rotation.x = h.aR.rotation.x = -1.1 + Math.sin(gameTime * 14) * .08; } };
 function client9(dt) {
+  // онлайн: якщо сервер не відповів на завершене завдання ОфісOS (запит загубився чи позиція ще не дійшла) — повторюємо до 3 разів
+  if (V.osPend && gameTime - V.osPend.t > 1.5) { if (V.osPend.n++ < 3 && V.sit9 && ST.on) { V.osPend.t = gameTime; req('os9', V.osPend.o); } else V.osPend = null; }
   if (ST.rid !== V.rid9) { V.rid9 = ST.rid; V.bu9 = -1; V.pwK = ''; V.osDone9 = {}; V.bcd9 = 0; if (V.sit9) stand9(); if (V.os9) osClose(); }
   const vis = running && !panel && inOffice(pl.x, pl.z) && ST.on;
   // столи: перебудувати, коли змінився розклад
@@ -5336,7 +5343,12 @@ function aiSnapshot(n) {
 window.__deadlineAI = {
   snapshot: aiSnapshot,
   bots: () => ST.bt.map(b => ({ n: b.n, ai: !!b.aic, x: b.x, z: b.z, room: (roomAt(b.x, b.z) || {}).n || '' })),
-  act: (n, it) => { if (!it || !it.k) return; req('ai', { n: String(n), it }); },
+  act: (n, it) => {
+    if (!it || !it.k) return;
+    // 🧠 «ctl» без змін не шлемо щокадру (ліміт сервера — 12 повідомлень/с на гравця; інакше губляться справжні запити гравця)
+    if (it.k === 'ctl') { const on = it.on ? 1 : 0, c = AIH.ctl = AIH.ctl || {}, l = c[n]; if (l && l.on === on && (!on || gameTime - l.t < 15)) return; c[n] = { on, t: gameTime }; it = { k: 'ctl', on }; }
+    req('ai', { n: String(n), it });
+  },
   talk: (n, txt) => { const t = aiTxt(txt); if (t) req('aitalk', { n: String(n), txt: t }); },
   listen: fn => { AIH.fns.push(fn); },
   events: () => AIH.ev.slice(), inbox: AIH.inbox,
